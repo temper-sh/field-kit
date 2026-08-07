@@ -4,7 +4,7 @@
 # it serves, soak it, measure it, and produce one paste-able report block.
 #
 #   ./probe.sh run                  guided: all stages, asking before each cost
-#   ./probe.sh <stage>              re-enter one stage: fetch | preflight |
+#   ./probe.sh <stage>              re-enter one stage: preflight | fetch |
 #                                   install | verify | fit | perf | report | cleanup
 #   ./probe.sh perf --ab            add the two-engine A/B (extra ~16GB download)
 #   ./probe.sh deviation "<text>"   record an intervention (agents: MANDATORY
@@ -175,9 +175,11 @@ stage_fetch() {
 
 # ── preflight ────────────────────────────────────────────────────────────────
 stage_preflight() {
-    [ -x "$STACK/scripts/machine-report.sh" ] || die "no stack/ — run: ./probe.sh fetch"
+    # The kit ships its own machine-report.sh (distribution copy — canonical
+    # in the stack repo), so preflight needs no stack clone: a below-minimum
+    # machine stops before anything is fetched.
     report_section "machine"
-    bash "$STACK/scripts/machine-report.sh" > "$RESULTS/machine-report.txt"
+    bash "$KIT_ROOT/machine-report.sh" > "$RESULTS/machine-report.txt"
     cat "$RESULTS/machine-report.txt"
     report_file "machine-report.sh" "$RESULTS/machine-report.txt"
 
@@ -652,8 +654,8 @@ stage_cleanup() {
 }
 
 stage_run() {
-    stage_fetch
     stage_preflight
+    stage_fetch
     stage_install
     stage_verify
     stage_fit

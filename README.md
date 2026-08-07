@@ -13,9 +13,16 @@ added.
 
 ## Before anything: the 10-second check
 
-Your friend probably already sent you `machine-report.sh` — a single file
-that installs nothing and writes nothing. If your machine reports *below the
-32GB minimum*, stop here; the full probe has nothing to measure yet.
+`machine-report.sh` in this repo installs nothing, writes nothing, and needs
+no clone — grab the one file and run it:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/temper-sh/field-kit/master/machine-report.sh
+bash machine-report.sh
+```
+
+Send the block it prints back either way. If it reports *below the 32GB
+minimum*, stop here; the full probe has nothing to measure yet.
 
 ## Requirements
 
@@ -27,9 +34,13 @@ that installs nothing and writes nothing. If your machine reports *below the
 ## Run it
 
 ```bash
-git clone <this-repo> field-kit && cd field-kit
-FIELD_KIT_STACK_REPO=<local-ai-setup git URL or a path to a copy> ./probe.sh run
+git clone https://github.com/temper-sh/field-kit.git && cd field-kit
+FIELD_KIT_STACK_REPO=<the stack's git URL, or a path to a copy> ./probe.sh run
 ```
+
+The stack repo isn't public yet, so `FIELD_KIT_STACK_REPO` is whatever your
+friend gives you — a private URL, or a folder copied onto a drive alongside
+the weights.
 
 `probe.sh run` walks the stages below, stating each cost and asking before
 proceeding. Every stage is also its own subcommand (`./probe.sh verify`), so

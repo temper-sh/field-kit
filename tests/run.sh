@@ -134,5 +134,17 @@ hdr "check 6 — consent refuses to guess in non-interactive runs"
 ) && bad "consent proceeded without a terminal or FIELD_KIT_YES" \
   || ok "consent dies without a terminal unless FIELD_KIT_YES=1"
 
+hdr "check 7 — the bundled machine-report runs bare and matches the stack formula"
+env -i HOME="$W" PATH=/usr/bin:/bin:/usr/sbin bash "$KIT/machine-report.sh" > "$W/mr.txt" 2>&1 \
+    && ok "runs with a bare PATH and empty environment" \
+    || bad "needs something a stock Mac does not have: $(tail -2 "$W/mr.txt")"
+# Pin the wired-limit formula (min of 75% and RAM-8GB, floored to a GB) so a
+# stale distribution copy fails here instead of misleading a friend. 48GB is
+# the case the two rules disagree on: 36864, not 40960.
+LOCALAI_MEMSIZE_BYTES=$((48 * 1073741824)) bash "$KIT/machine-report.sh" > "$W/mr48.txt" 2>&1
+grep -q 'would set 36864 MB' "$W/mr48.txt" \
+    && ok "48GB wired-limit target is 36864 (75% rule binds)" \
+    || bad "formula drifted from the stack: $(grep 'would set' "$W/mr48.txt")"
+
 printf '\n\033[1m%d passed, %d failed\033[0m\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

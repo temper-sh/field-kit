@@ -23,6 +23,11 @@ into `stack/` here at probe time — that clone is disposable, never edited).
 
 ## Contracts that must not drift
 
+- `machine-report.sh` here is the **distribution copy**; the canonical file
+  is the stack repo's `scripts/machine-report.sh` (its check 20). Sync by
+  hand when the stack's changes; this repo's tests pin the wired-limit
+  formula so drift fails loudly. Preflight runs this copy, deliberately
+  before any stack fetch.
 - `probe-results/provenance.txt` format (`<kind> <name> <present|absent>`)
   is consumed by the stack's `scripts/uninstall.sh` — change it only in
   both places (stack offline check 21 tests the consumer).
