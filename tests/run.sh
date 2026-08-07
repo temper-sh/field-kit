@@ -165,5 +165,32 @@ hdr "check 8 — bandwidth table and chip-generation detection"
 ) && ok "estimates match public specs per tier; pre-M5 detection correct" \
   || bad "bandwidth/chip logic wrong (marker above)"
 
+hdr "check 9 — in-flight fraction tuning edits the value, nothing else"
+(
+    set -e
+    export FIELD_KIT_LIB_ONLY=1
+    # shellcheck disable=SC1091
+    . "$KIT/probe.sh"
+    cat > "$W/tune-manifest.yaml" <<'EOF'
+#   gpu_memory_utilization   override defaults.gpu_memory_utilization
+defaults:
+  ttl: 600
+models:
+  - id: coder
+    gpu_memory_utilization: 0.85
+EOF
+    manifest_set_fraction "$W/tune-manifest.yaml" 0.74
+    grep -q 'gpu_memory_utilization: 0.74' "$W/tune-manifest.yaml" || { echo "value not set"; exit 1; }
+    grep -q '^#   gpu_memory_utilization   override' "$W/tune-manifest.yaml" || { echo "comment mangled"; exit 1; }
+    [ "$(grep -c '0.74' "$W/tune-manifest.yaml")" = "1" ] || { echo "wrong line count"; exit 1; }
+    ( manifest_set_fraction "$W/tune-manifest.yaml" 74 2>/dev/null ) && { echo "bad input accepted"; exit 1; }
+    # the tune label reaches the per-measurement conditions line
+    RESULTS="$W/tune-results"; STATE="$RESULTS/state"
+    state_set tune_label tune2
+    conditions_line | grep -q 'tune=tune2' || { echo "conditions missing tune"; exit 1; }
+    exit 0
+) && ok "fraction edit is surgical, bad input refused, tune label stamps conditions" \
+  || bad "tune logic wrong (marker above)"
+
 printf '\n\033[1m%d passed, %d failed\033[0m\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

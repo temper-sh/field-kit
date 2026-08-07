@@ -43,6 +43,12 @@ into `stack/` here at probe time — that clone is disposable, never edited).
   table is only the estimate), and pre-M5 machines are steered toward
   `perf --ab`. The kit tests *mechanical* tuning only — it can rule a
   candidate out, never in; model/quant quality stays an owner decision.
+- **In-flight tuning** goes through `probe.sh tune` only (fraction, or a
+  whole candidate manifest), re-rendered through the stack's config parse
+  gate, labeled `tuneN` in every subsequent conditions line. Editing the
+  *clone's* models.yaml is sanctioned because the clone is disposable —
+  the stack's ground rule 6 (never mechanically rewrite the manifest)
+  protects the owner's hand-edited file, and that boundary must hold.
 
 ## Testing
 

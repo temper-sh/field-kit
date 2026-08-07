@@ -7,6 +7,10 @@
 #   ./probe.sh <stage>              re-enter one stage: preflight | fetch |
 #                                   install | verify | fit | perf | report | cleanup
 #   ./probe.sh perf --ab            add the two-engine A/B (extra ~16GB download)
+#   ./probe.sh tune --fraction 0.NN in-flight tuning: set the GPU utilization
+#   ./probe.sh tune <models.yaml>     fraction, or swap in a new candidate
+#                                     manifest — recorded, re-rendered through
+#                                     the stack's parse gate, then re-measure
 #   ./probe.sh deviation "<text>"   record an intervention (agents: MANDATORY
 #                                   after any fix you make — see AGENT.md)
 #   ./probe.sh serve-stop           stop the foreground llama-swap, if running
@@ -152,7 +156,8 @@ wall_now() {
     fi
 }
 conditions_line() { # every measurement records what it ran under
-    printf 'wall=%s swap=%sMB' "$(wall_now)" "$(swap_used_mb)"
+    printf 'wall=%s swap=%sMB tune=%s' "$(wall_now)" "$(swap_used_mb)" \
+        "$(state_get tune_label 2>/dev/null || printf 'default')"
 }
 
 manifest_coder() {
@@ -323,6 +328,9 @@ stage_install() {
         cp "$FIELD_KIT_MANIFEST" "$STACK/models.yaml"
         report_section "candidate manifest"
         report_line "$(basename "$FIELD_KIT_MANIFEST") (sha256 $(shasum -a 256 "$FIELD_KIT_MANIFEST" | cut -c1-12)) replaced the stack default"
+        state_set tune_label candidate
+    else
+        state_set tune_label default
     fi
     _hub="${HF_HUB_CACHE:-${HF_HOME:-$HOME/.cache/huggingface}/hub}"
     _coder_repo="$(grep -E '^[[:space:]]+repo:' "$STACK/models.yaml" | head -1 \
@@ -677,6 +685,61 @@ stage_perf_ab() {
     ensure_serving
 }
 
+# ── tune (in-flight, recorded) ───────────────────────────────────────────────
+# The sanctioned mid-probe levers — PLAN §9's *mechanical* parameters, so a
+# failed fit soak can become a tuning answer in the same visit (the FINDINGS
+# #16 ladder: 0.85 → ≤0.74). Tuning is never silent: each application gets a
+# numbered label, lands in the report's tuning section, and every subsequent
+# measurement carries it via conditions_line. Editing the clone's manifest is
+# allowed precisely because it is disposable — the stack's ground rule 6
+# protects the owner's hand-edited file, not this copy.
+manifest_set_fraction() { # $1 = manifest, $2 = new fraction
+    case "$2" in
+        0.[0-9]|0.[0-9][0-9]) ;;
+        *) die "fraction must look like 0.NN (got '$2')" ;;
+    esac
+    sed -i '' "s/^\([[:space:]]*gpu_memory_utilization:[[:space:]]*\)[0-9.][0-9.]*/\1$2/" "$1"
+    grep -q "gpu_memory_utilization: $2" "$1" \
+        || die "manifest has no gpu_memory_utilization line to tune"
+}
+
+stage_tune() {
+    [ -f "$STACK/models.yaml" ] || die "no stack/ — run: ./probe.sh fetch"
+    _n="$(state_get tune_n 2>/dev/null || printf 0)"
+    _n=$((_n + 1))
+    cp "$STACK/models.yaml" "$RESULTS/models.pre-tune-$_n.yaml"
+    case "${1:-}" in
+        --fraction)
+            [ -n "${2:-}" ] || die "usage: probe.sh tune --fraction 0.NN | tune <candidate.yaml>"
+            _old="$(grep -m1 '^[[:space:]]*gpu_memory_utilization:' "$STACK/models.yaml" | awk '{print $2}')"
+            manifest_set_fraction "$STACK/models.yaml" "$2"
+            _desc="fraction ${_old:-?} -> $2"
+            ;;
+        "")
+            die "usage: probe.sh tune --fraction 0.NN | tune <candidate.yaml>"
+            ;;
+        *)
+            [ -f "$1" ] || die "candidate manifest not found: $1"
+            cp "$1" "$STACK/models.yaml"
+            _desc="manifest $(basename "$1") (sha256 $(shasum -a 256 "$1" | cut -c1-12))"
+            ;;
+    esac
+    say "  re-rendering configs (the stack's parse gate vets the change)…"
+    if ! ( cd "$STACK" && LOCALAI_SKIP_LAUNCHCTL=1 ./setup.sh --only configs ) \
+            > "$RESULTS/tune-$_n.txt" 2>&1; then
+        cp "$RESULTS/models.pre-tune-$_n.yaml" "$STACK/models.yaml"
+        report_line "tune #$_n REJECTED by the config gate ($_desc) — manifest restored"
+        die "config re-render refused the change — tail $RESULTS/tune-$_n.txt"
+    fi
+    state_set tune_n "$_n"
+    state_set tune_label "tune$_n"
+    grep -q '^## tuning' "$REPORT" 2>/dev/null || report_section "tuning"
+    report_line "- tune #$_n: $_desc"
+    serve_stop
+    ensure_serving
+    result tune ok "#$_n $_desc — now re-run the stage that prompted it"
+}
+
 # ── report / deviation / cleanup ─────────────────────────────────────────────
 stage_report() {
     [ -f "$REPORT" ] || die "no report yet — run some stages first"
@@ -751,6 +814,7 @@ case "${1:-}" in
     verify)     stage_verify ;;
     fit)        stage_fit ;;
     perf)       shift; stage_perf "$@" ;;
+    tune)       shift; stage_tune "$@" ;;
     report)     stage_report ;;
     cleanup)    stage_cleanup ;;
     deviation)  shift; stage_deviation "$@" ;;

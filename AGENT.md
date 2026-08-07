@@ -11,7 +11,9 @@ make results look better.
 
 - A failing check is a **result**. Record it, continue. Do not retry it
   until it passes, do not adjust flags, do not edit any file in `stack/` or
-  in this kit to make it pass.
+  in this kit to make it pass. The one sanctioned way to change what is
+  being measured is `./probe.sh tune` (its own section below) — explicit,
+  recorded, and followed by a re-measure.
 - An engine crash during the fit soak **is the datapoint the soak exists to
   catch**. Do not restart-and-hope; the stage records it and continues.
 - Environment problems are yours to fix: a full disk, a stuck download, a
@@ -60,6 +62,27 @@ rather than assumes. Ask the human, then pass their answer:
 - **anything `sudo`** — the kit and the stack only ever *print* sudo
   commands. Relay them to the human verbatim. Never execute them yourself,
   even if you have the permission to.
+
+## Tuning in flight
+
+When a stage's result points at a known tuning lever — the classic case is
+fit-soak aborts, whose documented ladder is lowering the GPU utilization
+fraction — the probe can be tuned mid-visit instead of ending the session
+with only a failure:
+
+```bash
+./probe.sh tune --fraction 0.74     # the FINDINGS #16 lever
+./probe.sh tune candidate.yaml      # a manifest the owner sent
+./probe.sh fit                      # ALWAYS re-run the stage that prompted it
+```
+
+Rules: **propose it, get the human's yes, run it, re-measure.** Only these
+levers — inventing other flag edits stays forbidden. Prior results are
+never deleted; every measurement line already records which tune it ran
+under, so iterations sit side by side in the report. A tune that the
+stack's config gate rejects restores the previous manifest and is itself
+recorded. Tuning is not an environment fix — it does not go through
+`deviation`, it has its own section in the report.
 
 ## Stay idle during timing windows
 

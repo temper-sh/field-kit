@@ -65,6 +65,11 @@ tuned for your machine's class), pass it as
 `FIELD_KIT_MANIFEST=path/to/models.yaml` — the probe installs and measures
 that instead of the default, and the report names it.
 
+If a stage fails, your friend may also ask you to adjust one knob and
+repeat it — `./probe.sh tune --fraction 0.74`, then re-run the stage (or
+`./probe.sh tune new-file.yaml` for a fresh candidate). Every adjustment
+and every re-run is recorded side by side; nothing is overwritten.
+
 ## Skipping the big download
 
 If your friend hands you the weights on a drive, copy the model folders
