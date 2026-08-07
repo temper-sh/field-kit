@@ -56,7 +56,14 @@ an interrupted probe resumes where it stopped.
 | cleanup | your keep-or-restore choice, executed | — |
 
 `./probe.sh perf --ab` adds an optional second-engine comparison: an extra
-~16GB download and 1–2 hours. Only say yes if you mean it.
+~16GB download and 1–2 hours. Only say yes if you mean it — though if your
+Mac is older than an M5, this is the run your machine is uniquely placed to
+answer, and the probe will say so.
+
+If your friend sent a candidate configuration to test (a `models.yaml`
+tuned for your machine's class), pass it as
+`FIELD_KIT_MANIFEST=path/to/models.yaml` — the probe installs and measures
+that instead of the default, and the report names it.
 
 ## Skipping the big download
 

@@ -21,6 +21,10 @@
 #   FIELD_KIT_PORT          llama-swap port (default 8080)
 #   FIELD_KIT_SOAK_SECONDS  fit-stage soak duration (default 1200)
 #   FIELD_KIT_PROCEED_BELOW_MIN  1 = probe on despite a below-minimum bucket
+#   FIELD_KIT_MANIFEST      candidate models.yaml to probe INSTEAD of the
+#                           stack default — how per-bucket tuning gets tested
+#   FIELD_KIT_TURN_TIMEOUT  fit-stage per-turn wall budget in seconds
+#                           (default derives from the measured prefill speed)
 #
 # Ground rules, inherited from the stack repo: never sudo (commands are
 # printed for the human), never launchctl (llama-swap runs in the foreground;
@@ -155,6 +159,27 @@ manifest_coder() {
     yq -r '.models[] | select(.engine == "rapid-mlx") | .id' "$STACK/models.yaml" 2>/dev/null | head -1
 }
 
+chip_brand() { printf '%s' "${FIELD_KIT_CHIP:-$(sysctl -n machdep.cpu.brand_string 2>/dev/null || printf 'unknown')}"; }
+is_pre_m5() { case "$(chip_brand)" in *M5*) return 1 ;; *) return 0 ;; esac; }
+
+# Public-spec estimate by chip identity — the perf stage MEASURES the real
+# thing (decode on a memory-bound model ≈ bandwidth / weight bytes); this is
+# only the preflight expectation. "unknown" is fine: the measurement stands
+# on its own.
+bandwidth_estimate_gbs() {
+    _b="$(chip_brand)"
+    _tier=base
+    case "$_b" in *Ultra*) _tier=ultra ;; *Max*) _tier=max ;; *Pro*) _tier=pro ;; esac
+    case "$_b" in
+        *M1*) case "$_tier" in base) printf 68 ;; pro) printf 200 ;; max) printf 400 ;; ultra) printf 800 ;; esac ;;
+        *M2*) case "$_tier" in base) printf 100 ;; pro) printf 200 ;; max) printf 400 ;; ultra) printf 800 ;; esac ;;
+        *M3*) case "$_tier" in base) printf 100 ;; pro) printf 150 ;; max) printf 400 ;; ultra) printf 800 ;; esac ;;
+        *M4*) case "$_tier" in base) printf 120 ;; pro) printf 273 ;; max) printf 546 ;; ultra) printf 546 ;; esac ;;
+        *M5*) case "$_tier" in base) printf 153 ;; *) printf 'unknown' ;; esac ;;
+        *) printf 'unknown' ;;
+    esac
+}
+
 # ── fetch ────────────────────────────────────────────────────────────────────
 stage_fetch() {
     report_init
@@ -182,6 +207,13 @@ stage_preflight() {
     bash "$KIT_ROOT/machine-report.sh" > "$RESULTS/machine-report.txt"
     cat "$RESULTS/machine-report.txt"
     report_file "machine-report.sh" "$RESULTS/machine-report.txt"
+    _bw="$(bandwidth_estimate_gbs)"
+    report_line ""
+    report_line "bandwidth estimate: ~${_bw} GB/s (chip identity, public specs — the perf stage measures the real thing)"
+    note "bandwidth estimate ~${_bw} GB/s"
+    if is_pre_m5; then
+        note "pre-M5 chip: the two-engine A/B (perf --ab) is where this machine's data matters most"
+    fi
 
     _fail=""
     # A thrashing box pollutes every number after this point (FINDINGS #19).
@@ -282,6 +314,16 @@ summary_of() { # $1 = captured setup output → the counts line
 stage_install() {
     [ -f "$STACK/setup.sh" ] || die "no stack/ — run: ./probe.sh fetch"
     require_contract
+    # Per-bucket tuning gets tested by probing a CANDIDATE manifest instead
+    # of the stack default. The stack clone is disposable, so overwriting
+    # its models.yaml is the supported move — and the report says which
+    # manifest every number belongs to.
+    if [ -n "${FIELD_KIT_MANIFEST:-}" ]; then
+        [ -f "$FIELD_KIT_MANIFEST" ] || die "FIELD_KIT_MANIFEST not found: $FIELD_KIT_MANIFEST"
+        cp "$FIELD_KIT_MANIFEST" "$STACK/models.yaml"
+        report_section "candidate manifest"
+        report_line "$(basename "$FIELD_KIT_MANIFEST") (sha256 $(shasum -a 256 "$FIELD_KIT_MANIFEST" | cut -c1-12)) replaced the stack default"
+    fi
     _hub="${HF_HUB_CACHE:-${HF_HOME:-$HOME/.cache/huggingface}/hub}"
     _coder_repo="$(grep -E '^[[:space:]]+repo:' "$STACK/models.yaml" | head -1 \
         | sed 's/.*repo:[[:space:]]*"\{0,1\}//; s/"\{0,1\}[[:space:]]*$//; s/:[^/]*$//')"
@@ -433,6 +475,7 @@ EOF
 $(ctx_probe "$_coder" "run-$$-$(date +%s)-b $_prompt")
 EOF
     _tps="$(awk -v t="$_w1" -v p="$_p1" 'BEGIN{ if (t+0 > 0) printf "%.0f", p/t; else print "?" }')"
+    state_set ctx_prefill_tps "$_tps"
     report_line ""
     report_line "context probe: ${_p1} tokens prefilled in ${_w1}s (~${_tps} tok/s); second run ${_w2}s ($(conditions_line))"
     note "context probe: ${_p1} tok in ${_w1}s (~${_tps} tok/s), second ${_w2}s"
@@ -458,6 +501,22 @@ stage_fit() {
     report_line "conditions: $(conditions_line), soak ${SOAK_SECONDS}s"
 
     _coder="$(manifest_coder)"
+    # Per-turn wall budget. A slow chip legitimately needs longer at 19k
+    # tokens, and a timeout here must never masquerade as an abort — derive
+    # the budget from the prefill speed verify measured, clamped to
+    # [600, 1800]s; FIELD_KIT_TURN_TIMEOUT overrides.
+    _vtps="$(state_get ctx_prefill_tps || true)"
+    _turn_budget="${FIELD_KIT_TURN_TIMEOUT:-}"
+    if [ -z "$_turn_budget" ]; then
+        if [ -n "${_vtps:-}" ] && [ "${_vtps%.*}" -gt 0 ] 2>/dev/null; then
+            _turn_budget=$(( 19000 * 3 / 2 / ${_vtps%.*} + 180 ))
+            [ "$_turn_budget" -lt 600 ] && _turn_budget=600
+            [ "$_turn_budget" -gt 1800 ] && _turn_budget=1800
+        else
+            _turn_budget=600
+        fi
+    fi
+    report_line "per-turn budget: ${_turn_budget}s (from measured prefill ~${_vtps:-?} tok/s)"
     _ips_before="$RESULTS/ips-before.txt"
     find "$HOME/Library/Logs/DiagnosticReports" -maxdepth 1 -name 'Python-*.ips' 2>/dev/null \
         | sort > "$_ips_before" || true
@@ -478,7 +537,7 @@ stage_fit() {
             "documents": ["backoff with jitter", "the cat sat on the mat", "audit events are structured"]}' ) &
         _rr_pid=$!
         _out="$RESULTS/fit-turn.sse"
-        if ! curl -s -N -m 600 "$BASE/v1/chat/completions" -H 'Content-Type: application/json' \
+        if ! curl -s -N -m "$_turn_budget" "$BASE/v1/chat/completions" -H 'Content-Type: application/json' \
               -d "$_body" > "$_out" 2>&1; then
             _errors=$((_errors + 1))
             report_line "turn $_turns: curl failed ($(conditions_line))"
@@ -560,9 +619,21 @@ stage_perf() {
 
     _decode="$(awk -F'\t' '$2 ~ /^decode/ && $3 != "ERROR" {ms+=$3; tok+=$4; n++} END{ if (n && ms) printf "%.1f", tok*1000/ms; else print "?" }' "$RESULTS/ab-installed.tsv")"
     _prefill="$(awk -F'\t' '$2 == "prefill-cold" && $3 != "ERROR" {printf "%.0f", $5*1000/$3}' "$RESULTS/ab-installed.tsv")"
+    # Decode on a memory-bound model IS a bandwidth measurement: tok/s ×
+    # weight bytes ≈ effective GB/s. This is the number that buckets the
+    # machine on the bandwidth axis — the preflight table was the estimate.
+    _hub="${HF_HUB_CACHE:-${HF_HOME:-$HOME/.cache/huggingface}/hub}"
+    _crepo="$(yq -r '.models[] | select(.engine == "rapid-mlx") | .repo' "$STACK/models.yaml" 2>/dev/null | head -1 | sed 's/:[^/]*$//')"
+    _cmb="$(du -sm "$_hub/models--$(printf '%s' "$_crepo" | sed 's/\//--/')" 2>/dev/null | cut -f1)"
+    _eff="$(awk -v t="$_decode" -v mb="${_cmb:-0}" 'BEGIN{ if (t+0 > 0 && mb+0 > 0) printf "%.0f", t*mb/1024; else print "?" }')"
     report_line ""
     report_line "headline: decode ~${_decode} tok/s, cold prefill ~${_prefill:-?} tok/s, preload $(state_get preload_s || printf '?')s"
-    result perf ok "decode=${_decode} prefill=${_prefill:-?} tok/s (ab=$_ab)"
+    report_line "effective bandwidth: ~${_eff} GB/s (decode × ${_cmb:-?}MB of weights; preflight estimate was ~$(bandwidth_estimate_gbs) GB/s)"
+    if is_pre_m5 && [ "$_ab" = "0" ]; then
+        warn "pre-M5 chip without --ab: the engine-split question this machine could answer is still open"
+        report_line "**pre-M5 chip, no --ab run — the two-engine split for this bucket remains unmeasured; consider ./probe.sh perf --ab (extra ~16GB, human consent)**"
+    fi
+    result perf ok "decode=${_decode} prefill=${_prefill:-?} tok/s effbw=${_eff}GB/s (ab=$_ab)"
 
     say ""
     say "  every number above ran on: $(wall_now)."

@@ -146,5 +146,24 @@ grep -q 'would set 36864 MB' "$W/mr48.txt" \
     && ok "48GB wired-limit target is 36864 (75% rule binds)" \
     || bad "formula drifted from the stack: $(grep 'would set' "$W/mr48.txt")"
 
+hdr "check 8 — bandwidth table and chip-generation detection"
+(
+    set -e
+    export FIELD_KIT_LIB_ONLY=1
+    # shellcheck disable=SC1091
+    . "$KIT/probe.sh"
+    for pair in "Apple M1:68" "Apple M2 Pro:200" "Apple M3 Max:400" \
+                "Apple M4 Pro:273" "Apple M1 Ultra:800" "Apple M5:153" \
+                "Intel(R) Core(TM):unknown"; do
+        _chip="${pair%:*}"; _want="${pair##*:}"
+        _got="$(FIELD_KIT_CHIP="$_chip" bandwidth_estimate_gbs)"
+        [ "$_got" = "$_want" ] || { echo "$_chip -> $_got (want $_want)"; exit 1; }
+    done
+    FIELD_KIT_CHIP="Apple M4 Pro" is_pre_m5 || { echo "M4 should be pre-M5"; exit 1; }
+    if FIELD_KIT_CHIP="Apple M5" is_pre_m5; then echo "M5 is not pre-M5"; exit 1; fi
+    exit 0
+) && ok "estimates match public specs per tier; pre-M5 detection correct" \
+  || bad "bandwidth/chip logic wrong (marker above)"
+
 printf '\n\033[1m%d passed, %d failed\033[0m\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

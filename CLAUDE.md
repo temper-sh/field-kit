@@ -36,6 +36,13 @@ into `stack/` here at probe time — that clone is disposable, never edited).
 - Stack test harnesses the probe drives: `tests/runtime.sh`
   (`LOCAL_AI_BASE_URL`), `tests/perf.sh` (`LOCAL_AI_PERF_NO_RESTART`),
   `tests/engine-ab.sh` (`LOCAL_AI_AB_MODEL`, `AB_OUT`).
+- The probe is the **witness mechanism for per-bucket tuning** (stack PLAN
+  §9): buckets are RAM × chip generation × bandwidth; `FIELD_KIT_MANIFEST`
+  probes a candidate tuning, the report carries which manifest every number
+  belongs to, effective bandwidth is derived from decode (the preflight
+  table is only the estimate), and pre-M5 machines are steered toward
+  `perf --ab`. The kit tests *mechanical* tuning only — it can rule a
+  candidate out, never in; model/quant quality stays an owner decision.
 
 ## Testing
 
