@@ -505,10 +505,21 @@ ensure_serving() {
     say "  waiting for the coder to preload (first load reads ~15GB)…"
     # ready state required: the name alone appears in /running while the
     # model is still starting, which read a cold 15GB load as "2s".
+    _nudge_t=0
     until curl -s -m 5 "$BASE/running" \
         | jq -e --arg m "$_coder" 'any(.running[]?; .model == $m and .state == "ready")' >/dev/null 2>&1; do
         kill -0 "$_pid" 2>/dev/null || die "llama-swap exited during preload — tail $SWAP_LOG"
-        [ $(($(date +%s) - _t0)) -gt 900 ] && die "coder not resident after 900s — tail $SWAP_LOG"
+        _el=$(($(date +%s) - _t0))
+        [ "$_el" -gt 900 ] && die "coder not resident after 900s — tail $SWAP_LOG"
+        # llama-swap never retries a failed preload (seen twice: the fresh
+        # instance loads into the previous one's unreclaimed GPU memory,
+        # crashes once, and sits in error state). A real request is the only
+        # trigger that clears it — nudge once a minute until ready.
+        if [ $((_el - _nudge_t)) -ge 60 ]; then
+            _nudge_t=$_el
+            curl -s -m 55 -o /dev/null "$BASE/v1/chat/completions" -H 'Content-Type: application/json' \
+                -d "$(jq -n --arg m "$_coder" '{model:$m, max_tokens:1, messages:[{role:"user",content:"ok"}]}')" &
+        fi
         sleep 3
     done
     _elapsed=$(($(date +%s) - _t0))
