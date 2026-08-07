@@ -24,6 +24,9 @@
 #                           (non-interactive / agent-driven runs)
 #   FIELD_KIT_PORT          llama-swap port (default 8080)
 #   FIELD_KIT_SOAK_SECONDS  fit-stage soak duration (default 1200)
+#   FIELD_KIT_SOAK_EXTRACT  1 = fire a small extraction after each fit turn,
+#                           keeping the extractor cycling through the heavy
+#                           group during the soak (co-residency variant)
 #   FIELD_KIT_PROCEED_BELOW_MIN  1 = probe on despite a below-minimum bucket
 #   FIELD_KIT_MANIFEST      candidate models.yaml to probe INSTEAD of the
 #                           stack default — how per-bucket tuning gets tested
@@ -186,6 +189,10 @@ conditions_line() { # every measurement records what it ran under
 
 manifest_coder() {
     yq -r '.models[] | select(.engine == "rapid-mlx") | .id' "$STACK/models.yaml" 2>/dev/null | head -1
+}
+
+manifest_extractor() {
+    yq -r '.models[].id' "$STACK/models.yaml" 2>/dev/null | grep '^extract-' | head -1
 }
 
 chip_brand() { printf '%s' "${FIELD_KIT_CHIP:-$(sysctl -n machdep.cpu.brand_string 2>/dev/null || printf 'unknown')}"; }
@@ -564,6 +571,16 @@ stage_fit() {
     ( cd "$STACK" && scripts/gpu-budget.sh ) > "$RESULTS/gpu-budget.txt" 2>&1 || true
     report_file "gpu-budget.sh prediction" "$RESULTS/gpu-budget.txt"
     report_line "conditions: $(conditions_line), soak ${SOAK_SECONDS}s"
+    _extract=""
+    if [ "${FIELD_KIT_SOAK_EXTRACT:-0}" = "1" ]; then
+        _extract="$(manifest_extractor)"
+        if [ -n "$_extract" ]; then
+            report_line "soak shape: +one small extraction after each turn (FIELD_KIT_SOAK_EXTRACT=1, model $_extract) — the extractor stays cycling through the heavy group"
+        else
+            warn "FIELD_KIT_SOAK_EXTRACT=1 but the manifest has no extract- model — running the default shape"
+            report_line "FIELD_KIT_SOAK_EXTRACT=1 requested but no extract- model in the manifest — default shape"
+        fi
+    fi
 
     _coder="$(manifest_coder)"
     # Per-turn wall budget. A slow chip legitimately needs longer at 19k
@@ -591,7 +608,7 @@ stage_fit() {
     printf '[]' > "$_msgs"
     : > "$RESULTS/fit-decode.tsv"
     _t0=$(date +%s)
-    _turns=0; _errors=0; _resets=0; _max_pt=0
+    _turns=0; _errors=0; _resets=0; _max_pt=0; _extract_errors=0
     while [ $(($(date +%s) - _t0)) -lt "$SOAK_SECONDS" ]; do
         _turns=$((_turns + 1))
         jq --arg c "Section $_turns: $_filler Summarize the pipeline's failure handling in two sentences." \
@@ -637,6 +654,16 @@ stage_fit() {
                 _resets=$((_resets + 1))
             fi
         fi
+        if [ -n "$_extract" ]; then
+            _ebody="$(jq -n --arg m "$_extract" '{model:$m, temperature:0, max_tokens:128, messages:[
+                {role:"user", content:"Extract vendor and total as JSON from: Invoice INV-9(2) from Anvil Co, total 41.50 EUR."}]}')"
+            if ! curl -s -m 180 -o "$RESULTS/fit-extract.json" "$BASE/v1/chat/completions" \
+                  -H 'Content-Type: application/json' -d "$_ebody" \
+               || ! jq -e '.choices[0].message.content' "$RESULTS/fit-extract.json" >/dev/null 2>&1; then
+                _extract_errors=$((_extract_errors + 1))
+                report_line "turn $_turns: extract keep-alive failed ($(conditions_line))"
+            fi
+        fi
     done
 
     _soak_s=$(($(date +%s) - _t0))
@@ -658,10 +685,13 @@ stage_fit() {
         report_line "**decode spread exceeds 2× across turns — check the therm column first (a throttle explains it); a decline with therm=ok is the idle-decay signature (stack FINDINGS #17)**"
     fi
     report_line "abort evidence: ${_errors} broken turns, ${_ips_new:-0} new crash reports, ${_recovered:-0} upstream-disconnect recoveries"
-    if [ "$_errors" -eq 0 ] && [ "${_ips_new:-0}" = "0" ]; then
-        result fit ok "${_turns} turns, ${SOAK_SECONDS}s, zero aborts — prediction held"
+    [ -n "$_extract" ] && report_line "extract keep-alives: $((_turns - _extract_errors))/${_turns} clean"
+    _shape="rerank-only"
+    [ -n "$_extract" ] && _shape="rerank+extract"
+    if [ "$_errors" -eq 0 ] && [ "${_ips_new:-0}" = "0" ] && [ "$_extract_errors" -eq 0 ]; then
+        result fit ok "${_turns} turns, ${SOAK_SECONDS}s, shape=$_shape, zero aborts — prediction held"
     else
-        result fit fail "${_errors} broken turns, ${_ips_new:-0} crash reports in ${_turns} turns — compare with the gpu-budget prediction above"
+        result fit fail "${_errors} broken turns, ${_extract_errors} extract failures, ${_ips_new:-0} crash reports in ${_turns} turns, shape=$_shape — compare with the gpu-budget prediction above"
     fi
 }
 
