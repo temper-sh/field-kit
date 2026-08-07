@@ -801,8 +801,10 @@ stage_perf_ab() {
 
     say "  A/B arm: llama-server on :$_ab_port (pulls ~16GB on first run)…"
     serve_stop
-    # shellcheck disable=SC2086  # flags are a flat flag string by design
-    llama-server --port "$_ab_port" -hf "$_repo" $_flags > "$RESULTS/llama-arm.log" 2>&1 &
+    # eval, not word-splitting: the manifest's flag string carries its own
+    # shell quoting (--chat-template-kwargs '{...}'), and bare $_flags hands
+    # the quote characters to llama-server as JSON — it refuses to start.
+    eval "llama-server --port \"$_ab_port\" -hf \"$_repo\" $_flags" > "$RESULTS/llama-arm.log" 2>&1 &
     _lpid=$!
     _t0=$(date +%s)
     until curl -s -o /dev/null -m 2 "http://127.0.0.1:$_ab_port/health"; do
