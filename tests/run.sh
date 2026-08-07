@@ -228,6 +228,12 @@ hdr "check 11 — SSE tee and cheap system stats"
     : > "$W/sse-side.txt"
     printf 'no data lines here\n' | sse_tee_timing "$W/sse-side.txt" > /dev/null
     [ -s "$W/sse-side.txt" ] && { echo "sidecar written with no chunks"; exit 1; }
+    # role-only and usage-only chunks must not stamp — they bracket prefill
+    # and the trailer, not decode
+    : > "$W/sse-side.txt"
+    printf 'data: {"choices":[{"delta":{"role":"assistant","content":""}}]}\n\ndata: {"choices":[],"usage":{"completion_tokens":2}}\n' \
+        | sse_tee_timing "$W/sse-side.txt" > /dev/null
+    [ -s "$W/sse-side.txt" ] && { echo "sidecar stamped a contentless stream"; exit 1; }
     # Thermal/power read through a pmset shim: throttled and nominal.
     mkdir -p "$W/statbin"
     cat > "$W/statbin/pmset" <<'EOF'

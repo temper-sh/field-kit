@@ -245,8 +245,12 @@ decode_stats() {
 # bare-srand() call is awk's only portable clock; anything else forks a
 # process per chunk.
 sse_tee_timing() { # $1 = sidecar path; stdin -> stdout
+    # Only chunks with a non-empty content delta count: rapid-mlx sends an
+    # immediate first chunk before prefill starts, and the trailing usage
+    # chunk has no content — stamping either would fold prefill or trailer
+    # time into the decode window.
     awk -v side="$1" '
-        /^data: / && $0 !~ /\[DONE\]/ { if (!t0) { srand(); t0 = srand() } srand(); t1 = srand() }
+        /^data: / && /"content":"[^"]/ { if (!t0) { srand(); t0 = srand() } srand(); t1 = srand() }
         { print }
         END { if (t0) printf "%d %d\n", t0, t1 > side }'
 }
