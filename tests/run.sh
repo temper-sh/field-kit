@@ -290,9 +290,24 @@ hdr "check 12 — ceiling verdict and recorded conclusions"
     grep -q '0.85 aborts at >=12k' "$REPORT" || { echo "conclusion text missing"; exit 1; }
     grep -E -q '^\- [0-9]{2}:[0-9]{2} \[wall=.* tune=' "$REPORT" || { echo "no conditions stamp"; exit 1; }
     ( stage_conclude 2>/dev/null ) && { echo "empty conclusion accepted"; exit 1; }
+    # manifest role lookups: kind-based, enabled:false excluded, absent = empty
+    mkdir -p "$W/roles-stack"
+    cat > "$W/roles-stack/models.yaml" <<'EOF'
+models:
+  - id: coder-x
+    engine: rapid-mlx
+  - id: rr-cpu
+    kind: rerank
+  - id: ex-parked
+    kind: extract
+    enabled: false
+EOF
+    STACK="$W/roles-stack"
+    [ "$(manifest_reranker)" = "rr-cpu" ] || { echo "reranker lookup: $(manifest_reranker)"; exit 1; }
+    [ -z "$(manifest_extractor)" ] || { echo "disabled extractor not excluded"; exit 1; }
     exit 0
-) && ok "ceiling bands classify correctly; conclusions are stamped interpretation, one section" \
-  || bad "ceiling/conclude logic wrong (marker above)"
+) && ok "ceiling bands classify; conclusions stamped; role lookups follow kind+enabled" \
+  || bad "ceiling/conclude/roles logic wrong (marker above)"
 
 printf '\n\033[1m%d passed, %d failed\033[0m\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

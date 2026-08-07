@@ -194,8 +194,14 @@ manifest_coder() {
     yq -r '.models[] | select(.engine == "rapid-mlx") | .id' "$STACK/models.yaml" 2>/dev/null | head -1
 }
 
-manifest_extractor() {
-    yq -r '.models[].id' "$STACK/models.yaml" 2>/dev/null | grep '^extract-' | head -1
+manifest_extractor() { # empty when the manifest routes extraction elsewhere
+    yq -r '.models[] | select(.kind == "extract" and .enabled != false) | .id' \
+        "$STACK/models.yaml" 2>/dev/null | head -1
+}
+
+manifest_reranker() { # empty when the manifest has no local reranker
+    yq -r '.models[] | select(.kind == "rerank" and .enabled != false) | .id' \
+        "$STACK/models.yaml" 2>/dev/null | head -1
 }
 
 # stdin: manifest `repo:` lines → clean org/name per line. Strips trailing
@@ -620,10 +626,19 @@ stage_fit() {
         if [ -n "$_extract" ]; then
             report_line "soak shape: +one small extraction after each turn (FIELD_KIT_SOAK_EXTRACT=1, model $_extract) — the extractor stays cycling through the heavy group"
         else
-            warn "FIELD_KIT_SOAK_EXTRACT=1 but the manifest has no extract- model — running the default shape"
-            report_line "FIELD_KIT_SOAK_EXTRACT=1 requested but no extract- model in the manifest — default shape"
+            warn "FIELD_KIT_SOAK_EXTRACT=1 but the manifest has no local extract model — running the manifest's own shape"
+            report_line "FIELD_KIT_SOAK_EXTRACT=1 requested but this manifest has no local extract model"
         fi
     fi
+    # The soak's mid-stream rerank follows the manifest too: an
+    # extractor-less / reranker-less candidate soaks the shape it actually
+    # ships with, and the RESULT line's shape= label says which that was.
+    _rerank="$(manifest_reranker)"
+    [ -z "$_rerank" ] && report_line "no local rerank model in this manifest — mid-stream reranks skipped"
+    if [ -n "$_rerank" ] && [ -n "$_extract" ]; then _shape="rerank+extract"
+    elif [ -n "$_rerank" ]; then _shape="rerank-only"
+    elif [ -n "$_extract" ]; then _shape="extract-only"
+    else _shape="stream-only"; fi
 
     _coder="$(manifest_coder)"
     # Per-turn wall budget. A slow chip legitimately needs longer at 19k
@@ -657,12 +672,15 @@ stage_fit() {
         jq --arg c "Section $_turns: $_filler Summarize the pipeline's failure handling in two sentences." \
             '. + [{role:"user",content:$c}]' "$_msgs" > "$_msgs.tmp" && mv "$_msgs.tmp" "$_msgs"
         _body="$(jq --arg m "$_coder" '{model:$m, stream:true, stream_options:{include_usage:true}, max_tokens:256, messages:.}' "$_msgs")"
-        ( sleep 4; curl -s -m 120 -o /dev/null -w '%{http_code}' "$BASE/v1/rerank" -H 'Content-Type: application/json' -d '{
-            "model": "rerank-qwen3-0.6b",
-            "query": "how are transient failures retried?",
-            "documents": ["backoff with jitter", "the cat sat on the mat", "audit events are structured"]}' \
-            > "$RESULTS/fit-rerank.code" ) &
-        _rr_pid=$!
+        _rr_pid=""
+        if [ -n "$_rerank" ]; then
+            ( sleep 4; curl -s -m 120 -o /dev/null -w '%{http_code}' "$BASE/v1/rerank" -H 'Content-Type: application/json' -d '{
+                "model": "'"$_rerank"'",
+                "query": "how are transient failures retried?",
+                "documents": ["backoff with jitter", "the cat sat on the mat", "audit events are structured"]}' \
+                > "$RESULTS/fit-rerank.code" ) &
+            _rr_pid=$!
+        fi
         _out="$RESULTS/fit-turn.sse"
         : > "$RESULTS/fit-turn.time"
         if ! curl -s -N -m "$_turn_budget" "$BASE/v1/chat/completions" -H 'Content-Type: application/json' \
@@ -670,11 +688,13 @@ stage_fit() {
             _errors=$((_errors + 1))
             report_line "turn $_turns: curl failed ($(conditions_line))"
         fi
-        wait "$_rr_pid" 2>/dev/null || true
-        _rr_code="$(cat "$RESULTS/fit-rerank.code" 2>/dev/null)"
-        if [ "${_rr_code:-000}" != "200" ]; then
-            _rerank_errors=$((_rerank_errors + 1))
-            [ "$_rerank_errors" -le 3 ] && report_line "turn $_turns: mid-stream rerank failed (HTTP ${_rr_code:-none})"
+        if [ -n "$_rr_pid" ]; then
+            wait "$_rr_pid" 2>/dev/null || true
+            _rr_code="$(cat "$RESULTS/fit-rerank.code" 2>/dev/null)"
+            if [ "${_rr_code:-000}" != "200" ]; then
+                _rerank_errors=$((_rerank_errors + 1))
+                [ "$_rerank_errors" -le 3 ] && report_line "turn $_turns: mid-stream rerank failed (HTTP ${_rr_code:-none})"
+            fi
         fi
         _content="$(grep '^data: ' "$_out" | sed 's/^data: //' | grep -v '^\[DONE\]' \
             | jq -r '.choices[0].delta.content // empty' 2>/dev/null | tr -d '\n')"
@@ -738,8 +758,6 @@ stage_fit() {
     fi
     report_line "abort evidence: ${_errors} broken turns, ${_ips_new:-0} new crash reports, ${_recovered:-0} upstream-disconnect recoveries, ${_rerank_errors} failed reranks"
     [ -n "$_extract" ] && report_line "extract keep-alives: $((_turns - _extract_errors))/${_turns} clean"
-    _shape="rerank-only"
-    [ -n "$_extract" ] && _shape="rerank+extract"
     if [ "$_errors" -eq 0 ] && [ "${_ips_new:-0}" = "0" ] && [ "$_extract_errors" -eq 0 ]; then
         result fit ok "${_turns} turns, ${SOAK_SECONDS}s, shape=$_shape, zero aborts — prediction held"
     else
