@@ -75,7 +75,7 @@ else
     bucket="comfortable — residents plus an on-demand heavy model, gated by arithmetic (scripts/gpu-budget.sh)"
 fi
 
-printf 'local-ai-setup machine report — send this whole block back\n'
+printf 'temper machine report — send this whole block back\n'
 printf 'hardware        %s\n' "$hw_model"
 printf 'chip            %s   (%s)\n' "$chip" "$chip_note"
 printf 'macOS           %s (%s)\n' "$os_ver" "$os_build"
