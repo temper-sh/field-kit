@@ -101,6 +101,9 @@ and decide.
 
 Everything accumulates in `probe-results/report.md` — machine facts, the
 three install summaries, check results, measurements (each labeled with the
-GPU wired-limit state and swap level it ran under), crashes if any, and
-every deviation from the script. `./probe.sh report` prints it. Read it,
+GPU wired-limit state, swap level, thermal-throttle state, power source,
+and load it ran under), crashes if any, and every deviation from the
+script. On a fanless MacBook, running on battery or throttling changes the
+numbers — the labels are how your friend tells that apart from a real
+problem. `./probe.sh report` prints it. Read it,
 then paste the whole block back to your friend.

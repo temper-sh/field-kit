@@ -155,9 +155,33 @@ wall_now() {
     else printf 'macOS default'
     fi
 }
+# Cheap no-sudo system stats. Real chip °C needs sudo powermetrics or a
+# third-party SMC tool, so the honest signal is whether macOS recorded a
+# throttle (pmset only lists CPU_Speed_Limit once it has) plus the power
+# source — a fanless Air on battery throttles first, and either one
+# explains a decode decline that would otherwise read as FINDINGS #17.
+therm_now() {
+    _t="$(pmset -g therm 2>/dev/null | awk '/CPU_Speed_Limit/ {print $NF}')"
+    if [ -n "${_t:-}" ] && [ "${_t:-100}" -lt 100 ] 2>/dev/null; then
+        printf 'cpulimit%s%%' "$_t"
+    else
+        printf 'ok'
+    fi
+}
+power_now() {
+    case "$(pmset -g batt 2>/dev/null | head -1)" in
+        *'AC Power'*) printf 'ac' ;;
+        *'Battery Power'*) printf 'batt' ;;
+        *) printf '?' ;;
+    esac
+}
+load_now() { sysctl -n vm.loadavg 2>/dev/null | awk '{print $2}' || printf '?'; }
+
 conditions_line() { # every measurement records what it ran under
-    printf 'wall=%s swap=%sMB tune=%s' "$(wall_now)" "$(swap_used_mb)" \
-        "$(state_get tune_label 2>/dev/null || printf 'default')"
+    printf 'wall=%s swap=%sMB tune=%s therm=%s power=%s load=%s' \
+        "$(wall_now)" "$(swap_used_mb)" \
+        "$(state_get tune_label 2>/dev/null || printf 'default')" \
+        "$(therm_now)" "$(power_now)" "$(load_now)"
 }
 
 manifest_coder() {
@@ -199,6 +223,18 @@ decode_stats() {
         if (n && ms) printf "%.1f %.1f %.1f", tok * 1000 / ms, min, max
         else print "? ? ?"
     }' "$1"
+}
+
+# Pass an SSE stream through unchanged while stamping wall-clock seconds at
+# the first and last data chunks into a sidecar file ("t0 t1"). That window
+# is the turn's decode time — prefill ends when the first chunk lands. The
+# bare-srand() call is awk's only portable clock; anything else forks a
+# process per chunk.
+sse_tee_timing() { # $1 = sidecar path; stdin -> stdout
+    awk -v side="$1" '
+        /^data: / && $0 !~ /\[DONE\]/ { if (!t0) { srand(); t0 = srand() } srand(); t1 = srand() }
+        { print }
+        END { if (t0) printf "%d %d\n", t0, t1 > side }'
 }
 
 # ── fetch ────────────────────────────────────────────────────────────────────
@@ -548,6 +584,7 @@ stage_fit() {
     _filler="$(awk 'BEGIN{for(i=0;i<55;i++) printf "The ingestion pipeline batches incoming records, validates each against the schema registry, retries transient failures with exponential backoff, and emits a structured audit event for every terminal state transition. "}')"
     _msgs="$RESULTS/fit-msgs.json"
     printf '[]' > "$_msgs"
+    : > "$RESULTS/fit-decode.tsv"
     _t0=$(date +%s)
     _turns=0; _errors=0; _resets=0; _max_pt=0
     while [ $(($(date +%s) - _t0)) -lt "$SOAK_SECONDS" ]; do
@@ -561,8 +598,9 @@ stage_fit() {
             "documents": ["backoff with jitter", "the cat sat on the mat", "audit events are structured"]}' ) &
         _rr_pid=$!
         _out="$RESULTS/fit-turn.sse"
+        : > "$RESULTS/fit-turn.time"
         if ! curl -s -N -m "$_turn_budget" "$BASE/v1/chat/completions" -H 'Content-Type: application/json' \
-              -d "$_body" > "$_out" 2>&1; then
+              -d "$_body" 2>&1 | sse_tee_timing "$RESULTS/fit-turn.time" > "$_out"; then
             _errors=$((_errors + 1))
             report_line "turn $_turns: curl failed ($(conditions_line))"
         fi
@@ -572,6 +610,16 @@ stage_fit() {
         _pt="$(grep '^data: ' "$_out" | sed 's/^data: //' | grep -v '^\[DONE\]' \
             | jq -r '.usage.prompt_tokens // empty' 2>/dev/null | tail -1)"
         [ -n "${_pt:-}" ] && [ "${_pt:-0}" -gt "$_max_pt" ] 2>/dev/null && _max_pt="$_pt"
+        _ct="$(grep '^data: ' "$_out" | sed 's/^data: //' | grep -v '^\[DONE\]' \
+            | jq -r '.usage.completion_tokens // empty' 2>/dev/null | tail -1)"
+        _dwin="$(awk 'NF >= 2 { printf "%d", ($2 - $1) * 1000 }' "$RESULTS/fit-turn.time" 2>/dev/null)"
+        if [ -n "${_ct:-}" ] && [ "${_ct:-0}" -gt 0 ] 2>/dev/null && [ "${_dwin:-0}" -gt 0 ] 2>/dev/null; then
+            printf 'fit\tdecode-turn%s\t%s\t%s\t%s\t%s\n' "$_turns" "$_dwin" "$_ct" "${_pt:-0}" "$(therm_now)" \
+                >> "$RESULTS/fit-decode.tsv"
+        else
+            printf 'fit\tdecode-turn%s\tERROR\t(no clean decode window)\t%s\n' "$_turns" "$(therm_now)" \
+                >> "$RESULTS/fit-decode.tsv"
+        fi
         if [ -z "$_content" ]; then
             _errors=$((_errors + 1))
             report_line "turn $_turns: empty/broken stream — abort suspected (prompt ~${_pt:-?} tok)"
@@ -594,6 +642,16 @@ stage_fit() {
         > "$RESULTS/fit-libcabi.txt" || true
     report_line ""
     report_line "soak: ${_turns} turns in ${_soak_s}s, max prompt ${_max_pt} tok, ${_resets} context resets"
+    _dstats="$(decode_stats "$RESULTS/fit-decode.tsv")"
+    _davg="$(printf '%s' "$_dstats" | awk '{print $1}')"
+    _dmin="$(printf '%s' "$_dstats" | awk '{print $2}')"
+    _dmax="$(printf '%s' "$_dstats" | awk '{print $3}')"
+    _dspread=""
+    [ "$_dmin" != "?" ] && _dspread=" (turns ${_dmin}–${_dmax})"
+    report_line "per-turn decode: ~${_davg} tok/s${_dspread} — first-to-last-chunk window, ±1s granularity; rows in fit-decode.tsv"
+    if [ "$_dmin" != "?" ] && awk -v a="$_dmin" -v b="$_dmax" 'BEGIN{ exit !(a * 2 < b) }'; then
+        report_line "**decode spread exceeds 2× across turns — check the therm column first (a throttle explains it); a decline with therm=ok is the idle-decay signature (stack FINDINGS #17)**"
+    fi
     report_line "abort evidence: ${_errors} broken turns, ${_ips_new:-0} new crash reports, ${_recovered:-0} upstream-disconnect recoveries"
     if [ "$_errors" -eq 0 ] && [ "${_ips_new:-0}" = "0" ]; then
         result fit ok "${_turns} turns, ${SOAK_SECONDS}s, zero aborts — prediction held"

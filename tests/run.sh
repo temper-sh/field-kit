@@ -211,5 +211,52 @@ hdr "check 10 — decode spread survives the average"
 ) && ok "avg/min/max from clean reps only; ERROR rows excluded; no-data prints ?" \
   || bad "decode_stats wrong (marker above)"
 
+hdr "check 11 — SSE tee and cheap system stats"
+(
+    set -e
+    export FIELD_KIT_LIB_ONLY=1
+    # shellcheck disable=SC1091
+    . "$KIT/probe.sh"
+    # The tee must pass the stream through byte-identical and stamp a sidecar.
+    printf 'data: {"choices":[{"delta":{"content":"a"}}]}\n\ndata: {"usage":{"completion_tokens":2}}\n\ndata: [DONE]\n' > "$W/sse-in.txt"
+    sse_tee_timing "$W/sse-side.txt" < "$W/sse-in.txt" > "$W/sse-out.txt"
+    cmp -s "$W/sse-in.txt" "$W/sse-out.txt" || { echo "stream altered"; exit 1; }
+    grep -Eq '^[0-9]+ [0-9]+$' "$W/sse-side.txt" || { echo "sidecar malformed"; exit 1; }
+    : > "$W/sse-side.txt"
+    printf 'no data lines here\n' | sse_tee_timing "$W/sse-side.txt" > /dev/null
+    [ -s "$W/sse-side.txt" ] && { echo "sidecar written with no chunks"; exit 1; }
+    # Thermal/power read through a pmset shim: throttled and nominal.
+    mkdir -p "$W/statbin"
+    cat > "$W/statbin/pmset" <<'EOF'
+#!/bin/bash
+case "$2" in
+    therm) printf 'CPU_Speed_Limit \t= 80\nCPU_Available_CPUs \t= 8\n' ;;
+    batt)  printf "Now drawing from 'Battery Power'\n" ;;
+esac
+EOF
+    chmod +x "$W/statbin/pmset"
+    _got="$(PATH="$W/statbin:/usr/bin:/bin" therm_now)"
+    [ "$_got" = "cpulimit80%" ] || { echo "therm throttled: $_got"; exit 1; }
+    _got="$(PATH="$W/statbin:/usr/bin:/bin" power_now)"
+    [ "$_got" = "batt" ] || { echo "power: $_got"; exit 1; }
+    cat > "$W/statbin/pmset" <<'EOF'
+#!/bin/bash
+case "$2" in
+    therm) printf 'Note: No thermal warning level has been recorded\n' ;;
+    batt)  printf "Now drawing from 'AC Power'\n" ;;
+esac
+EOF
+    _got="$(PATH="$W/statbin:/usr/bin:/bin" therm_now)"
+    [ "$_got" = "ok" ] || { echo "therm nominal: $_got"; exit 1; }
+    _got="$(PATH="$W/statbin:/usr/bin:/bin" power_now)"
+    [ "$_got" = "ac" ] || { echo "power ac: $_got"; exit 1; }
+    # And the stats reach every measurement's conditions line.
+    RESULTS="$W/stats-results"; STATE="$RESULTS/state"
+    conditions_line | grep -Eq 'therm=[^ ]+ power=(ac|batt|\?) load=[0-9.]+' \
+        || { echo "conditions missing stats: $(conditions_line)"; exit 1; }
+    exit 0
+) && ok "tee is byte-identical with a timed sidecar; therm/power parse both states; conditions carry them" \
+  || bad "sse/stats logic wrong (marker above)"
+
 printf '\n\033[1m%d passed, %d failed\033[0m\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

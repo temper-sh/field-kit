@@ -111,6 +111,8 @@ be that agent.)
 | verify: check 12 no `tool_calls` delta | the engine's streaming tool-call path is broken — the single worst failure for agent use | record; do NOT try other flags |
 | fit: broken turns / new crash reports | GPU memory arithmetic failed on this hardware — **the probe's most valuable possible result** | let the stage finish; make sure the RESULT and report capture it |
 | perf numbers with a swap warning | measurements polluted by memory pressure | note it; if the human can quiet the machine, re-run `perf` and deviation-log the retake |
+| decode declining across fit turns with `therm=cpulimitNN%` | thermal throttling (fanless Mac, or on battery) — not a stack problem | note it; if the human can plug in / cool down, re-run `fit` and deviation-log the retake |
+| decode declining across fit turns with `therm=ok` | possibly the stack's idle-decay signature (its FINDINGS #17) | record it — this is a valuable result, not something to fix |
 | llama-swap won't start / port taken | environment | `./probe.sh serve-stop`, free the port, retry |
 
 When something matches nothing here and blocks a stage from *running* at

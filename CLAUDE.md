@@ -18,8 +18,11 @@ into `stack/` here at probe time — that clone is disposable, never edited).
    keep path. Sudo commands are printed for the human.
 4. Nothing phones home. The report is a local file the friend pastes.
 5. Measurement integrity beats convenience: every measurement records the
-   wired-limit wall and swap level it ran under; interventions land in the
-   report's deviations section; agents get AGENT.md's guardrails.
+   conditions it ran under (wired-limit wall, swap, tune label,
+   thermal-throttle state, power source, load — `conditions_line`);
+   interventions land in the report's deviations section; agents get
+   AGENT.md's guardrails. Chip °C itself is out of reach without sudo —
+   `pmset -g therm`'s recorded speed limit is the no-sudo throttle signal.
 
 ## Contracts that must not drift
 
