@@ -84,6 +84,76 @@ stack's config gate rejects restores the previous manifest and is itself
 recorded. Tuning is not an environment fix — it does not go through
 `deviation`, it has its own section in the report.
 
+When comparing two configurations, hold the soak shape constant: a fit
+run with `FIELD_KIT_SOAK_EXTRACT=1` and one without are different
+experiments (the RESULT line carries `shape=` so they can never be
+silently mixed). Change one thing per re-measure.
+
+## Reading the evidence
+
+You are expected to reason about results, not just relay them. The mental
+model that makes the numbers interpretable:
+
+**The GPU memory wall.** Everything wired must fit under the machine's
+wired limit (the `wall=` in every conditions line):
+
+```
+fraction × Metal-device-memory (~81% of RAM)   the coder's allocation
++ whichever helper models are currently wired   transient co-tenants
++ ~1–2 GB the OS itself keeps on the GPU        not in gpu-budget's math
+≤ the wall
+```
+
+gpu-budget's verdict is the **prediction**; the fit soak is the test. When
+they disagree, the disagreement is the datapoint — do not smooth it over.
+Known blind spot: its spike allowance understates long-context prefill
+spikes, and it omits the OS floor, so its "a fraction ≤ X covers it" line
+runs ~0.03 optimistic. A bigger co-tenant lowers the survivable context:
+witnessed on a 32GB M5, a 0.6GB co-tenant moved coder aborts to ≥12k-token
+prompts, a 3.2GB one to ≥6k. The abort window is each turn's prefill with
+the co-tenant still wired.
+
+**Failure signatures — check these before concluding anything:**
+
+- Broken stream + `recovered from upstream disconnection` in llama-swap.log
+  + `Insufficient Memory (kIOGPUCommandBufferCallbackErrorOutOfMemory)` in
+  `fit-libcabi.txt` or the upstream log = **GPU-OOM abort**. The fraction
+  ladder is the lever.
+- **Zero crash reports does not mean zero crashes** — macOS coalesces
+  repeated identical crashes. That is exactly why the kit watches four
+  channels (broken turns, .ips reports, swap-log recoveries, libc++abi).
+- A check's own FAIL text can misdiagnose: "no tool_calls delta — parser
+  not bound" also appears when the engine **died mid-stream**. Read
+  llama-swap.log before blaming the parser.
+- A helper answering **instant 500s** (~3ms) after a coder death is
+  llama-swap's error state, not a broken model — it clears on ttl expiry
+  or the next real request.
+- llama-swap **never retries a failed preload** (and a fresh instance can
+  crash its one attempt into the previous instance's unreclaimed GPU
+  memory). The probe nudges automatically; if residency still never comes,
+  one small chat request is the lever.
+
+**Reading the perf numbers.** Decode on a dense model is memory-bound:
+`tok/s × weight-bytes ≈ bandwidth` is the ceiling, and the report says so
+("dense-read ceiling"). At-ceiling with speculation configured means the
+speculation is silently not engaging — an engine finding worth a
+conclusion, invisible to any prefill-based gate. Decode spread: flat-but-low
+is systematic (engine lane, config); declining with `therm=ok` is the
+stack's idle-decay signature (#17); declining with `therm=cpulimitNN%` is
+thermal, and battery power (`power=batt`) throttles fanless machines first.
+
+**Write conclusions into the report.** Analysis that lives only in your
+chat never reaches the owner. After a failed-then-tuned-then-re-measured
+sequence, or any comparison, record what the numbers showed:
+
+```bash
+./probe.sh conclude "0.85 aborts at >=12k prompts with the reranker wired (3/66 turns); 0.75+extractor aborts from 6k (13/43). Consistent with the wall model; extractor-safe fraction is <=0.74."
+```
+
+Conclusions are labeled as interpretation and stamped with conditions.
+State the numbers that support each claim; a conclusion the report's own
+data cannot back does not belong there.
+
 ## Stay idle during timing windows
 
 While `verify`, `fit`, or `perf` is measuring, run **nothing else** — no
@@ -113,6 +183,9 @@ be that agent.)
 | perf numbers with a swap warning | measurements polluted by memory pressure | note it; if the human can quiet the machine, re-run `perf` and deviation-log the retake |
 | decode declining across fit turns with `therm=cpulimitNN%` | thermal throttling (fanless Mac, or on battery) — not a stack problem | note it; if the human can plug in / cool down, re-run `fit` and deviation-log the retake |
 | decode declining across fit turns with `therm=ok` | possibly the stack's idle-decay signature (its FINDINGS #17) | record it — this is a valuable result, not something to fix |
+| fit: broken turns whose prompt sizes cluster above a threshold | GPU-OOM at that context depth with the current co-tenants — the wall model above | propose the fraction tune (or the no-extract shape) to the human, re-run, `conclude` the comparison |
+| perf headline says decode sits at the dense-read ceiling, but the manifest configures speculation | the engine is silently not speculating — a real engine finding | record a `conclude` with the numbers; suggest `perf --ab` if not yet run (the other engine's speculation may work) |
+| coder never becomes resident though llama-swap answers | failed preload stuck in error state (llama-swap does not retry) | the probe nudges automatically; if it still stalls, send one small chat request, then deviation-log it |
 | llama-swap won't start / port taken | environment | `./probe.sh serve-stop`, free the port, retry |
 
 When something matches nothing here and blocks a stage from *running* at

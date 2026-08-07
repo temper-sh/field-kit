@@ -105,5 +105,7 @@ GPU wired-limit state, swap level, thermal-throttle state, power source,
 and load it ran under), crashes if any, and every deviation from the
 script. On a fanless MacBook, running on battery or throttling changes the
 numbers — the labels are how your friend tells that apart from a real
-problem. `./probe.sh report` prints it. Read it,
+problem. If you (or an agent driving the probe) worked out what the numbers
+mean, `./probe.sh conclude "<analysis>"` records it in a clearly-labeled
+conclusions section — interpretation stays separate from measurement. `./probe.sh report` prints it. Read it,
 then paste the whole block back to your friend.

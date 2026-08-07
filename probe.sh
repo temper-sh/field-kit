@@ -13,6 +13,9 @@
 #                                     the stack's parse gate, then re-measure
 #   ./probe.sh deviation "<text>"   record an intervention (agents: MANDATORY
 #                                   after any fix you make — see AGENT.md)
+#   ./probe.sh conclude "<text>"    record analysis in the report's conclusions
+#                                   section — interpretation, clearly separated
+#                                   from measurement (see AGENT.md)
 #   ./probe.sh serve-stop           stop the foreground llama-swap, if running
 #
 # Environment:
@@ -237,6 +240,22 @@ decode_stats() {
         if (n && ms) printf "%.1f %.1f %.1f", tok * 1000 / ms, min, max
         else print "? ? ?"
     }' "$1"
+}
+
+# Decode vs the dense-read ceiling. For a dense model every generated token
+# re-reads the full weights, so effective GB/s ≈ the machine's bandwidth
+# means configured speculation is NOT engaging (the regression the prefill
+# gate can't see); well above it means speculation/sparsity is at work.
+# Prints: at-ceiling | above-ceiling | below-ceiling | unknown
+ceiling_verdict() { # $1 = effective GB/s, $2 = estimated bandwidth GB/s
+    case "$1$2" in *unknown*|*'?'*) printf 'unknown'; return 0 ;; esac
+    awk -v e="$1" -v b="$2" 'BEGIN{
+        if (b + 0 <= 0 || e + 0 <= 0) { print "unknown"; exit }
+        r = e / b
+        if (r >= 1.2) print "above-ceiling"
+        else if (r >= 0.6) print "at-ceiling"
+        else print "below-ceiling"
+    }'
 }
 
 # Pass an SSE stream through unchanged while stamping wall-clock seconds at
@@ -784,6 +803,14 @@ stage_perf() {
     report_line ""
     report_line "headline: decode ~${_decode} tok/s${_dspread}, cold prefill ~${_prefill:-?} tok/s, preload $(state_get preload_s || printf '?')s"
     report_line "effective bandwidth: ~${_eff} GB/s (decode × ${_cmb:-?}MB of weights; preflight estimate was ~$(bandwidth_estimate_gbs) GB/s)"
+    case "$(ceiling_verdict "$_eff" "$(bandwidth_estimate_gbs)")" in
+        at-ceiling)
+            report_line "**decode sits at the dense-read ceiling — every token re-reads the weights. If the manifest configures speculative decoding, it is NOT engaging; that is a finding about the engine, not the hardware.**" ;;
+        above-ceiling)
+            report_line "decode runs above the dense-read ceiling — speculation (or sparsity) is engaging" ;;
+        below-ceiling)
+            report_line "**decode is well below even the dense-read ceiling — engine overhead, throttling, or memory pressure; read the conditions line and consider perf --ab**" ;;
+    esac
     if is_pre_m5 && [ "$_ab" = "0" ]; then
         warn "pre-M5 chip without --ab: the engine-split question this machine could answer is still open"
         report_line "**pre-M5 chip, no --ab run — the two-engine split for this bucket remains unmeasured; consider ./probe.sh perf --ab (extra ~16GB, human consent)**"
@@ -905,6 +932,20 @@ stage_deviation() {
     say "recorded: $1"
 }
 
+# Conclusions are interpretation, not measurement — they live in their own
+# clearly-labeled section so the owner can weigh them against the raw
+# numbers. This is where a driving agent's analysis belongs (which lever a
+# failure points at, what a comparison showed), not in a chat log that never
+# reaches the owner.
+stage_conclude() {
+    [ -n "${1:-}" ] || die 'usage: probe.sh conclude "<analysis, with the numbers that support it>"'
+    grep -q '^## conclusions' "$REPORT" 2>/dev/null || {
+        report_section "conclusions (analysis by the person or agent driving the probe — weigh against the raw numbers above)"
+    }
+    report_line "- $(date '+%H:%M') [$(conditions_line)] $1"
+    say "concluded: $1"
+}
+
 stage_cleanup() {
     _c="$(state_get contract || true)"
     case "${_c:-}" in
@@ -967,6 +1008,7 @@ case "${1:-}" in
     report)     stage_report ;;
     cleanup)    stage_cleanup ;;
     deviation)  shift; stage_deviation "$@" ;;
+    conclude)   shift; stage_conclude "$@" ;;
     serve-stop) serve_stop ;;
     *) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac

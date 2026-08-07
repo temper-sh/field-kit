@@ -267,5 +267,32 @@ EOF
 ) && ok "tee is byte-identical with a timed sidecar; therm/power parse both states; conditions carry them" \
   || bad "sse/stats logic wrong (marker above)"
 
+hdr "check 12 — ceiling verdict and recorded conclusions"
+(
+    set -e
+    export FIELD_KIT_LIB_ONLY=1
+    # shellcheck disable=SC1091
+    . "$KIT/probe.sh"
+    # dense-read ceiling classification: eff/bandwidth ratio bands
+    for pair in "123:153:at-ceiling" "205:153:above-ceiling" "60:153:below-ceiling" \
+                "123:unknown:unknown" "?:153:unknown"; do
+        _e="${pair%%:*}"; _rest="${pair#*:}"; _b="${_rest%%:*}"; _want="${_rest##*:}"
+        _got="$(ceiling_verdict "$_e" "$_b")"
+        [ "$_got" = "$_want" ] || { echo "verdict $_e/$_b -> $_got (want $_want)"; exit 1; }
+    done
+    # conclusions: own section, appended once, conditions-stamped
+    KIT_ROOT="$W/conclude-kit"; RESULTS="$W/conclude-kit/probe-results"
+    REPORT="$RESULTS/report.md"; STATE="$RESULTS/state"
+    mkdir -p "$KIT_ROOT"
+    stage_conclude "0.85 aborts at >=12k with reranker wired" >/dev/null
+    stage_conclude "second finding" >/dev/null
+    [ "$(grep -c '^## conclusions' "$REPORT")" = "1" ] || { echo "section not appended once"; exit 1; }
+    grep -q '0.85 aborts at >=12k' "$REPORT" || { echo "conclusion text missing"; exit 1; }
+    grep -E -q '^\- [0-9]{2}:[0-9]{2} \[wall=.* tune=' "$REPORT" || { echo "no conditions stamp"; exit 1; }
+    ( stage_conclude 2>/dev/null ) && { echo "empty conclusion accepted"; exit 1; }
+    exit 0
+) && ok "ceiling bands classify correctly; conclusions are stamped interpretation, one section" \
+  || bad "ceiling/conclude logic wrong (marker above)"
+
 printf '\n\033[1m%d passed, %d failed\033[0m\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
