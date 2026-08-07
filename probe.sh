@@ -327,10 +327,15 @@ snapshot_provenance() {
     mkdir -p "$RESULTS"
     {
         printf '# field-kit provenance v1 — pre-probe state, %s\n' "$(date '+%Y-%m-%d %H:%M')"
+        # Capture brew's lists once: `brew | grep -q` under pipefail is a
+        # SIGPIPE race that silently mis-reads long formula lists (the same
+        # bug fixed in the stack's uninstall.sh — keep both fixed).
+        _brew_formulas="$(brew list --formula 2>/dev/null || true)"
+        _brew_taps="$(brew tap 2>/dev/null || true)"
         # tools: parsed out of the stack's own list so the two never drift
         sed -n '/^TOOLS="/,/^"/p' "$STACK/steps/10-tools.sh" \
           | grep -E '^[a-z0-9.-]+:' | while IFS=: read -r _f _b; do
-            if brew list --formula 2>/dev/null | grep -qx "$_f" || command -v "$_b" >/dev/null 2>&1; then
+            if printf '%s\n' "$_brew_formulas" | grep -Fqx "$_f" || command -v "$_b" >/dev/null 2>&1; then
                 printf 'formula %s present\n' "$_f"
             else
                 printf 'formula %s absent\n' "$_f"
@@ -338,13 +343,13 @@ snapshot_provenance() {
         done
         for _e in "llama.cpp:llama-server" "hf:hf" "uv:uv" "pi-coding-agent:pi" "llama-swap:llama-swap"; do
             _f="${_e%%:*}"; _b="${_e##*:}"
-            if brew list --formula 2>/dev/null | grep -qx "$_f" || command -v "$_b" >/dev/null 2>&1; then
+            if printf '%s\n' "$_brew_formulas" | grep -Fqx "$_f" || command -v "$_b" >/dev/null 2>&1; then
                 printf 'formula %s present\n' "$_f"
             else
                 printf 'formula %s absent\n' "$_f"
             fi
         done
-        if brew tap 2>/dev/null | grep -qx "mostlygeek/llama-swap"; then
+        if printf '%s\n' "$_brew_taps" | grep -Fqx "mostlygeek/llama-swap"; then
             printf 'tap mostlygeek/llama-swap present\n'
         else
             printf 'tap mostlygeek/llama-swap absent\n'
