@@ -355,7 +355,7 @@ snapshot_provenance() {
         # weights: every repo the manifest names
         _hub="${HF_HUB_CACHE:-${HF_HOME:-$HOME/.cache/huggingface}/hub}"
         grep -E '^[[:space:]]+repo:' "$STACK/models.yaml" \
-          | sed 's/.*repo:[[:space:]]*"\{0,1\}//; s/"\{0,1\}[[:space:]]*$//; s/:[^/]*$//' \
+          | sed 's/[[:space:]]*#.*$//; s/.*repo:[[:space:]]*"\{0,1\}//; s/"\{0,1\}[[:space:]]*$//; s/:[^/]*$//' \
           | sort -u | while IFS= read -r _r; do
             _d="$_hub/models--$(printf '%s' "$_r" | sed 's/\//--/')"
             if [ -d "$_d" ]; then printf 'hfrepo %s present\n' "$_r"; else printf 'hfrepo %s absent\n' "$_r"; fi

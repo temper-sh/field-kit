@@ -89,7 +89,7 @@ EOF
 cat > "$W/stack/models.yaml" <<'EOF'
 models:
   - id: a
-    repo: "org/present"
+    repo: "org/present"     # a trailing comment must not join the name
   - id: b
     repo: "org/absent2:Q8_0"
 EOF
