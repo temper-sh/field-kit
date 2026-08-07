@@ -617,16 +617,17 @@ stage_fit() {
     printf '[]' > "$_msgs"
     : > "$RESULTS/fit-decode.tsv"
     _t0=$(date +%s)
-    _turns=0; _errors=0; _resets=0; _max_pt=0; _extract_errors=0
+    _turns=0; _errors=0; _resets=0; _max_pt=0; _extract_errors=0; _rerank_errors=0
     while [ $(($(date +%s) - _t0)) -lt "$SOAK_SECONDS" ]; do
         _turns=$((_turns + 1))
         jq --arg c "Section $_turns: $_filler Summarize the pipeline's failure handling in two sentences." \
             '. + [{role:"user",content:$c}]' "$_msgs" > "$_msgs.tmp" && mv "$_msgs.tmp" "$_msgs"
-        _body="$(jq --arg m "$_coder" '{model:$m, stream:true, max_tokens:256, messages:.}' "$_msgs")"
-        ( sleep 4; curl -s -m 120 -o /dev/null "$BASE/v1/rerank" -H 'Content-Type: application/json' -d '{
+        _body="$(jq --arg m "$_coder" '{model:$m, stream:true, stream_options:{include_usage:true}, max_tokens:256, messages:.}' "$_msgs")"
+        ( sleep 4; curl -s -m 120 -o /dev/null -w '%{http_code}' "$BASE/v1/rerank" -H 'Content-Type: application/json' -d '{
             "model": "rerank-qwen3-0.6b",
             "query": "how are transient failures retried?",
-            "documents": ["backoff with jitter", "the cat sat on the mat", "audit events are structured"]}' ) &
+            "documents": ["backoff with jitter", "the cat sat on the mat", "audit events are structured"]}' \
+            > "$RESULTS/fit-rerank.code" ) &
         _rr_pid=$!
         _out="$RESULTS/fit-turn.sse"
         : > "$RESULTS/fit-turn.time"
@@ -636,10 +637,18 @@ stage_fit() {
             report_line "turn $_turns: curl failed ($(conditions_line))"
         fi
         wait "$_rr_pid" 2>/dev/null || true
+        _rr_code="$(cat "$RESULTS/fit-rerank.code" 2>/dev/null)"
+        if [ "${_rr_code:-000}" != "200" ]; then
+            _rerank_errors=$((_rerank_errors + 1))
+            [ "$_rerank_errors" -le 3 ] && report_line "turn $_turns: mid-stream rerank failed (HTTP ${_rr_code:-none})"
+        fi
         _content="$(grep '^data: ' "$_out" | sed 's/^data: //' | grep -v '^\[DONE\]' \
             | jq -r '.choices[0].delta.content // empty' 2>/dev/null | tr -d '\n')"
         _pt="$(grep '^data: ' "$_out" | sed 's/^data: //' | grep -v '^\[DONE\]' \
             | jq -r '.usage.prompt_tokens // empty' 2>/dev/null | tail -1)"
+        # No usage (engine without stream_options support, or a broken turn):
+        # estimate from message bytes so the 19k reset still bounds the soak.
+        [ -z "${_pt:-}" ] && _pt=$(( $(wc -c < "$_msgs") / 4 ))
         [ -n "${_pt:-}" ] && [ "${_pt:-0}" -gt "$_max_pt" ] 2>/dev/null && _max_pt="$_pt"
         _ct="$(grep '^data: ' "$_out" | sed 's/^data: //' | grep -v '^\[DONE\]' \
             | jq -r '.usage.completion_tokens // empty' 2>/dev/null | tail -1)"
@@ -693,7 +702,7 @@ stage_fit() {
     if [ "$_dmin" != "?" ] && awk -v a="$_dmin" -v b="$_dmax" 'BEGIN{ exit !(a * 2 < b) }'; then
         report_line "**decode spread exceeds 2× across turns — check the therm column first (a throttle explains it); a decline with therm=ok is the idle-decay signature (stack FINDINGS #17)**"
     fi
-    report_line "abort evidence: ${_errors} broken turns, ${_ips_new:-0} new crash reports, ${_recovered:-0} upstream-disconnect recoveries"
+    report_line "abort evidence: ${_errors} broken turns, ${_ips_new:-0} new crash reports, ${_recovered:-0} upstream-disconnect recoveries, ${_rerank_errors} failed reranks"
     [ -n "$_extract" ] && report_line "extract keep-alives: $((_turns - _extract_errors))/${_turns} clean"
     _shape="rerank-only"
     [ -n "$_extract" ] && _shape="rerank+extract"
