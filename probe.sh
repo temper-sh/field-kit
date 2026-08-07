@@ -195,6 +195,13 @@ manifest_extractor() {
     yq -r '.models[].id' "$STACK/models.yaml" 2>/dev/null | grep '^extract-' | head -1
 }
 
+# stdin: manifest `repo:` lines → clean org/name per line. Strips trailing
+# comments, quotes, and :QUANT suffixes — every consumer must use this one
+# filter (the comment case bit twice before it was shared).
+repo_names_of() {
+    sed 's/[[:space:]]*#.*$//; s/.*repo:[[:space:]]*"\{0,1\}//; s/"\{0,1\}[[:space:]]*$//; s/:[^/]*$//'
+}
+
 chip_brand() { printf '%s' "${FIELD_KIT_CHIP:-$(sysctl -n machdep.cpu.brand_string 2>/dev/null || printf 'unknown')}"; }
 is_pre_m5() { case "$(chip_brand)" in *M5*) return 1 ;; *) return 0 ;; esac; }
 
@@ -367,7 +374,7 @@ snapshot_provenance() {
         # weights: every repo the manifest names
         _hub="${HF_HUB_CACHE:-${HF_HOME:-$HOME/.cache/huggingface}/hub}"
         grep -E '^[[:space:]]+repo:' "$STACK/models.yaml" \
-          | sed 's/[[:space:]]*#.*$//; s/.*repo:[[:space:]]*"\{0,1\}//; s/"\{0,1\}[[:space:]]*$//; s/:[^/]*$//' \
+          | repo_names_of \
           | sort -u | while IFS= read -r _r; do
             _d="$_hub/models--$(printf '%s' "$_r" | sed 's/\//--/')"
             if [ -d "$_d" ]; then printf 'hfrepo %s present\n' "$_r"; else printf 'hfrepo %s absent\n' "$_r"; fi
@@ -397,8 +404,7 @@ stage_install() {
         state_set tune_label default
     fi
     _hub="${HF_HUB_CACHE:-${HF_HOME:-$HOME/.cache/huggingface}/hub}"
-    _coder_repo="$(grep -E '^[[:space:]]+repo:' "$STACK/models.yaml" | head -1 \
-        | sed 's/.*repo:[[:space:]]*"\{0,1\}//; s/"\{0,1\}[[:space:]]*$//; s/:[^/]*$//')"
+    _coder_repo="$(grep -E '^[[:space:]]+repo:' "$STACK/models.yaml" | head -1 | repo_names_of)"
     _seeded=no
     [ -d "$_hub/models--$(printf '%s' "$_coder_repo" | sed 's/\//--/')" ] && _seeded=yes
     if [ "$_seeded" = "yes" ]; then

@@ -117,6 +117,9 @@ chmod +x "$W/bin/brew"
     grep -q "^dir $W/home/.rapid-mlx absent\$" "$PROV" || { echo ".rapid-mlx"; exit 1; }
     grep -q '^hfrepo org/present present$' "$PROV" || { echo "hfrepo present"; exit 1; }
     grep -q '^hfrepo org/absent2 absent$' "$PROV" || { echo "hfrepo absent (quant stripped)"; exit 1; }
+    # the shared filter itself: comment, quotes, quant — one pass each
+    _r="$(printf '    repo: "org/name:Q8_0"   # trailing comment\n' | repo_names_of)"
+    [ "$_r" = "org/name" ] || { echo "repo_names_of: $_r"; exit 1; }
     # every line obeys the grammar uninstall.sh consumes
     grep -v '^#' "$PROV" | grep -vqE '^(formula|tap|dir|hfrepo) .+ (present|absent)$' \
         && { echo "grammar"; exit 1; }
