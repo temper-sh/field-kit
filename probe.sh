@@ -185,6 +185,22 @@ bandwidth_estimate_gbs() {
     esac
 }
 
+# Per-rep decode stats from an engine-ab TSV: prints "avg min max" tok/s, or
+# "? ? ?" when no clean decode rows. The spread is what the average hides —
+# a wide min–max on a foreign machine is the idle-decay signature (stack
+# FINDINGS #17: decode declining rep over rep while the engine reports ready).
+decode_stats() {
+    awk -F'\t' '$2 ~ /^decode/ && $3 != "ERROR" && $3 + 0 > 0 {
+        t = $4 * 1000 / $3
+        if (n == 0 || t < min) min = t
+        if (n == 0 || t > max) max = t
+        ms += $3; tok += $4; n++
+    } END {
+        if (n && ms) printf "%.1f %.1f %.1f", tok * 1000 / ms, min, max
+        else print "? ? ?"
+    }' "$1"
+}
+
 # ── fetch ────────────────────────────────────────────────────────────────────
 stage_fetch() {
     report_init
@@ -625,7 +641,12 @@ stage_perf() {
         stage_perf_ab
     fi
 
-    _decode="$(awk -F'\t' '$2 ~ /^decode/ && $3 != "ERROR" {ms+=$3; tok+=$4; n++} END{ if (n && ms) printf "%.1f", tok*1000/ms; else print "?" }' "$RESULTS/ab-installed.tsv")"
+    _dstats="$(decode_stats "$RESULTS/ab-installed.tsv")"
+    _decode="$(printf '%s' "$_dstats" | awk '{print $1}')"
+    _dmin="$(printf '%s' "$_dstats" | awk '{print $2}')"
+    _dmax="$(printf '%s' "$_dstats" | awk '{print $3}')"
+    _dspread=""
+    [ "$_dmin" != "?" ] && _dspread=" (reps ${_dmin}–${_dmax})"
     _prefill="$(awk -F'\t' '$2 == "prefill-cold" && $3 != "ERROR" {printf "%.0f", $5*1000/$3}' "$RESULTS/ab-installed.tsv")"
     # Decode on a memory-bound model IS a bandwidth measurement: tok/s ×
     # weight bytes ≈ effective GB/s. This is the number that buckets the
@@ -635,7 +656,7 @@ stage_perf() {
     _cmb="$(du -sm "$_hub/models--$(printf '%s' "$_crepo" | sed 's/\//--/')" 2>/dev/null | cut -f1)"
     _eff="$(awk -v t="$_decode" -v mb="${_cmb:-0}" 'BEGIN{ if (t+0 > 0 && mb+0 > 0) printf "%.0f", t*mb/1024; else print "?" }')"
     report_line ""
-    report_line "headline: decode ~${_decode} tok/s, cold prefill ~${_prefill:-?} tok/s, preload $(state_get preload_s || printf '?')s"
+    report_line "headline: decode ~${_decode} tok/s${_dspread}, cold prefill ~${_prefill:-?} tok/s, preload $(state_get preload_s || printf '?')s"
     report_line "effective bandwidth: ~${_eff} GB/s (decode × ${_cmb:-?}MB of weights; preflight estimate was ~$(bandwidth_estimate_gbs) GB/s)"
     if is_pre_m5 && [ "$_ab" = "0" ]; then
         warn "pre-M5 chip without --ab: the engine-split question this machine could answer is still open"

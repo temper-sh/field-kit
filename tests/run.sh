@@ -192,5 +192,24 @@ EOF
 ) && ok "fraction edit is surgical, bad input refused, tune label stamps conditions" \
   || bad "tune logic wrong (marker above)"
 
+hdr "check 10 — decode spread survives the average"
+(
+    set -e
+    export FIELD_KIT_LIB_ONLY=1
+    # shellcheck disable=SC1091
+    . "$KIT/probe.sh"
+    # 3 clean reps (declining — the FINDINGS #17 shape), one ERROR row that
+    # must be excluded, one non-decode row that must not match.
+    printf 'installed\tdecode-1\t1000\t13\t50\ninstalled\tdecode-2\t1000\t10\t50\ninstalled\tdecode-3\t1000\t4\t50\ninstalled\tdecode-4\tERROR\t(engine died)\ninstalled\tprefill-cold\t2000\t8\t14200\n' \
+        > "$W/ab-fixture.tsv"
+    s="$(decode_stats "$W/ab-fixture.tsv")"
+    [ "$s" = "9.0 4.0 13.0" ] || { echo "stats: $s (want 9.0 4.0 13.0)"; exit 1; }
+    printf 'installed\tdecode-1\tERROR\t(nothing clean)\n' > "$W/ab-empty.tsv"
+    s="$(decode_stats "$W/ab-empty.tsv")"
+    [ "$s" = "? ? ?" ] || { echo "empty stats: $s (want ? ? ?)"; exit 1; }
+    exit 0
+) && ok "avg/min/max from clean reps only; ERROR rows excluded; no-data prints ?" \
+  || bad "decode_stats wrong (marker above)"
+
 printf '\n\033[1m%d passed, %d failed\033[0m\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
