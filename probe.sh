@@ -499,7 +499,10 @@ ensure_serving() {
     # the field measurement perf.sh check 12p makes on the launchd service.
     _coder="$(manifest_coder)"
     say "  waiting for the coder to preload (first load reads ~15GB)…"
-    until curl -s -m 5 "$BASE/running" | grep -q "$_coder"; do
+    # ready state required: the name alone appears in /running while the
+    # model is still starting, which read a cold 15GB load as "2s".
+    until curl -s -m 5 "$BASE/running" \
+        | jq -e --arg m "$_coder" 'any(.running[]?; .model == $m and .state == "ready")' >/dev/null 2>&1; do
         kill -0 "$_pid" 2>/dev/null || die "llama-swap exited during preload — tail $SWAP_LOG"
         [ $(($(date +%s) - _t0)) -gt 900 ] && die "coder not resident after 900s — tail $SWAP_LOG"
         sleep 3
