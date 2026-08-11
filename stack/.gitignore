@@ -1,0 +1,8 @@
+# Discovered paths written by setup.sh at runtime.
+.state/
+
+# Timestamped backups of configs this tool replaced.
+*.bak
+*.[0-9]*.bak
+
+.DS_Store

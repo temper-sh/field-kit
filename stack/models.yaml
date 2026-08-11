@@ -1,0 +1,164 @@
+# Single source of truth for the local LLM stack.
+#
+# The llama-swap config (~/.config/llama-swap/config.yaml) and Pi's model list
+# (~/.pi/agent/models.json) are GENERATED from this file by ./setup.sh.
+# Edit here, re-run ./setup.sh — never hand-edit the generated files.
+#
+# Retired and optional entries live in models.example.yaml, which setup.sh does
+# not read. Copy an entry in here to deploy it.
+#
+# Fields
+#   id            client-facing model name (llama-swap model id)
+#   display_name  shown in Pi's picker; optional for non-chat models
+#   engine        rapid-mlx | llama-server
+#   kind          chat (default) | embed | rerank | extract | vision | ...
+#                 chat  -> included in Pi's models.json
+#                 embed -> adds --embedding --pooling last
+#                 rerank-> adds --reranking
+#                 other -> no special flags, and invisible to Pi's picker
+#   group         pinned | utilities | heavy   (default: heavy)
+#   preload       load at service startup (default: false)
+#   repo          HF repo; for llama-server use "repo:quant"
+#   patches       list of directory names under patches/
+#   flags         extra engine arguments
+#   ttl           idle seconds before unload; 0 = never  (default: defaults.ttl)
+#   gpu_memory_utilization   override defaults.gpu_memory_utilization
+#   enabled       set false to park an entry without deleting it
+#   pi            extra keys merged into the Pi model entry (e.g. reasoning: true)
+
+defaults:
+  ttl: 1800
+  # A fraction of Metal's DEVICE memory (~81% of RAM), not of the wired-limit
+  # wall (~75% of RAM once scripts/gpu-wired-limit.sh is applied). The margin
+  # between the two must hold everything else that touches the GPU — the
+  # co-resident llama-server models, transient spikes, and the desktop itself
+  # (WindowServer and browsers share the same wall) — absolute costs that do
+  # not scale with RAM, so no single fraction suits every machine, and when
+  # the pool runs out the MLX engine aborts mid-turn (docs/FINDINGS.md #16).
+  # `scripts/gpu-budget.sh` buckets the machine by RAM (32GB is the minimum
+  # — below it the pinned coder does not fit at all; at 32GB only the coder
+  # resides on the GPU; 33-36GB: a small resident set is gated by
+  # arithmetic; >36GB: the full co-resident stack is gated) and setup.sh
+  # reports a note whenever this manifest does not fit the bucket. See
+  # README for the bucket table.
+  gpu_memory_utilization: 0.85
+
+models:
+  # ---- chat ------------------------------------------------------------
+  - id: qwen3.6-27b-mlx          # default coding model (hybrid linear-attention 27.8B,
+    display_name: "Qwen3.6 27B (local)"                        # ~15GB at 4-bit)
+    engine: rapid-mlx
+    repo: froggeric/Qwen3.6-27B-MLX-4bit     # ships a pre-fixed template: no patches
+    patches: []
+    group: pinned                # never evicted by other models loading — that would
+    preload: true                # destroy the radix prompt cache mid-session
+    ttl: 7200                    # idle-unload after 2h. ttl 0 let the process sit
+                                 # "ready" overnight while macOS reclaimed its mmap'd
+                                 # weights (RSS 0.17GB): decode fell 13 -> 3-5 tok/s,
+                                 # 28k re-prefills ran at ~85 tok/s, and it degraded
+                                 # further *during* use (2026-08-06). A clean ~2-min
+                                 # reload beats page-fault warmup, which never
+                                 # converges under memory pressure. 2h is a judgment
+                                 # call (the decay curve is unmeasured); any break
+                                 # shorter than the ttl keeps the prefix cache.
+    # Flag notes, verified against rapid-mlx 0.11.0 `serve --help` on 2026-07-27.
+    # Engines moved on (0.11.5 on 2026-08-01, 0.12.3 on 2026-08-05) and only
+    # the flags FINDINGS #12/#13/#15 touch were re-checked — re-verify with
+    # `rapid-mlx serve --help` before leaning on the rest.
+    #   --pflash off        rapid-mlx defaults this to "always" for the Qwen3.5/3.6
+    #                       family, which compresses any prompt over
+    #                       --pflash-threshold (32768) down to --pflash-keep-ratio
+    #                       (0.20). Dropping 80% of a long agent context is not
+    #                       acceptable here.
+    #   --kv-cache-dtype    engine default is int4, unevaluated on code. int8 is the
+    #                       same setting rapid-mlx's own --reasoning profile pins.
+    #   --tool-call-parser  qwen3_coder and qwen3_coder_xml are aliases of the same
+    #                       parser; `rapid-mlx info` reports the latter as canonical.
+    #                       MUST be paired with --enable-auto-tool-choice. On the
+    #                       `rapid-mlx serve` path, --tool-call-parser alone is
+    #                       WORSE than passing nothing: cli.py only binds the
+    #                       parser when BOTH flags are present and otherwise sets
+    #                       it to None, and passing the flag suppresses the
+    #                       auto-detect that would have set both. Streaming then
+    #                       has no parser and no fallback, so tool calls arrive as
+    #                       raw <function=...> text and no agent can use them.
+    #                       Non-streaming hides this behind a generic fallback
+    #                       parser, so curl looks fine while Pi is broken.
+    #                       See docs/FINDINGS.md #8.
+    #   --speculative-config  the "model" field is REQUIRED here and is not
+    #                       optional tuning. config.json declares
+    #                       mtp_num_hidden_layers: 1, which is why `rapid-mlx info`
+    #                       reports "MTP path: native" — but the 4-bit conversion
+    #                       ships no MTP tensors at all. Without a sidecar head
+    #                       rapid-mlx refuses to boot rather than silently drop
+    #                       MTP, so the model never starts. Verified booting and
+    #                       generating with the sidecar on 2026-07-28.
+    #                       Drop the whole flag to run without speculative decoding.
+    #   --hybrid-cache-entries  this is what makes the pinned coder worth pinning.
+    #                       Without it the prefix cache never engages on this
+    #                       model and every turn re-prefills the whole
+    #                       conversation. Measured on a growing conversation,
+    #                       tokens actually prefilled per turn:
+    #                         baseline: 527, 559, 591, 623  (3.70 -> 5.93s, climbing)
+    #                         with  8:  527, 540,  53,  53  (3.89 -> 2.05s, flat)
+    #                       Latency stops growing with history, which is the
+    #                       whole point of keeping this process alive.
+    #   --kv-disk-checkpoint-interval 0  engine default is 256 (a disk write
+    #                       every 256 tokens, FINDINGS #14). The writer was
+    #                       mid-write in BOTH 2026-08-05 GPU-OOM engine aborts
+    #                       (FINDINGS #16) — serializing a ~19k-token KV cache
+    #                       spikes GPU memory on top of a coder already at its
+    #                       allocation limit. Off on stability grounds; the
+    #                       disk path's benefit ("resume / shared-prefix
+    #                       reload") was never measured here and the in-memory
+    #                       --hybrid-cache-entries is what makes multi-turn
+    #                       fast (#1). The cache-ab A/B confirming the perf
+    #                       side is owed (docs/PLAN.md §4.6).
+    #   --default-*         sampling: Unsloth's instruct-mode values for this
+    #                       family, adopted 2026-08-07 on a measured A/B —
+    #                       never from the guide alone (PLAN §4.4; runbook
+    #                       and raw runs in pi-tool-ab/results/sampling-ab).
+    #                       Incumbent (generation_config: temp 1.0, top_k 20,
+    #                       top_p 0.95, NO penalties — Pi sends no sampling
+    #                       fields) scored 10/12 with 2 repetition-loop
+    #                       events, 1 fatal (FINDINGS #18's class); these
+    #                       values scored 12/12 with 0 loop events, at ~+18%
+    #                       mean wall — accepted under ground rule 8. The
+    #                       feared presence-penalty code degradation did not
+    #                       appear on n=12; any recurrence re-opens §4.4.
+    # See README "Tuning the coder" for the measurement; --pin-system-prompt
+    # is an unrun A/B (docs/PLAN.md §4).
+    flags: >-
+      --no-thinking --enable-auto-tool-choice --tool-call-parser qwen3_coder
+      --pflash off --kv-cache-dtype int8 --hybrid-cache-entries 8
+      --kv-disk-checkpoint-interval 0
+      --speculative-config '{"method":"mtp","model":"mlx-community/Qwen3.6-27B-MTP-4bit","num_speculative_tokens":3}'
+      --default-temperature 0.7 --default-top-p 0.8 --default-top-k 20
+      --default-min-p 0 --default-presence-penalty 1.5
+
+  # ---- specialists: typed tools, never in Pi's model picker -------------
+  - id: rerank-qwen3-0.6b        # ~0.6GB, on-demand; consumer: project_search
+    engine: llama-server
+    kind: rerank
+    group: heavy                 # 32GB bucket: only the coder resides on the GPU.
+                                 # This was `utilities` + ttl 0 until 2026-08-06 —
+                                 # the pool overflowed with it resident (8 engine
+                                 # aborts in 2 days, FINDINGS #16), and its cold
+                                 # load is 1-2s against project_search's 180s budget.
+    repo: "Voodisss/Qwen3-Reranker-0.6B-GGUF-llama_cpp:Q8_0"   # see GGUF caveat in README
+    # CPU on purpose (2026-08-08, field-kit witness run on this machine): at
+    # 0.85 even this 0.6GB model wired on the GPU aborts the coder at
+    # >=12k-token prompts (3/66 soak turns, Metal OOM, 2026-08-07); on CPU the
+    # same soak ran 65 turns to ~19k tokens with zero aborts, scores stayed
+    # non-degenerate, and 0.6B is CPU-cheap against project_search's budget.
+    # The coder keeps the GPU to itself — see PLAN §9's 32GB strategy.
+    flags: -ngl 0
+    ttl: 120                     # free the process slot quickly after a search burst
+
+  # extract-nuextract3 and qwen3.5-4b (vision): retired to models.example.yaml
+  # on 2026-08-08 — the 32GB posture is coder-only on the GPU. Extraction has
+  # no route on this machine for now (owner, same day): the remote option was
+  # considered and declined, so the extract_json tool removes itself via the
+  # entry ↔ extension gate in steps/45-extensions.sh, and no extraction
+  # content leaves the machine. The extension source stays in the repo for a
+  # future helper mode. Vision is parked pending a placement decision.

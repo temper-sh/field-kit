@@ -6,8 +6,11 @@ gates vs reality, per-bucket manifest defaults, default-wall numbers). This
 repo is deliberately separate and friend-facing: its README assumes the
 reader has never seen the stack repo.
 
-The stack repo is the one under `~/work/local-ai/local-ai-setup` (fetched
-into `stack/` here at probe time — that clone is disposable, never edited).
+The stack repo is the one under `~/work/local-ai/local-ai-setup`, vendored
+here as a frozen snapshot at `stack/` (`stack/VENDORED` names the source
+rev). The stack is deliberately frozen while this data-gathering round
+runs — it gets rebuilt from the data the kit collects — so the snapshot is
+not synced, not edited here, and replaced only by a deliberate re-vendor.
 
 ## Ground rules (inherited from the stack repo, and they all apply)
 
@@ -29,8 +32,10 @@ into `stack/` here at probe time — that clone is disposable, never edited).
 - `machine-report.sh` here is the **distribution copy**; the canonical file
   is the stack repo's `scripts/machine-report.sh` (its check 20). Sync by
   hand when the stack's changes; this repo's tests pin the wired-limit
-  formula so drift fails loudly. Preflight runs this copy, deliberately
-  before any stack fetch.
+  formula so drift fails loudly. Preflight runs this copy — it is the one
+  file the README's curl one-liner serves without a clone (the vendored
+  `stack/scripts/machine-report.sh` is the same logic wearing the stack's
+  header).
 - `probe-results/provenance.txt` format (`<kind> <name> <present|absent>`)
   is consumed by the stack's `scripts/uninstall.sh` — change it only in
   both places (stack offline check 21 tests the consumer).
@@ -49,9 +54,11 @@ into `stack/` here at probe time — that clone is disposable, never edited).
 - **In-flight tuning** goes through `probe.sh tune` only (fraction, or a
   whole candidate manifest), re-rendered through the stack's config parse
   gate, labeled `tuneN` in every subsequent conditions line. Editing the
-  *clone's* models.yaml is sanctioned because the clone is disposable —
-  the stack's ground rule 6 (never mechanically rewrite the manifest)
-  protects the owner's hand-edited file, and that boundary must hold.
+  *checkout's* `stack/models.yaml` is sanctioned because the friend's
+  checkout is disposable — the committed manifest is the owner's reference
+  copy (tune edits are visible as plain git diffs), and the stack's ground
+  rule 6 (never mechanically rewrite the manifest) keeps protecting the
+  canonical repo's hand-edited file.
 
 ## Testing
 

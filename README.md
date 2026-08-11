@@ -35,12 +35,12 @@ minimum*, stop here; the full probe has nothing to measure yet.
 
 ```bash
 git clone https://github.com/temper-sh/field-kit.git && cd field-kit
-FIELD_KIT_STACK_REPO=<the stack's git URL, or a path to a copy> ./probe.sh run
+./probe.sh run
 ```
 
-The stack repo isn't public yet, so `FIELD_KIT_STACK_REPO` is whatever your
-friend gives you — a private URL, or a folder copied onto a drive alongside
-the weights.
+Everything the probe tests ships inside this kit — the stack under test is
+a frozen snapshot at `stack/`, so the clone above is the only thing you
+need besides the downloads the probe asks about.
 
 `probe.sh run` walks the stages below, stating each cost and asking before
 proceeding. Every stage is also its own subcommand (`./probe.sh verify`), so
@@ -58,7 +58,8 @@ an interrupted probe resumes where it stopped.
 `./probe.sh perf --ab` adds an optional second-engine comparison: an extra
 ~16GB download and 1–2 hours. Only say yes if you mean it — though if your
 Mac is older than an M5, this is the run your machine is uniquely placed to
-answer, and the probe will say so.
+answer, and the probe offers it during the perf stage for exactly that
+reason.
 
 If your friend sent a candidate configuration to test (a `models.yaml`
 tuned for your machine's class), pass it as
@@ -91,7 +92,7 @@ your answer either way.
 ## What lands on the machine
 
 Everything the stack installs, where it lives, and how it is removed is the
-stack repo's README (`stack/README.md` after fetch, section "Where it all
+stack's README (`stack/README.md` in this kit, section "Where it all
 lands"). The restore path runs its `scripts/uninstall.sh` with the
 provenance file this kit records before installing anything. Two optional
 `sudo` tweaks are never run by the kit — they are printed for you to read

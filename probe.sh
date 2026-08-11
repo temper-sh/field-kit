@@ -18,9 +18,11 @@
 #                                   from measurement (see AGENT.md)
 #   ./probe.sh serve-stop           stop the foreground llama-swap, if running
 #
+# The stack under test ships INSIDE this kit at stack/ — a frozen snapshot
+# (stack/VENDORED names the source rev) taken for the data-gathering round.
+# One clone of this repo carries everything; there is nothing else to fetch.
+#
 # Environment:
-#   FIELD_KIT_STACK_REPO    git URL or local path of local-ai-setup (required
-#                           for fetch unless stack/ already exists)
 #   FIELD_KIT_CONTRACT      keep | restore — what happens to this machine at
 #                           the end; asked interactively if unset
 #   FIELD_KIT_YES           1 = consent to every stage cost up front
@@ -123,6 +125,20 @@ consent() { # $1 = what is about to happen (cost stated plainly)
     printf '  proceed? [y/N] '
     read -r _ans
     case "$_ans" in y|Y|yes) return 0 ;; *) die "stopped at consent" ;; esac
+}
+
+# Optional add-on ask — unlike consent(), declining is a fine answer and the
+# stage proceeds without it. FIELD_KIT_YES deliberately does NOT auto-accept:
+# the extra ~16GB is a human decision (AGENT.md), so a non-interactive run
+# keeps ab=0 and the report carries the standing pointer instead.
+offer_perf_ab() {
+    [ -t 0 ] || return 1
+    say ""
+    say "  pre-M5 chip: the two-engine A/B is where this machine's data matters"
+    say "  most — an extra ~16GB download and roughly 1–2 hours on top of perf."
+    printf '  add the A/B to this perf run? [y/N] '
+    read -r _ans
+    case "$_ans" in y|Y|yes) return 0 ;; *) return 1 ;; esac
 }
 
 require_contract() {
@@ -283,19 +299,21 @@ sse_tee_timing() { # $1 = sidecar path; stdin -> stdout
 # ── fetch ────────────────────────────────────────────────────────────────────
 stage_fetch() {
     report_init
-    if [ -d "$STACK/.git" ]; then
-        note "stack already fetched: $STACK"
-    else
-        _src="${FIELD_KIT_STACK_REPO:-}"
-        [ -n "$_src" ] || die "set FIELD_KIT_STACK_REPO to the local-ai-setup git URL or a local path (a copy on a drive works)"
-        git clone "$_src" "$STACK"
+    # The stack is vendored, so this stage only verifies it and records its
+    # provenance — the kit rev IS the stack rev, and stack/VENDORED names
+    # the commit the snapshot was taken from.
+    if [ -n "${FIELD_KIT_STACK_REPO:-}" ]; then
+        # Refusing beats silently ignoring it: whoever set this believes
+        # they are probing a different stack than the one that would run.
+        die "this kit ships its stack at stack/ — FIELD_KIT_STACK_REPO is gone; update the kit itself instead (git pull)"
     fi
-    _sha="$(git -C "$STACK" rev-parse --short HEAD)"
+    [ -f "$STACK/setup.sh" ] || die "stack/ is missing from this checkout — re-clone the kit (the stack ships inside it)"
+    _sha="$(git -C "$KIT_ROOT" rev-parse --short HEAD 2>/dev/null || printf 'unknown')"
     state_set stack_sha "$_sha"
     report_section "stack"
-    report_line "source: ${FIELD_KIT_STACK_REPO:-already present}"
-    report_line "stack rev: $_sha"
-    result fetch ok "stack at $_sha"
+    report_line "source: vendored with the kit ($(head -1 "$STACK/VENDORED" 2>/dev/null || printf 'no VENDORED stamp'))"
+    report_line "stack rev: kit $_sha"
+    result fetch ok "vendored stack, kit rev $_sha"
 }
 
 # ── preflight ────────────────────────────────────────────────────────────────
@@ -773,6 +791,10 @@ stage_perf() {
         consent "perf trial WITH the two-engine A/B — an extra ~16GB GGUF download and roughly 1–2 hours"
     else
         consent "perf trial on the installed engine — decode, cold prefill, agent-shaped turns; roughly 20–30 minutes"
+        # Offer the A/B here, while the stack is still installed — the guided
+        # run chains into cleanup, and on the restore contract a post-perf
+        # suggestion arrives after the stack it needs is gone.
+        if is_pre_m5 && offer_perf_ab; then _ab=1; fi
     fi
     ensure_serving
     report_section "perf trial"
@@ -973,7 +995,7 @@ stage_cleanup() {
             ( cd "$STACK" && ./setup.sh ) | tail -5
             say ""
             say "  the stack now runs as a launchd service; the install lives in:"
-            say "      $STACK   (keep this clone — re-running its setup.sh is how you update)"
+            say "      $STACK   (keep this kit checkout — re-running stack/setup.sh is how you update)"
             [ -s "$RESULTS/setup-manual.txt" ] && {
                 say "  the optional sudo tweaks it recommends:"
                 sed 's/^/      /' "$RESULTS/setup-manual.txt"

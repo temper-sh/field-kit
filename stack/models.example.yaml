@@ -1,0 +1,121 @@
+# NOT read by setup.sh — copy entries into models.yaml to deploy them.
+#
+# A library of known-good entries that are not currently deployed. Keeping them
+# here instead of as `enabled: false` blocks in models.yaml means the live
+# manifest reads as exactly what runs.
+#
+# Verify the repo and quant tag still exist before deploying an old entry;
+# prompts/add-model.md is the research prompt for adding something new.
+
+models:
+  - id: qwen3.6-35b-mlx          # retired 2026-07: 27B dense is the default now
+    display_name: "Qwen3.6 35B (local)"
+    engine: rapid-mlx
+    repo: unsloth/Qwen3.6-35B-A3B-UD-MLX-4bit
+    patches: [qwen-fixed-template]     # fetched at setup time; see patches/*/FETCH
+    # --enable-auto-tool-choice MUST accompany the parser flag (FINDINGS #8),
+    # and --pflash defaults to "always" for this family (FINDINGS #4).
+    flags: "--no-thinking --enable-auto-tool-choice --tool-call-parser qwen3_coder --pflash off"
+
+  - id: qwen3.6-27b-mlx-unsloth  # no-download alternative to the froggeric coder:
+    display_name: "Qwen3.6 27B (local)"          # same model, stock template, so the
+    engine: rapid-mlx                            # fixed one is fetched and applied
+    repo: unsloth/Qwen3.6-27B-UD-MLX-4bit
+    patches: [qwen-fixed-template]
+    group: pinned
+    preload: true
+    ttl: 0
+    # Flags mirror the deployed froggeric coder (FINDINGS #1/#3/#8): the
+    # parser needs --enable-auto-tool-choice beside it, pinning without
+    # --hybrid-cache-entries buys nothing, and --speculative-config without a
+    # "model" sidecar refuses to boot if this quant ships no MTP tensors —
+    # verify, or drop the flag to run without speculation.
+    flags: >-
+      --no-thinking --enable-auto-tool-choice --tool-call-parser qwen3_coder
+      --pflash off --kv-cache-dtype int8 --hybrid-cache-entries 8
+      --speculative-config '{"method":"mtp","model":"mlx-community/Qwen3.6-27B-MTP-4bit","num_speculative_tokens":3}'
+
+  - id: gpt-oss-20b              # retired 2026-07
+    display_name: "gpt-oss 20B (local)"
+    engine: rapid-mlx
+    repo: mlx-community/gpt-oss-20b-MXFP4-Q4
+    patches: []
+    ttl: 600
+    pi:
+      reasoning: true
+
+  - id: qwen3.6-35b-gguf         # GGUF fallback for the 35B
+    display_name: "Qwen3.6 35B GGUF (local)"
+    engine: llama-server
+    repo: "unsloth/Qwen3.6-35B-A3B-GGUF:Q4_K_M"
+    patches: []
+    flags: "--jinja --ctx-size 32768"
+
+  - id: extract-nuextract3       # 4B VLM: text/PDF/image -> structured JSON.
+    engine: llama-server         # Retired from the 32GB machine 2026-08-08:
+    kind: extract                # extraction is remote there (coder json_schema
+    group: heavy                 # offline), because 3.2GB wired next to the
+    repo: "numind/NuExtract3-GGUF:Q4_K_M"    # 0.85 coder aborts it from ~6k-token
+    ttl: 600                     # prompts (13/43 soak turns, 2026-08-07 witness
+                                 # run). Redeploy only on a >36GB machine, or
+                                 # with a witnessed CPU placement.
+
+  - id: qwen3.5-4b               # multimodal generalist: screenshot/UI understanding,
+    engine: llama-server         # commit messages, small text chores (Apache 2.0).
+    kind: vision                 # Parked 2026-08-08 pending a placement decision:
+    group: heavy                 # on the 32GB GPU it recreates the co-tenant
+    repo: "unsloth/Qwen3.5-4B-GGUF:Q4_K_M"   # abort class (2.4GB); CPU or remote
+    ttl: 600                     # are the candidate placements (PLAN §9).
+
+  - id: embed-qwen3-0.6b         # for a future project_search vector index — not needed yet
+    engine: llama-server
+    kind: embed
+    group: utilities
+    repo: "Qwen/Qwen3-Embedding-0.6B-GGUF:Q8_0"
+    ttl: 0
+
+  - id: qwen3guard-0.6b          # pre-cloud PII/safety gate; fixed parseable output
+    engine: llama-server
+    kind: guard
+    group: utilities
+    repo: "mradermacher/Qwen3Guard-Gen-0.6B-GGUF:Q4_K_M"
+    ttl: 0
+
+  - id: hy-mt-1.8b               # translation tool, 33 languages, near-7B quality
+    engine: llama-server
+    kind: translate
+    group: heavy
+    repo: "tencent/HY-MT1.5-1.8B-GGUF:Q8_0"
+    ttl: 600
+
+  - id: qwen2.5-coder-1.5b-fim   # editor tab-completion via llama-server /infill;
+    engine: llama-server         # point llama.vim/llama.vscode at /upstream/<id>/infill
+    kind: fim
+    group: utilities
+    repo: "ggml-org/Qwen2.5-Coder-1.5B-Q8_0-GGUF:Q8_0"   # = llama.cpp's own --fim-qwen-1.5b-default preset repo (verified 2026-07-31)
+    ttl: 0
+
+  - id: qwen3.6-27b-mtp-gguf     # benchmark alternative to the MLX coder: llama.cpp
+    display_name: "Qwen3.6 27B MTP (local)"   # native MTP + host-RAM prompt cache
+    engine: llama-server         # (model card recommends -fa off and f16 KV for this
+    group: pinned                # architecture)
+    ttl: 0
+    repo: "froggeric/Qwen3.6-27B-MTP-GGUF:Q4_K_M"
+    # Every flag below the first line exists to make this FIT on a 32GB box.
+    # Without them it loads, says `listening`, passes /health — and then dies on
+    # the first request with kIOGPUCommandBufferCallbackErrorOutOfMemory.
+    # Measured 2026-08-01 on b10200; see docs/FINDINGS.md #12.
+    #   --parallel 1           llama.cpp defaults to -np -1 (auto), which resolves
+    #                          to 4 slots here, so --ctx-size silently multiplies
+    #   --no-mmproj            this repo auto-loads an f16 vision tower nothing here uses
+    #   -b 512 -ub 512         with -fa off the default -b 2048 attention buffer
+    #                          does not fit beside 16GB of weights + MTP draft ctx
+    #   --checkpoint-min-step  defaults to 8192: leave it and checkpoints never
+    #                          get created in a normal-length conversation
+    # --ctx-size 16384 is deliberately conservative for 32GB; raising it is
+    # what to try first on a machine with more.
+    flags: >-
+      --spec-type draft-mtp --spec-draft-n-max 3 -fa off
+      --cache-ram 12000 --ctx-checkpoints 64 --checkpoint-min-step 512
+      --parallel 1 --no-mmproj --ctx-size 16384 -b 512 -ub 512
+      --chat-template-kwargs '{"enable_thinking":false}'

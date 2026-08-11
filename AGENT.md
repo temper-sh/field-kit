@@ -30,8 +30,8 @@ If you fixed something — even something trivial — log it. No exceptions.
 ## How to run
 
 ```bash
-./probe.sh preflight    # needs nothing fetched; stop here on a below-min verdict
-FIELD_KIT_STACK_REPO=<url-or-path> ./probe.sh fetch
+./probe.sh preflight    # stop here on a below-min verdict
+./probe.sh fetch        # verifies the vendored stack/ and records its rev
 ./probe.sh install      # asks keep-or-restore + consents — see below
 ./probe.sh verify
 ./probe.sh fit

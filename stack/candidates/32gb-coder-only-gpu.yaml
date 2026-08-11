@@ -1,0 +1,84 @@
+# CANDIDATE manifest — 32GB bucket, "coder-only GPU" strategy.
+# WITNESSED 2026-08-08 — the witness block below; catalog-row ready.
+#
+# Not read by setup.sh. This is a field-kit candidate: run it with
+#   FIELD_KIT_MANIFEST=candidates/32gb-coder-only-gpu.yaml ./probe.sh run
+# (or mid-visit via `./probe.sh tune <this file>`). It ships as a catalog
+# row only after a kit run on a 32GB machine witnesses it (PLAN §9).
+#
+# The strategy (owner decision, 2026-08-07, from the first live run):
+#   - coder: GPU at 0.85 — solo-safe on a 24576MB wall (witnessed: holds a
+#     14.2k prefill; any GPU co-tenant breaks it — 0.6GB wired moved aborts
+#     to >=12k-token prompts, 3.2GB to >=6k).
+#   - reranker: local CPU (-ngl 0). Mid-turn latency needs local; 0.6B is
+#     CPU-cheap. The ONLY change vs models.yaml is placement — group/ttl
+#     kept identical so the comparison with the 2026-08-07 runs is clean.
+#   - extractor: NOT HERE. As probed, the plan was a remote route (non-local
+#     helper group) — post-witness the owner declined it (2026-08-08): the
+#     32GB row ships with NO extraction route for now, the extract_json
+#     tool is gated off by the manifest (steps/45-extensions.sh), and no
+#     extraction content leaves the machine — no data-boundary move. The
+#     extension stays repo-side for a future helper mode.
+#   - vision (qwen3.5-4b): parked, undecided — enabling it on the GPU
+#     recreates the co-tenant abort (2.4GB class); CPU or remote are the
+#     candidate placements when the owner decides.
+#
+# Expected witness outcome: fit soak at 0.85 (rerank mid-stream, CPU
+# reranker) with ZERO aborts; check 12 passes; check 11 skips with reason.
+# Field docs for the coder flags live in models.yaml — not duplicated here.
+#
+# WITNESSED (2026-08-08, Mac17,3 M5 32GB, wall 24576MB, kit 61791d2, stack
+# 7470324, all conditions therm=ok power=ac swap<=91MB): every expected
+# outcome held —
+#   - fit soak 65 turns / 1200s, rerank-only shape, ZERO aborts;
+#     gpu-budget's prediction held. The fraction ladder is dissolved.
+#   - runtime suite 7 passed / 0 failed; check 11 skipped with the
+#     extractor-less reason; check 12 streamed a parsed tool call;
+#     CPU reranker scores non-degenerate, residency per manifest.
+#   - perf: decode 8.1 tok/s (reps 8.0–8.2) at the dense-read ceiling,
+#     effbw ~121GB/s, cold prefill 173 tok/s, preload 11s. The configured
+#     MTP is still not engaging (rapid-mlx #352 lane downgrade) — an
+#     engine finding this row inherits, not a manifest defect.
+# Report archive: field-kit/probe-results-run2-20260808/ (local only).
+
+defaults:
+  ttl: 1800
+  gpu_memory_utilization: 0.85   # solo-safe; see the wall model in PLAN §9
+
+models:
+  # ---- chat ------------------------------------------------------------
+  - id: qwen3.6-27b-mlx
+    display_name: "Qwen3.6 27B (local)"
+    engine: rapid-mlx
+    repo: froggeric/Qwen3.6-27B-MLX-4bit     # ships a pre-fixed template: no patches
+    patches: []
+    group: pinned
+    preload: true
+    ttl: 7200
+    flags: >-
+      --no-thinking --enable-auto-tool-choice --tool-call-parser qwen3_coder
+      --pflash off --kv-cache-dtype int8 --hybrid-cache-entries 8
+      --kv-disk-checkpoint-interval 0
+      --speculative-config '{"method":"mtp","model":"mlx-community/Qwen3.6-27B-MTP-4bit","num_speculative_tokens":3}'
+      --default-temperature 0.7 --default-top-p 0.8 --default-top-k 20
+      --default-min-p 0 --default-presence-penalty 1.5
+
+  # ---- specialists ------------------------------------------------------
+  - id: rerank-qwen3-0.6b        # CPU: same model, zero GPU footprint
+    engine: llama-server
+    kind: rerank
+    group: heavy
+    repo: "Voodisss/Qwen3-Reranker-0.6B-GGUF-llama_cpp:Q8_0"
+    flags: -ngl 0
+    ttl: 120
+
+  # extract-nuextract3: removed — extraction is remote on this bucket
+  # (non-local helper group; coder json_schema when offline).
+
+  - id: qwen3.5-4b               # parked pending a placement decision
+    engine: llama-server
+    kind: vision
+    group: heavy
+    repo: "unsloth/Qwen3.5-4B-GGUF:Q4_K_M"
+    ttl: 600
+    enabled: false

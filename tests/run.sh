@@ -309,5 +309,36 @@ EOF
 ) && ok "ceiling bands classify; conclusions stamped; role lookups follow kind+enabled" \
   || bad "ceiling/conclude/roles logic wrong (marker above)"
 
+hdr "check 13 — the vendored stack ships complete, and fetch treats it as the source"
+# The file list is derived from probe.sh itself: every $STACK/ path it names
+# must exist in the snapshot, so a re-vendor that loses a file (or a new
+# probe dependency that was never vendored) fails here, not on a friend's
+# machine.
+# shellcheck disable=SC2016  # the literal text $STACK is the search pattern
+_missing="$(grep -o '\$STACK/[a-zA-Z0-9./_-]*' "$KIT/probe.sh" | sed 's|^\$STACK/||' | sort -u \
+    | while read -r _f; do [ -e "$KIT/stack/$_f" ] || printf ' %s' "$_f"; done)"
+[ -z "$_missing" ] && ok "every \$STACK/ path in probe.sh exists in stack/" \
+    || bad "vendored stack is missing:$_missing"
+grep -q '^source local-ai-setup [0-9a-f]' "$KIT/stack/VENDORED" 2>/dev/null \
+    && ok "VENDORED stamp names the source rev" \
+    || bad "stack/VENDORED missing or malformed"
+(
+    set -e
+    export FIELD_KIT_LIB_ONLY=1
+    # shellcheck disable=SC1091
+    . "$KIT/probe.sh"
+    KIT_ROOT="$KIT"; STACK="$KIT/stack"
+    RESULTS="$W/fetch-results"; REPORT="$RESULTS/report.md"; STATE="$RESULTS/state"
+    unset FIELD_KIT_STACK_REPO
+    stage_fetch > "$W/fetch-out.txt"
+    grep -q '^FIELD-KIT RESULT fetch ok vendored stack' "$W/fetch-out.txt" || { echo "no ok RESULT"; exit 1; }
+    grep -q 'source: vendored with the kit (source local-ai-setup' "$REPORT" || { echo "report provenance"; exit 1; }
+    # a leftover FIELD_KIT_STACK_REPO must refuse loudly, never be ignored
+    ( FIELD_KIT_STACK_REPO=x stage_fetch ) >/dev/null 2>"$W/fetch-err.txt" && { echo "override ignored"; exit 1; }
+    grep -q 'ships its stack' "$W/fetch-err.txt" || { echo "refusal not self-explaining"; exit 1; }
+    exit 0
+) && ok "fetch records vendored provenance; stray FIELD_KIT_STACK_REPO dies loudly" \
+  || bad "fetch semantics wrong (marker above)"
+
 printf '\n\033[1m%d passed, %d failed\033[0m\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

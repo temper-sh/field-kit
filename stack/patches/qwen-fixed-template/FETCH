@@ -1,0 +1,4 @@
+# <basename> <url>
+# Fetched fresh on every run into .state/patch-cache/, never vendored here.
+# See SOURCE.md for why, and for what to check when a fetch reports a new hash.
+chat_template.jinja https://huggingface.co/froggeric/Qwen-Fixed-Chat-Templates/resolve/main/chat_template.jinja
