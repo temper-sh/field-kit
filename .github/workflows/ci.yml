@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        python: ["3.9", "3.14"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Verify question packages
+        run: ./field-kit verify
+      - name: Check bootstrap entry point
+        run: |
+          sh -n setup.sh field-kit
+          ./setup.sh --help
+      - name: Run hermetic tests
+        run: python -m unittest discover -v
+      - name: Check whitespace
+        run: git diff --check

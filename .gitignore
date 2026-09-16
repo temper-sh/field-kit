@@ -1,0 +1,6 @@
+.local/
+.work/
+dist/
+runs/
+__pycache__/
+*.py[cod]

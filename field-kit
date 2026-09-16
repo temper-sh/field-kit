@@ -1,0 +1,29 @@
+#!/bin/sh
+# Select Python once. All runtime installation belongs to Temper.
+set -eu
+field_kit_directory=$(CDPATH='' cd "$(dirname "$0")" && pwd -P)
+export PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1
+check_python() {
+    [ -n "$1" ] && [ -x "$1" ] && "$1" -B -S -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' 2>/dev/null
+}
+python_path=
+if [ -n "${FIELD_KIT_PYTHON:-}" ]; then
+    check_python "$FIELD_KIT_PYTHON" || { printf '%s\n' 'field-kit: FIELD_KIT_PYTHON must name a working Python 3.9 or newer' >&2; exit 1; }
+    python_path=$FIELD_KIT_PYTHON
+else
+    if [ -f "$field_kit_directory/.local/python-path" ] && [ ! -L "$field_kit_directory/.local/python-path" ]; then
+        candidate=$(cat "$field_kit_directory/.local/python-path")
+        check_python "$candidate" || { printf '%s\n' 'field-kit: local Python is unavailable; run ./setup.sh again' >&2; exit 1; }
+        python_path=$candidate
+    fi
+fi
+if [ -z "$python_path" ]; then
+    for candidate in "$(command -v python3 2>/dev/null || true)" /opt/homebrew/bin/python3 /usr/local/bin/python3; do
+        if check_python "$candidate"; then python_path=$candidate; break; fi
+    done
+fi
+if [ -z "$python_path" ]; then
+    printf '%s\n' 'field-kit: run ./setup.sh to install the local runtime' >&2
+    exit 1
+fi
+exec "$python_path" -B -S -c 'import sys; sys.path.insert(0, sys.argv.pop(1)); from fieldkit_runtime.cli import main; sys.exit(main())' "$field_kit_directory" "$@"

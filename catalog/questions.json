@@ -1,0 +1,15 @@
+{
+  "schema": "field-kit-question-catalog/v3",
+  "revision": 1,
+  "compiled_at": "2026-09-16T00:00:00Z",
+  "questions": [
+    {
+      "id": "qwen-machine-study",
+      "revision": 1,
+      "availability": "qualifying",
+      "package_path": "packages/qwen-machine-study@1/package.json",
+      "package_sha256": "bdefa808e6398149bee7aa6d7be37ba1b92c95aa387ff08df134c38d9fe1ad8f",
+      "reason": "Contributor study prepared and checked offline; live measurements and external returned results remain to be reviewed."
+    }
+  ]
+}

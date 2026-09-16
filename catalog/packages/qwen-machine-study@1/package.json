@@ -1,0 +1,262 @@
+{
+  "schema": "field-kit-question-package/v2",
+  "id": "qwen-machine-study",
+  "revision": 1,
+  "origin": {
+    "kind": "v3-preparation",
+    "method": "field-kit-qwen-machine-study/v1",
+    "baseline": "Qwen composition measured 15 September 2026; exact supplied execution lock"
+  },
+  "host": {
+    "program": "temper",
+    "minimum_version": "0.1.0-alpha.7",
+    "required_primitives": [
+      "apply",
+      "catalog-compile",
+      "check",
+      "execution-export",
+      "fetch",
+      "field-kit-bind",
+      "machine-facts",
+      "probe-serve",
+      "software-check",
+      "software-install",
+      "software-remove"
+    ]
+  },
+  "question": "How does Qwen perform on this Mac, and which settings and context lengths are useful?",
+  "decision": "Add attributable baseline performance to the Qwen card and inform machine-specific tuning recommendations after review.",
+  "kind": "bounded-adaptive",
+  "summary": "One common performance workload, optional fixed flag comparisons with reversed-order confirmation, and native-tokenized Q4/Q8 context points.",
+  "evidence_scope": "One exact machine and frozen workload. Context capacity and declared latency suitability are separate. No untested bucket, global optimum or broad long-document quality claim.",
+  "applicability": {
+    "os": "darwin",
+    "arch": "arm64",
+    "distribution": "macos",
+    "chip_prefixes": [
+      "Apple M"
+    ],
+    "min_physical_memory_mib": 32768,
+    "max_physical_memory_mib": 0,
+    "min_wired_limit_mib": 24576
+  },
+  "relevance": {
+    "purpose": "Qwen card performance rows and evidence for hardware-bucket tuning"
+  },
+  "cost": {
+    "setup_minutes_min": 0,
+    "setup_minutes_max": 360,
+    "live_runtime_minutes_max": 286,
+    "network_bytes_max": 18096049056,
+    "temporary_disk_bytes_max": 37265839936,
+    "retained_disk_bytes_max": 19169790880,
+    "evidence_bytes_max": 1073741824,
+    "memory_pressure": "engine: min(75 percent physical memory, wired limit, 96 GiB); router: 2 GiB; stop at 512 MiB additional swap or thermal/observation failure",
+    "service_disruption": "one isolated loopback probe, no live-service changes",
+    "paid_provider_exposure": "none"
+  },
+  "consent": {
+    "reads": [
+      "machine, process, memory, swap, thermal and listener state",
+      "exact lock-bound installation"
+    ],
+    "writes": [
+      "dedicated installation",
+      "external local plan, session, observations and report",
+      "local contributor report and evidence export; nothing is uploaded"
+    ],
+    "network_destinations": [
+      "exact artifact and software locations in the execution lock; model inference uses only IPv4 loopback"
+    ],
+    "cleanup": "remove only the dedicated installation after verified process shutdown; retain local report and result JSON for the contributor to review and share",
+    "allowed_outcomes": [
+      "restore"
+    ]
+  },
+  "profile": {
+    "layout": "qwen3.8-27b-q4xl-32k-mtp"
+  },
+  "execution_lock": {
+    "path": "execution.lock.json",
+    "sha256": "457e0dd4d65073477f49a98d480c16be48a437b54259339053683f0984af9dd8"
+  },
+  "investigation": {
+    "schema": "field-kit-investigation/v1",
+    "parameters": [
+      {
+        "id": "scope",
+        "type": "enum",
+        "choices": [
+          "both",
+          "context",
+          "flags"
+        ],
+        "default": "both"
+      }
+    ],
+    "actions": [
+      {
+        "id": "finish-study",
+        "kind": "final-validation",
+        "parameters": [],
+        "attempts_max": 1,
+        "runtime_minutes_max": 1,
+        "steps": [
+          {
+            "id": "finish-study",
+            "kind": "measurement",
+            "runtime_minutes_max": 1,
+            "output_bytes_max": 0,
+            "evidence_bytes_max": 1048576,
+            "consumes": [],
+            "produces": [],
+            "process_watch": null
+          }
+        ]
+      },
+      {
+        "id": "measure-baseline",
+        "kind": "measurement",
+        "parameters": [],
+        "attempts_max": 1,
+        "runtime_minutes_max": 45,
+        "steps": [
+          {
+            "id": "measure-baseline",
+            "kind": "measurement",
+            "runtime_minutes_max": 45,
+            "output_bytes_max": 0,
+            "evidence_bytes_max": 67108864,
+            "consumes": [],
+            "produces": [],
+            "process_watch": {
+              "schema": "field-kit-process-watch/v1",
+              "interval_milliseconds": 5000,
+              "max_gap_milliseconds": 15000,
+              "command_timeout_seconds": 15,
+              "term_grace_seconds": 30,
+              "roles": [
+                {
+                  "id": "engine",
+                  "rss_bytes_max": 103079215104,
+                  "current_footprint_bytes_max": 103079215104,
+                  "peak_footprint_bytes_max": 103079215104
+                },
+                {
+                  "id": "router",
+                  "rss_bytes_max": 2147483648,
+                  "current_footprint_bytes_max": 2147483648,
+                  "peak_footprint_bytes_max": 2147483648
+                }
+              ],
+              "swap_growth_bytes_max": 536870912,
+              "thermal_stop": true,
+              "cpu_speed_limit_stop": true
+            }
+          }
+        ]
+      },
+      {
+        "id": "tune-machine",
+        "kind": "measurement",
+        "parameters": [
+          "scope"
+        ],
+        "attempts_max": 1,
+        "runtime_minutes_max": 240,
+        "steps": [
+          {
+            "id": "tune-machine",
+            "kind": "measurement",
+            "runtime_minutes_max": 240,
+            "output_bytes_max": 0,
+            "evidence_bytes_max": 805306368,
+            "consumes": [],
+            "produces": [],
+            "process_watch": {
+              "schema": "field-kit-process-watch/v1",
+              "interval_milliseconds": 5000,
+              "max_gap_milliseconds": 15000,
+              "command_timeout_seconds": 15,
+              "term_grace_seconds": 30,
+              "roles": [
+                {
+                  "id": "engine",
+                  "rss_bytes_max": 103079215104,
+                  "current_footprint_bytes_max": 103079215104,
+                  "peak_footprint_bytes_max": 103079215104
+                },
+                {
+                  "id": "router",
+                  "rss_bytes_max": 2147483648,
+                  "current_footprint_bytes_max": 2147483648,
+                  "peak_footprint_bytes_max": 2147483648
+                }
+              ],
+              "swap_growth_bytes_max": 536870912,
+              "thermal_stop": true,
+              "cpu_speed_limit_stop": true
+            }
+          }
+        ]
+      }
+    ],
+    "initial_action": {
+      "id": "measure-baseline",
+      "parameters": {}
+    },
+    "final_validation_action": "finish-study",
+    "action_selection": "result-directed",
+    "total_attempts_max": 3,
+    "total_runtime_minutes_max": 286
+  },
+  "mechanics": {
+    "orchestration": "field-kit-python/v1",
+    "installation": "qwen-machine-study",
+    "mode": "qwen3.8-27b-q4xl-local",
+    "prompt": {
+      "path": "PROMPT.md",
+      "sha256": "9afa23d581d620c73baa6c55b822d25be4c7fc341be094d480786cca2f38cb13"
+    },
+    "runner": {
+      "path": "runner.py",
+      "sha256": "51b7037c449fd0e098d7cc55eb1c77f16d5c05c5d95c7a7ac06d9911c3396f4a"
+    },
+    "protocols": [
+      {
+        "path": "protocol.json",
+        "sha256": "5e61aed52ce6b92b40b455dee2ff81b66035f6bfc13d3d1d9cb30ead07d1f9e0"
+      },
+      {
+        "path": "workloads.json",
+        "sha256": "698c6a101e03c967c10b39afcc8913b4432905bd4c478fbaf99b88f1aa792319"
+      }
+    ],
+    "runtime_protocol": {
+      "id": "qwen-machine-study",
+      "revision": 1,
+      "schema": "field-kit-qwen-machine-study/v1"
+    }
+  },
+  "report": {
+    "answer_fields": [
+      "completed-work",
+      "context",
+      "fit",
+      "interaction",
+      "limits",
+      "profile",
+      "tuning"
+    ],
+    "required_conditions": [
+      "exact-material-bound",
+      "owned-process-group-stopped",
+      "protocol-evidence-complete",
+      "watcher-complete"
+    ],
+    "submission": "explicit-export-only"
+  },
+  "invalidation_triggers": [
+    "changed lock, workload, oracle, protocol, runtime, costs, stops or applicability"
+  ]
+}

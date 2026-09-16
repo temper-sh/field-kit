@@ -1,0 +1,35 @@
+schema: temper-software-lock/v1
+provenance:
+  experiment:
+    schema: field-kit-runtime-definition/v1
+    id: field-kit-python
+    definition_sha256: 1c5ff7d6a26c59eb56aebe044496f8795050f73f385813f77c8bfabbcc4fc9e3
+requires: []
+target:
+  os: darwin
+  arch: arm64
+target_mode: compatible
+resolved: 2026-08-25
+selections:
+  cpython:
+    provenance: experiment
+    method: release-artifact
+    adapter: upstream-release
+    recipe_revision: field-kit-python-upstream-release/v1
+    root_unit: upstream-release:field-kit-python:cpython
+units:
+  upstream-release:field-kit-python:cpython:
+    adapter: upstream-release
+    scope: field-kit-python
+    native_name: cpython
+    version: 3.14.7
+    revision: python-build-standalone/20260825
+    dependencies: []
+    artifacts:
+      - locator: https://github.com/astral-sh/python-build-standalone/releases/download/20260825/cpython-3.14.7%2B20260825-aarch64-apple-darwin-install_only.tar.gz
+        sha256: 4c4a4114bc35f9d76d194fd72f43d8375b2f30686ddfe6b40c9258cfe6c16e40
+        size: 26656635
+        unpacked_size: 68939572
+        installed_entries: 1856
+        format: tar.gz
+        archive_root: python
