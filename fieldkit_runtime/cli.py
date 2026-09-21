@@ -23,7 +23,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     contributor = subparsers.add_parser("contribute", help="run or resume the included experiment")
-    contributor.add_argument("--temper", type=Path, help=argparse.SUPPRESS)
+    contributor.add_argument("--temper", type=Path, help="matching Temper executable; required for this development revision")
     contributor.add_argument("--tuning", choices=("none", "both", "context", "flags"), help="Qwen study: choose optional tuning before reviewing the run")
     contributor.add_argument("--preview", action="store_true", help="read-only machine and cost preview")
     contributor.add_argument("--new", action="store_true", help="start a new allocation, retaining earlier results")
@@ -46,15 +46,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         if sys.stdin.isatty():
             arguments_list = ["contribute"]
         else:
-            print("Field Kit runs local-AI experiments and records results for review.\nRun ./setup.sh once, then ./field-kit in an interactive terminal.\nThis build includes the Qwen machine study.\nUse ./field-kit contribute --preview to check your machine and the run limits.")
+            print("Field Kit runs local-AI experiments and records results for review.\nThis development build requires a matching Temper executable.\nUse ./field-kit contribute --temper /absolute/path/to/temper --preview to check the experiment.\nSee docs/START.md; keep dispatched studies in their original checkout.")
             return 0
     arguments = parser.parse_args(arguments_list)
     try:
         if arguments.command == "contribute":
-            from .contributor import contribute
+            from .experiments.qwen.contributor import contribute
             return contribute(arguments, REPOSITORY)
         if arguments.command == "witness":
-            from .witness import inspect as inspect_witness
+            from .experiments.qwen.witness import inspect as inspect_witness
             sys.stdout.buffer.write(canonical_json(inspect_witness(arguments.input, arguments.package)))
             return 0
         if arguments.command == "verify":

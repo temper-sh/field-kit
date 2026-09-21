@@ -30,20 +30,16 @@ from .actions import (
     validate_action_candidate,
 )
 from .answers import validate_answers
-from .artifacts import Step as ActionStep
-from .artifacts import bound_material_generations, build_step, validate_step_result
 from .catalog import MachineFacts, QuestionPackage, Refusal, canonical_json, digest
 from .planner import PROBE_LISTEN, Plan, build_plan, load_plan, planned_paths
 
 
-SESSION_SCHEMA = "field-kit-session/v2"
-EXPORT_SCHEMA = "field-kit-evidence-export/v2"
+SESSION_SCHEMA = "field-kit-session/v3"
+EXPORT_SCHEMA = "field-kit-evidence-export/v3"
 EVIDENCE_DISCLOSURE = (
     "Retained evidence and exports may include generated model answers, private "
     "machine facts, local paths, hashes, timings and measurements."
 )
-GENERATION = re.compile(r"^[0-9a-f]{64}$")
-SAFE_TOKEN = re.compile(r"^[a-z0-9]+(?:[._/+:-][a-z0-9]+)*$")
 
 
 @dataclass(frozen=True)
@@ -293,9 +289,9 @@ def _file_digest(path: Path) -> str:
 def _runtime_digest() -> str:
     value = hashlib.sha256()
     root = Path(__file__).resolve().parent
-    for path in sorted(root.glob("*.py")):
+    for path in sorted(root.rglob("*.py")):
         data = path.read_bytes()
-        value.update(path.name.encode() + b"\0" + len(data).to_bytes(8, "big") + data)
+        value.update(path.relative_to(root).as_posix().encode() + b"\0" + len(data).to_bytes(8, "big") + data)
     return value.hexdigest()
 
 
@@ -349,6 +345,7 @@ class Workflow:
             self.entry.package["host"]["minimum_version"],
             identity_runner,
         )
+        self._inspect_execution(self.entry.package_root)
         return build_plan(
             self.entry,
             self.facts,
@@ -423,9 +420,7 @@ class Workflow:
             _atomic_write(package_root / "package.json", self.entry.package_data)
             for relative, data in self.entry.files.items():
                 _atomic_write(package_root / relative, data)
-            inputs_path = root / "field-kit" / "inputs"
-            prepared = self._prepare_execution(package_root, inputs_path)
-            software_lock_path = inputs_path / "software.lock.yaml"
+            prepared = self._inspect_execution(package_root)
             machine_path = root / "field-kit" / "machine-facts.yaml"
             _atomic_write(machine_path, self.facts_data)
             marker_path = root / ".field-kit-owner.json"
@@ -456,7 +451,7 @@ class Workflow:
                     "evidence": str(paths["evidence"]),
                     "report": str(paths["report"]),
                     "package_root": str(package_root),
-                    "software_lock": str(software_lock_path),
+                    "execution_lock": str(package_root / self.entry.package["execution_lock"]["path"]),
                     "machine_facts": str(machine_path),
                     "marker": str(marker_path),
                 },
@@ -530,41 +525,10 @@ class Workflow:
         for attempt in session.get("attempts", []):
             if isinstance(attempt, dict) and attempt.get("state") == "running":
                 if attempt.get("kind") == "question-action":
-                    running_steps = [
-                        step for step in attempt.get("steps", [])
-                        if isinstance(step, dict) and step.get("state") == "running"
-                    ]
-                    running_step = running_steps[-1] if running_steps else None
-                    charged = float(
-                        running_step.get("timeout_seconds", 0)
-                        if running_step is not None
-                        else attempt.get("timeout_seconds", 0)
-                    )
-                    session["action_elapsed_seconds"] = round(
-                        float(session.get("action_elapsed_seconds", 0)) + max(charged, 0),
-                        6,
-                    )
-                    prior_step_elapsed = sum(
-                        float(step.get("elapsed_seconds", 0))
-                        for step in attempt.get("steps", [])
-                        if isinstance(step, dict) and step is not running_step
-                    )
-                    attempt["elapsed_seconds"] = round(
-                        prior_step_elapsed + max(charged, 0),
-                        6,
-                    )
+                    charged = max(float(attempt.get("timeout_seconds", 0)), 0)
+                    session["action_elapsed_seconds"] = round(float(session.get("action_elapsed_seconds", 0)) + charged, 6)
+                    attempt["elapsed_seconds"] = charged
                     attempt["budget_accounting"] = "full timeout charged after interruption"
-                    if running_step is not None:
-                        running_step["state"] = "interrupted"
-                        running_step["elapsed_seconds"] = max(charged, 0)
-                        running_step["finished_at"] = _now()
-                        running_step["budget_accounting"] = (
-                            "full timeout charged after interruption"
-                        )
-                        running_step["failure"] = {
-                            "category": "interrupted",
-                            "message": "no committed step result was present when the session resumed",
-                        }
                 elif attempt.get("kind") == "stage" and attempt.get("operation") != "outcome":
                     charged = float(attempt.get("timeout_seconds", 0))
                     session["setup_elapsed_seconds"] = round(
@@ -634,7 +598,7 @@ class Workflow:
             raise Refusal("fixed questions do not accept adaptive action proposals")
         if session["state"] != "awaiting-action":
             raise Refusal("session is not awaiting an adaptive action")
-        if session.get("protocol_evidence", {}).get("safe_to_cleanup") is False:
+        if any(a.get("kind") == "question-action" and a.get("state") != "complete" for a in session["attempts"]) or session.get("protocol_evidence", {}).get("safe_to_cleanup") is False:
             raise Refusal("owned process shutdown was not established; inspect the retained evidence before another action")
         investigation = self.entry.package["investigation"]
         if investigation["action_selection"] == "result-directed":
@@ -672,7 +636,7 @@ class Workflow:
         session_path: Path,
         confirm_restore: Callable[[], bool],
     ) -> dict[str, Any]:
-        if session.get("protocol_evidence", {}).get("safe_to_cleanup") is False:
+        if any(a.get("kind") == "question-action" and a.get("state") != "complete" for a in session["attempts"]) or session.get("protocol_evidence", {}).get("safe_to_cleanup") is False:
             raise Refusal("owned process shutdown was not established; retain the installation and inspect its protocol evidence before cleanup")
         outcome_index = next(
             index for index, stage in enumerate(session["stages"])
@@ -704,26 +668,15 @@ class Workflow:
             path = package_root / relative
             if path.is_symlink() or not path.is_file() or digest(path.read_bytes()) != digest(data):
                 raise Refusal(f"materialized package file differs: {relative}")
-        inputs_path = Path(session["paths"]["software_lock"]).parent
-        expected = self._prepare_execution(package_root, inputs_path, dry_run=True)
-        for key in ("profile", "execution_digest", "lock_sha256", "layouts", "inputs"):
-            if expected[key] != session["execution"][key]:
-                raise Refusal("session execution inputs differ from the supplied lock")
-        for name, identity in expected["inputs"].items():
-            path = inputs_path / name
-            if path.is_symlink() or not path.is_file() or digest(path.read_bytes()) != identity["sha256"]:
-                raise Refusal(f"materialized execution input differs: {name}")
+        if self._inspect_execution(package_root) != session["execution"]:
+            raise Refusal("session execution differs from the supplied lock")
 
-    def _prepare_execution(self, package_root: Path, inputs_path: Path, *, dry_run: bool = False) -> dict[str, Any]:
-        from .execution import prepare_execution
-
-        prepared = prepare_execution(
-            self.temper, package_root / self.entry.package["execution_lock"]["path"],
-            inputs_path, dry_run=dry_run, runner=self.runner,
-        )
-        if prepared["layouts"] != [self.entry.package["profile"]["layout"]] or prepared["profile"] != self.entry.package["mechanics"]["mode"]:
-            raise Refusal("exported execution does not match the question's selected profile and layout")
-        return prepared
+    def _inspect_execution(self, package_root):
+        from .execution import inspect_execution
+        execution = inspect_execution(self.temper, package_root / self.entry.package["execution_lock"]["path"], runner=self.runner)
+        if execution["layouts"] != [self.entry.package["profile"]["layout"]] or execution["profile"] != self.entry.package["mechanics"]["mode"]:
+            raise Refusal("execution differs from the question's selected profile and layout")
+        return execution
 
     def _run_stage(self, session: dict[str, Any], session_path: Path, index: int) -> None:
         stage = session["stages"][index]
@@ -808,226 +761,68 @@ class Workflow:
             "state": "complete", "completed_at": _now(),
             "stdout_sha256": digest(result.stdout), "stderr_sha256": digest(result.stderr),
         })
-        if stage["operation"] == "config-apply":
-            session["generation"] = _parse_generation(result.stdout)
-        elif stage["operation"] == "material-bind":
-            session["binding"] = {"sha256": digest(result.stdout)}
+        if stage["operation"] == "execution-prepare":
+            from .execution import validate_material
+            material = validate_material(result.stdout, session["execution"])
+            session["generation"] = material["generation"]
+            session["binding"] = {"sha256": digest(material["binding"].encode())}
         _atomic_write(session_path, canonical_json(session))
 
-    def _run_question_action(
-        self,
-        session: dict[str, Any],
-        session_path: Path,
-        request: object,
-    ) -> dict[str, Any]:
-        action = propose_action(
-            self.entry.package["investigation"],
-            request,
-            session["attempts"],
-        )
-        definition = next(
-            item for item in self.entry.package["investigation"]["actions"]
-            if item["id"] == action.document["id"]
-        )
-        action_timeout = self._action_timeout(session, action.document["id"])
-        evidence_used = self._enforce_evidence_ceiling(session)
-        action_evidence_max = sum(
-            step["evidence_bytes_max"] for step in definition["steps"]
-        )
-        evidence_max = self.entry.package["cost"]["evidence_bytes_max"]
-        if evidence_used + action_evidence_max > evidence_max:
-            raise Refusal(
-                "declared evidence byte ceiling has insufficient room for this action"
-            )
+    def _run_question_action(self, session, session_path, request):
+        action = propose_action(self.entry.package["investigation"], request, session["attempts"])
+        definition = next(item for item in self.entry.package["investigation"]["actions"] if item["id"] == action.document["id"])
+        timeout = self._action_timeout(session, action.document["id"])
+        before = self._enforce_evidence_ceiling(session)
+        if before + definition["evidence_bytes_max"] > self.entry.package["cost"]["evidence_bytes_max"]:
+            raise Refusal("declared evidence byte ceiling has insufficient room for this action")
         attempt_id = f"attempt-{len(session['attempts']) + 1:04d}"
-        action_root = Path(session["paths"]["evidence"]) / "actions" / attempt_id
-        action_path = action_root / "action.json"
+        directory = Path(session["paths"]["evidence"]) / "actions" / attempt_id
+        action_path, report_path = directory / "action.json", directory / "report.json"
         _atomic_write(action_path, action.data)
-        self.progress(f"FIELD-KIT running action={action.document['id']} attempt={attempt_id}")
-        attempt = {
-            "id": attempt_id,
-            "kind": "question-action",
-            "stage": "question-action",
-            "operation": "live-protocol",
-            "reason": action.document["reason"],
-            "candidate": action.document["parameters"],
-            "changes": action.document["changes"],
-            "action": {
-                "id": action.document["id"],
-                "kind": action.document["kind"],
-                "path": str(action_path),
-                "sha256": action.sha256,
-            },
-            "timeout_seconds": action_timeout,
-            "steps": [],
-            "artifacts": {},
-            "state": "running",
-            "started_at": _now(),
-        }
+        arguments = self._action_arguments(session, action_path, report_path, directory / "logs")
+        attempt = {"id": attempt_id, "kind": "question-action", "stage": "question-action",
+                   "operation": "live-protocol", "reason": action.document["reason"],
+                   "candidate": action.document["parameters"], "changes": action.document["changes"],
+                   "action": {"id": action.document["id"], "kind": action.document["kind"],
+                              "path": str(action_path), "sha256": action.sha256},
+                   "arguments": arguments, "timeout_seconds": timeout, "state": "running", "started_at": _now()}
         session["attempts"].append(attempt)
         _atomic_write(session_path, canonical_json(session))
-        action_started = time.monotonic()
-        artifacts: dict[str, dict[str, Any]] = {}
-        terminal_report: dict[str, Any] | None = None
-        terminal_report_record: dict[str, str] | None = None
-        for step_index, step_definition in enumerate(definition["steps"], 1):
-            elapsed_before_step = time.monotonic() - action_started
-            timeout = self._step_timeout(
-                session,
-                definition,
-                step_definition,
-                elapsed_before_step,
-            )
-            step_root = action_root / "steps" / step_definition["id"]
-            step_path = step_root / "step.json"
-            report_path = step_root / "report.json"
-            log_dir = step_root / "logs"
-            artifact_root = action_root / "artifacts"
-            for name in step_definition["produces"]:
-                output = artifact_root / name
-                if output.exists() or output.is_symlink():
-                    raise Refusal(f"prepared artifact output already exists: {output}")
-            step = build_step(
-                action=action.document,
-                action_sha256=action.sha256,
-                step=step_definition,
-                step_index=step_index,
-                plan_sha256=session["plan"]["sha256"],
-                inputs=artifacts,
-                artifact_root=artifact_root,
-            )
-            _atomic_write(step_path, step.data)
-            arguments = self._action_arguments(
-                session,
-                action_path,
-                step_path,
-                report_path,
-                log_dir,
-            )
-            self.progress(
-                f"FIELD-KIT running action={action.document['id']} "
-                f"step={step_definition['id']} attempt={attempt_id}"
-            )
-            step_attempt = {
-                "id": step_definition["id"],
-                "index": step_index,
-                "kind": step_definition["kind"],
-                "step": {"path": str(step_path), "sha256": step.sha256},
-                "arguments": list(arguments),
-                "timeout_seconds": timeout,
-                "state": "running",
-                "started_at": _now(),
-            }
-            attempt["steps"].append(step_attempt)
-            _atomic_write(session_path, canonical_json(session))
-            evidence_before_runner = self._enforce_evidence_ceiling(session)
-            started = time.monotonic()
+        self.progress(f"FIELD-KIT running action={action.document['id']} attempt={attempt_id}")
+        started = time.monotonic()
+        try:
             result = self.runner(arguments, timeout)
-            elapsed = time.monotonic() - started
-            session["action_elapsed_seconds"] = round(
-                float(session.get("action_elapsed_seconds", 0)) + elapsed,
-                6,
-            )
-            step_attempt["elapsed_seconds"] = round(elapsed, 6)
-            step_attempt["finished_at"] = _now()
-            step_attempt["returncode"] = result.returncode
-            stdout_path = step_root / "stdout"
-            stderr_path = step_root / "stderr"
-            _atomic_write(stdout_path, result.stdout)
-            _atomic_write(stderr_path, result.stderr)
-            step_attempt["evidence"] = {
-                "stdout": str(stdout_path),
-                "stdout_sha256": digest(result.stdout),
-                "stderr": str(stderr_path),
-                "stderr_sha256": digest(result.stderr),
-            }
-            try:
-                evidence_after_runner = self._enforce_evidence_ceiling(session)
-                if (
-                    evidence_after_runner - evidence_before_runner
-                    > step_definition["evidence_bytes_max"]
-                ):
-                    raise Refusal(
-                        "question action step exceeded its evidence byte ceiling"
-                    )
-            except Refusal as error:
-                failure = {"category": "boundary", "message": str(error)}
-                step_attempt["state"] = "failed"
-                step_attempt["failure"] = failure
-                attempt["state"] = "failed"
-                attempt["failure"] = failure
-                attempt["elapsed_seconds"] = round(time.monotonic() - action_started, 6)
-                attempt["finished_at"] = _now()
-                _atomic_write(session_path, canonical_json(session))
-                raise
-            if result.returncode != 0:
-                failure = {
-                    "category": "operational",
-                    "message": str(CommandFailure(arguments, result)),
-                }
-                step_attempt["state"] = "failed"
-                step_attempt["failure"] = failure
-                attempt["state"] = "failed"
-                attempt["failure"] = failure
-                attempt["elapsed_seconds"] = round(time.monotonic() - action_started, 6)
-                attempt["finished_at"] = _now()
-                _atomic_write(session_path, canonical_json(session))
+            attempt["returncode"] = result.returncode
+            attempt["evidence"] = {}
+            for stream, data in (("stdout", result.stdout), ("stderr", result.stderr)):
+                path = directory / stream
+                _atomic_write(path, data)
+                attempt["evidence"].update({stream: str(path), stream + "_sha256": digest(data)})
+            if self._enforce_evidence_ceiling(session) - before > definition["evidence_bytes_max"]:
+                raise Refusal("question action exceeded its evidence byte ceiling")
+            if result.returncode:
                 raise CommandFailure(arguments, result)
-            try:
-                report, report_data, produced, terminal, next_actions = self._validate_step_report(
-                    session,
-                    action.sha256,
-                    step,
-                    step_definition,
-                    report_path,
-                    artifact_root,
-                    artifacts,
-                    step_index == len(definition["steps"]),
-                )
-            except (OSError, ValueError) as error:
-                failure = {"category": "measurement", "message": str(error)}
-                step_attempt["state"] = "failed"
-                step_attempt["failure"] = failure
-                attempt["state"] = "failed"
-                attempt["failure"] = failure
-                attempt["elapsed_seconds"] = round(time.monotonic() - action_started, 6)
-                attempt["finished_at"] = _now()
-                _atomic_write(session_path, canonical_json(session))
-                raise
-            artifacts.update(produced)
-            attempt["artifacts"] = artifacts
-            report_record = {"path": str(report_path), "sha256": digest(report_data)}
-            step_attempt["report"] = report_record
-            step_attempt["state"] = "complete"
-            if terminal:
-                terminal_report = report
-                terminal_report_record = report_record
-                break
+            if report_path.is_symlink() or not report_path.is_file() or report_path.stat().st_size > 1024 * 1024:
+                raise Refusal("question action report is absent, unsafe or too large")
+            data = report_path.read_bytes()
+            report = json.loads(data)
+            validate_action_report(report, data, action.sha256, session["plan"]["sha256"],
+                                   session["package"]["protocol"]["schema"], self.entry.package["profile"]["layout"], session["generation"])
+            validate_answers(report["answers"], self.entry.package["report"]["answer_fields"])
+            next_actions = _validate_next_actions(self.entry.package["investigation"], action.document["id"], report["next_actions"], session["attempts"])
+            attempt.update(state="complete", protocol_report={"path": str(report_path), "sha256": digest(data)}, next_actions=next_actions)
+            session["protocol_evidence"], session["answers"] = report["protocol"], report["answers"]
+            if self.entry.package["investigation"]["action_selection"] == "result-directed":
+                session["allowed_actions"] = next_actions
+        except (Exception, KeyboardInterrupt) as error:
+            attempt["state"] = "interrupted" if isinstance(error, KeyboardInterrupt) else "failed"
+            attempt["failure"] = {"category": "operational" if isinstance(error, CommandFailure) else "boundary", "message": str(error)}
+            raise
+        finally:
+            elapsed = time.monotonic() - started
+            session["action_elapsed_seconds"] = round(float(session.get("action_elapsed_seconds", 0)) + elapsed, 6)
+            attempt.update(elapsed_seconds=round(elapsed, 6), finished_at=_now())
             _atomic_write(session_path, canonical_json(session))
-        if terminal_report is None or terminal_report_record is None:
-            raise Refusal("question action ended without a terminal step result")
-        protocol = terminal_report["protocol"]
-        answers = terminal_report["answers"]
-        attempt["next_actions"] = next_actions
-        attempt["state"] = "complete"
-        attempt["elapsed_seconds"] = round(time.monotonic() - action_started, 6)
-        attempt["finished_at"] = _now()
-        attempt["protocol_report"] = terminal_report_record
-        session["protocol_evidence"] = protocol
-        session["answers"] = answers
-        if self.entry.package["investigation"]["action_selection"] == "result-directed":
-            session["allowed_actions"] = next_actions
-        session.setdefault("action_results", []).append({
-            "attempt": attempt_id,
-            "action_sha256": action.sha256,
-            "reports": [item["report"] for item in attempt["steps"]],
-            "artifacts": {
-                name: item["artifact"] for name, item in sorted(artifacts.items())
-            },
-            "answers": answers,
-            "next_actions": next_actions,
-        })
-        _atomic_write(session_path, canonical_json(session))
         return attempt
 
     def _stage_timeout(self, session: dict[str, Any], operation: str) -> float:
@@ -1054,59 +849,19 @@ class Workflow:
             raise Refusal("declared question-action time bound is exhausted; renewed consent is required")
         return min(per_action, remaining)
 
-    def _step_timeout(
-        self,
-        session: dict[str, Any],
-        action: dict[str, Any],
-        step: dict[str, Any],
-        action_elapsed_seconds: float,
-    ) -> float:
-        total = float(self.entry.package["investigation"]["total_runtime_minutes_max"] * 60)
-        total_remaining = total - float(session.get("action_elapsed_seconds", 0))
-        action_remaining = float(action["runtime_minutes_max"] * 60) - action_elapsed_seconds
-        step_maximum = float(step["runtime_minutes_max"] * 60)
-        remaining = min(total_remaining, action_remaining, step_maximum)
-        if remaining <= 0:
-            raise Refusal("declared question-action time bound is exhausted; renewed consent is required")
-        return remaining
-
-    def _arguments(self, session: dict[str, Any], operation: str) -> list[str]:
-        package = self.entry.package
-        mechanics = package["mechanics"]
-        root = session["paths"]["root"]
-        package_root = Path(session["paths"]["package_root"])
-        software_lock = session["paths"]["software_lock"]
-        inputs_path = Path(software_lock).parent
-        manifest = inputs_path / "manifest.yaml"
-        manifest_lock = inputs_path / "manifest.lock.yaml"
-        temper = session["temper"]["path"]
-        common = ["--root", root]
-        if operation == "software-install":
-            return [temper, "software", "install", *common, "--installation", mechanics["installation"], "--lock", software_lock]
-        if operation == "model-fetch":
-            return [temper, "fetch", package["profile"]["layout"], *common, "--manifest", str(manifest), "--lock", str(manifest_lock)]
-        if operation == "config-apply":
-            return [temper, "apply", *common, "--manifest", str(manifest), "--lock", str(manifest_lock), "--mode", mechanics["mode"]]
-        if operation == "software-check":
-            return [temper, "software", "check", *common, "--installation", mechanics["installation"], "--lock", software_lock]
-        if operation == "artifact-check":
-            return [temper, "check", *common, "--manifest", str(manifest), "--lock", str(manifest_lock), "--mode", mechanics["mode"], "--verify"]
-        if operation == "material-bind":
-            return [
-                temper, "field-kit", "bind", *common, "--manifest-lock", str(manifest_lock),
-                "--generation", session["generation"], "--installation", f"{mechanics['installation']}={software_lock}",
-            ]
-        if operation == "outcome":
-            if session["outcome"] == "keep":
-                return []
-            return [temper, "software", "remove", *common, "--installation", mechanics["installation"], "--lock", software_lock]
-        raise Refusal(f"unsupported stage operation: {operation}")
+    def _arguments(self, session, operation):
+        if operation == "outcome" and session["outcome"] == "keep":
+            return []
+        verb = {"execution-prepare": "prepare", "outcome": "remove"}.get(operation)
+        if verb is None:
+            raise Refusal(f"unsupported stage operation: {operation}")
+        return [session["temper"]["path"], "execution", verb, "--lock", session["paths"]["execution_lock"],
+                "--root", session["paths"]["root"], "--installation", self.entry.package["mechanics"]["installation"]]
 
     def _action_arguments(
         self,
         session: dict[str, Any],
         action_path: Path,
-        step_path: Path,
         report_path: Path,
         log_dir: Path,
     ) -> list[str]:
@@ -1116,13 +871,9 @@ class Workflow:
             sys.executable,
             str(Path(session["paths"]["package_root"]) / mechanics["runner"]["path"]),
             "--action", str(action_path),
-            "--step", str(step_path),
             "--temper", session["temper"]["path"],
             "--root", session["paths"]["root"],
-            "--software-lock", session["paths"]["software_lock"],
             "--execution-lock", str(Path(session["paths"]["package_root"]) / package["execution_lock"]["path"]),
-            "--request-defaults", str(Path(session["paths"]["software_lock"]).parent / "request-defaults.json"),
-            "--manifest-lock", str(Path(session["paths"]["software_lock"]).parent / "manifest.lock.yaml"),
             "--generation", session["generation"],
             "--installation", mechanics["installation"],
             "--model", package["profile"]["layout"],
@@ -1134,74 +885,12 @@ class Workflow:
             "--outcome", session["outcome"],
         ]
 
-    def _validate_stage(
-        self,
-        session: dict[str, Any],
-        operation: str,
-        output: bytes,
-    ) -> None:
-        text = output.decode(errors="replace")
-        required = {
-            "software-install": "RESULT software-install ",
-            "model-fetch": "RESULT fetch ",
-            "config-apply": "RESULT apply ",
-            "software-check": "RESULT software-check exact ",
-            "artifact-check": "RESULT check ok ",
-            "material-bind": "schema: temper-field-kit-binding/v1\n",
-            "outcome": "RESULT ",
-        }
-        if operation in required and required[operation] not in text:
-            raise Refusal(f"{operation} returned an unexpected result")
-        if operation == "config-apply":
-            _parse_generation(output)
-
-    def _validate_step_report(
-        self,
-        session: dict[str, Any],
-        action_sha256: str,
-        step: Any,
-        definition: dict[str, Any],
-        path: Path,
-        artifact_root: Path,
-        prior_artifacts: dict[str, dict[str, Any]],
-        final_step: bool,
-    ) -> tuple[dict[str, Any], bytes, dict[str, dict[str, Any]], bool, object]:
-        if path.is_symlink() or not path.is_file():
-            raise Refusal("question action step did not write its report")
-        data = path.read_bytes()
-        if len(data) > 1024 * 1024:
-            raise Refusal("question action step report is too large")
-        report = json.loads(data)
-        produced, terminal, answers = validate_step_result(
-            report,
-            report_data=data,
-            action_sha256=action_sha256,
-            step=step,
-            definition=definition,
-            artifact_root=artifact_root,
-            prior_artifacts=prior_artifacts,
-            final_step=final_step,
-        )
-        assert isinstance(report, dict)
-        _validate_protocol_material(
-            report,
-            schema=session["package"]["protocol"]["schema"],
-            model=self.entry.package["profile"]["layout"],
-            initial_generation=session["generation"],
-            prior_artifacts=prior_artifacts,
-            consumed=definition["consumes"],
-            message="question action step did not complete for the bound model and generation",
-        )
-        if terminal:
-            validate_answers(answers, self.entry.package["report"]["answer_fields"])
-        next_actions = _validate_next_actions(
-            self.entry.package["investigation"],
-            step.document["action"]["id"],
-            report.get("next_actions"),
-            session["attempts"],
-            terminal,
-        )
-        return report, data, produced, terminal, next_actions
+    def _validate_stage(self, session, operation, output):
+        if operation == "execution-prepare":
+            from .execution import validate_material
+            validate_material(output, session["execution"])
+        elif operation == "outcome" and not output.startswith(b"RESULT "):
+            raise Refusal("cleanup returned an unexpected result")
 
     def _restore(self, session: dict[str, Any], session_path: Path) -> None:
         root = Path(session["paths"]["root"])
@@ -1216,15 +905,6 @@ class Workflow:
         _atomic_write(session_path, canonical_json(session))
 
 
-def _parse_generation(output: bytes) -> str:
-    for field in output.decode(errors="replace").split():
-        if field.startswith("generation="):
-            generation = field.removeprefix("generation=")
-            if GENERATION.fullmatch(generation):
-                return generation
-    raise Refusal("Temper apply output has no exact generation")
-
-
 def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -1234,13 +914,8 @@ def _validate_next_actions(
     action_id: str,
     value: object,
     attempts: Sequence[dict[str, Any]],
-    terminal: bool,
 ) -> object:
     """Validate the package controller's exact next-action frontier."""
-    if not terminal:
-        if value is not None:
-            raise Refusal("a non-terminal step cannot select the next action")
-        return None
     if investigation["action_selection"] != "result-directed":
         if value is not None:
             raise Refusal("this investigation does not permit result-directed actions")
@@ -1282,7 +957,7 @@ def load_session(path: Path) -> dict[str, Any]:
     except json.JSONDecodeError as error:
         raise Refusal(f"invalid session JSON: {error}") from error
     if not isinstance(document, dict) or document.get("schema") != SESSION_SCHEMA or canonical_json(document) != data:
-        raise Refusal("session is not canonical field-kit-session/v2")
+        raise Refusal("session is not canonical field-kit-session/v3")
     if document.get("state") not in {
         "running", "setup-complete", "measurement-complete", "awaiting-action",
         "ready-to-finish", "stages-complete", "complete",
@@ -1291,250 +966,70 @@ def load_session(path: Path) -> dict[str, Any]:
     return document
 
 
-def _validate_protocol_material(
-    report: dict[str, Any],
-    *,
-    schema: str,
-    model: str,
-    initial_generation: str,
-    prior_artifacts: dict[str, dict[str, Any]],
-    consumed: list[str],
-    message: str,
-) -> None:
-    protocol = report.get("protocol")
-    allowed_generations = {initial_generation}
-    allowed_generations.update(
-        bound_material_generations(prior_artifacts, consumed, model)
-    )
-    if (
-        not isinstance(protocol, dict)
-        or protocol.get("schema") != schema
-        or protocol.get("status") != "complete"
-        or protocol.get("model") != model
-        or protocol.get("generation") not in allowed_generations
-    ):
-        raise Refusal(message)
+def validate_action_report(report, data, action_sha256, plan_sha256, schema, model, generation):
+    if (not isinstance(report, dict) or set(report) != {"schema", "status", "action_sha256", "plan_sha256", "answers", "next_actions", "protocol"}
+            or report["schema"] != "field-kit-action-result/v2" or report["status"] != "complete"
+            or canonical_json(report) != data or report["action_sha256"] != action_sha256 or report["plan_sha256"] != plan_sha256):
+        raise Refusal("question action returned an invalid or unbound result")
+    protocol = report["protocol"]
+    if (not isinstance(protocol, dict) or protocol.get("schema") != schema or protocol.get("status") != "complete"
+            or protocol.get("model") != model or protocol.get("generation") != generation
+            or type(protocol.get("safe_to_cleanup")) is not bool):
+        raise Refusal("question action did not complete for the bound model and generation with a shutdown result")
 
 
-def _collect_action_evidence(
-    session: dict[str, Any],
-    investigation: dict[str, Any],
-    model: str,
-) -> list[dict[str, Any]]:
-    """Verify and collect every committed question-action document and report."""
+def _collect_action_evidence(session, investigation, model):
+    """Verify every attempt and its single result; unfinished attempts stay visible."""
     evidence_root = Path(session["paths"]["evidence"])
-    collected: list[dict[str, Any]] = []
-    expected_results: list[dict[str, Any]] = []
-    question_attempts_seen: list[dict[str, Any]] = []
-    action_number = 0
+    collected, seen = [], []
+    latest = None
     for attempt in session.get("attempts", []):
-        if not isinstance(attempt, dict) or attempt.get("kind") != "question-action":
+        if attempt.get("kind") != "question-action":
             continue
-        question_attempts_seen.append(attempt)
-        action_number += 1
-        attempt_id = attempt.get("id")
-        if not isinstance(attempt_id, str):
-            raise Refusal("question-action attempt has no ID")
-        action_root = evidence_root / "actions" / attempt_id
-        action_record = attempt.get("action")
-        if not isinstance(action_record, dict):
-            raise Refusal(f"question-action {attempt_id} has no action identity")
-        action_path = action_root / "action.json"
-        if action_record.get("path") != str(action_path):
-            raise Refusal(f"question-action {attempt_id} action path differs")
-        action_data = _read_hashed_evidence(
-            action_path,
-            action_record.get("sha256"),
-            64 * 1024,
-            f"question-action {attempt_id} action",
-        )
-        try:
-            action_document = json.loads(action_data)
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise Refusal(f"question-action {attempt_id} action JSON is invalid") from error
-        if (
-            not isinstance(action_document, dict)
-            or canonical_json(action_document) != action_data
-            or action_document.get("schema") != ACTION_SCHEMA
-            or action_document.get("attempt") != action_number
-            or action_document.get("id") != action_record.get("id")
-            or action_document.get("kind") != action_record.get("kind")
-            or action_document.get("parameters") != attempt.get("candidate")
-            or action_document.get("changes") != attempt.get("changes")
-            or action_document.get("reason") != attempt.get("reason")
-        ):
-            raise Refusal(f"question-action {attempt_id} action document differs")
-        definition = next(
-            (item for item in investigation["actions"] if item["id"] == action_record.get("id")),
-            None,
-        )
-        if definition is None:
-            raise Refusal(f"question-action {attempt_id} is not declared by the investigation")
-        artifacts: dict[str, dict[str, Any]] = {}
-        step_items: list[dict[str, Any]] = []
-        terminal_report: dict[str, Any] | None = None
-        terminal_report_record: dict[str, str] | None = None
-        terminal_next_actions: object = None
-        step_attempts = attempt.get("steps")
-        if not isinstance(step_attempts, list) or len(step_attempts) > len(definition["steps"]):
-            raise Refusal(f"question-action {attempt_id} step ledger is invalid")
-        for offset, step_attempt in enumerate(step_attempts):
-            step_definition = definition["steps"][offset]
-            step_id = step_definition["id"]
-            if not isinstance(step_attempt, dict) or step_attempt.get("id") != step_id:
-                raise Refusal(f"question-action {attempt_id} step order differs")
-            step_root = action_root / "steps" / step_id
-            step_path = step_root / "step.json"
-            step_record = step_attempt.get("step")
-            if not isinstance(step_record, dict) or step_record.get("path") != str(step_path):
-                raise Refusal(f"question-action {attempt_id} step path differs")
-            step_data = _read_hashed_evidence(
-                step_path,
-                step_record.get("sha256"),
-                256 * 1024,
-                f"question-action {attempt_id} step {step_id}",
-            )
-            try:
-                step_document = json.loads(step_data)
-            except (UnicodeDecodeError, json.JSONDecodeError) as error:
-                raise Refusal(f"question-action {attempt_id} step JSON is invalid") from error
-            expected_step = build_step(
-                action=action_document,
-                action_sha256=action_record["sha256"],
-                step=step_definition,
-                step_index=offset + 1,
-                plan_sha256=session["plan"]["sha256"],
-                inputs=artifacts,
-                artifact_root=action_root / "artifacts",
-            )
-            if step_document != expected_step.document or step_data != expected_step.data:
-                raise Refusal(f"question-action {attempt_id} step document differs")
-            evidence = step_attempt.get("evidence")
-            if evidence is not None:
-                if not isinstance(evidence, dict) or set(evidence) != {
-                    "stdout", "stdout_sha256", "stderr", "stderr_sha256",
-                }:
-                    raise Refusal(f"question-action {attempt_id} step evidence is invalid")
-                for stream in ("stdout", "stderr"):
-                    expected_path = step_root / stream
-                    if evidence[stream] != str(expected_path):
-                        raise Refusal(f"question-action {attempt_id} step {stream} path differs")
-                    _read_hashed_evidence(
-                        expected_path,
-                        evidence[f"{stream}_sha256"],
-                        step_definition["evidence_bytes_max"],
-                        f"question-action {attempt_id} step {step_id} {stream}",
-                    )
-            step_item: dict[str, Any] = {
-                "id": step_id,
-                "state": step_attempt.get("state"),
-                "step": step_document,
-                "step_sha256": expected_step.sha256,
-            }
-            if step_attempt.get("state") == "complete":
-                if evidence is None:
-                    raise Refusal(f"completed question-action {attempt_id} step has no evidence")
-                report_record = step_attempt.get("report")
-                report_path = step_root / "report.json"
-                if not isinstance(report_record, dict) or report_record.get("path") != str(report_path):
-                    raise Refusal(f"question-action {attempt_id} step report path differs")
-                report_data = _read_hashed_evidence(
-                    report_path,
-                    report_record.get("sha256"),
-                    1024 * 1024,
-                    f"question-action {attempt_id} step {step_id} report",
-                )
-                try:
-                    report = json.loads(report_data)
-                except (UnicodeDecodeError, json.JSONDecodeError) as error:
-                    raise Refusal(f"question-action {attempt_id} step report JSON is invalid") from error
-                produced, terminal, answers = validate_step_result(
-                    report,
-                    report_data=report_data,
-                    action_sha256=action_record["sha256"],
-                    step=ActionStep(step_document, step_data, expected_step.sha256),
-                    definition=step_definition,
-                    artifact_root=action_root / "artifacts",
-                    prior_artifacts=artifacts,
-                    final_step=offset == len(definition["steps"]) - 1,
-                )
-                _validate_protocol_material(
-                    report,
-                    schema=session["package"]["protocol"]["schema"],
-                    model=model,
-                    initial_generation=session["generation"],
-                    prior_artifacts=artifacts,
-                    consumed=step_definition["consumes"],
-                    message=(
-                        f"question-action {attempt_id} step did not complete "
-                        "for bound material"
-                    ),
-                )
-                artifacts.update(produced)
-                step_item["report"] = report
-                step_item["report_sha256"] = report_record["sha256"]
-                if terminal:
-                    terminal_next_actions = _validate_next_actions(
-                        investigation,
-                        action_document["id"],
-                        report.get("next_actions"),
-                        question_attempts_seen,
-                        True,
-                    )
-                    terminal_report = report
-                    terminal_report_record = report_record
-                    if offset != len(step_attempts) - 1:
-                        raise Refusal(f"question-action {attempt_id} continued after a terminal result")
-            step_items.append(step_item)
-        state = attempt.get("state")
-        item: dict[str, Any] = {
-            "attempt": attempt_id,
-            "action": action_document,
-            "action_sha256": action_record["sha256"],
-            "state": state,
-            "steps": step_items,
-            "artifacts": {
-                name: value["artifact"] for name, value in sorted(artifacts.items())
-            },
-        }
-        if state == "complete":
-            if terminal_report is None or terminal_report_record is None:
-                raise Refusal(f"completed question-action {attempt_id} has no terminal result")
-            if attempt.get("protocol_report") != terminal_report_record:
-                raise Refusal(f"question-action {attempt_id} terminal report differs")
-            if attempt.get("next_actions") != terminal_next_actions:
-                raise Refusal(f"question-action {attempt_id} next-action frontier differs")
-            expected_result = {
-                "attempt": attempt_id,
-                "action_sha256": action_record["sha256"],
-                "reports": [step["report"] for step in step_attempts],
-                "artifacts": item["artifacts"],
-                "answers": terminal_report.get("answers"),
-                "next_actions": terminal_next_actions,
-            }
-            expected_results.append(expected_result)
-            item["terminal_report"] = terminal_report
-            item["terminal_report_sha256"] = terminal_report_record["sha256"]
-        if attempt.get("artifacts", {}) != artifacts:
-            raise Refusal(f"question-action {attempt_id} artifact ledger differs")
+        record = attempt["action"]
+        attempt_id = attempt["id"]
+        if not re.fullmatch(r"attempt-[0-9]+", attempt_id):
+            raise Refusal("invalid action attempt ID")
+        directory = evidence_root / "actions" / attempt_id
+        path = directory / "action.json"
+        if record["path"] != str(path):
+            raise Refusal("question action path differs")
+        data = _read_hashed_evidence(path, record["sha256"], 65536, "question action")
+        expected = propose_action(investigation, {"id": record["id"], "parameters": attempt["candidate"], "reason": attempt["reason"]}, seen)
+        if data != expected.data or attempt["changes"] != expected.document["changes"] or record["kind"] != expected.document["kind"]:
+            raise Refusal("question action document differs")
+        seen.append(attempt)
+        definition = next(item for item in investigation["actions"] if item["id"] == record["id"])
+        evidence = attempt.get("evidence")
+        if evidence is not None:
+            if not isinstance(evidence, dict) or set(evidence) != {"stdout", "stdout_sha256", "stderr", "stderr_sha256"}:
+                raise Refusal("question action evidence is invalid")
+            for stream in ("stdout", "stderr"):
+                if evidence[stream] != str(directory / stream):
+                    raise Refusal("question action evidence path differs")
+                _read_hashed_evidence(directory / stream, evidence[stream + "_sha256"], definition["evidence_bytes_max"], stream)
+        item = {"attempt": attempt_id, "action": expected.document, "action_sha256": expected.sha256, "state": attempt["state"]}
+        if attempt["state"] == "complete":
+            report_record = attempt.get("protocol_report", {})
+            report_path = directory / "report.json"
+            if evidence is None or report_record.get("path") != str(report_path):
+                raise Refusal("completed action has no bound report and evidence")
+            raw = _read_hashed_evidence(report_path, report_record.get("sha256"), 1024 * 1024, "action report")
+            report = json.loads(raw)
+            validate_action_report(report, raw, expected.sha256, session["plan"]["sha256"], session["package"]["protocol"]["schema"], model, session["generation"])
+            frontier = _validate_next_actions(investigation, record["id"], report["next_actions"], seen)
+            if attempt.get("next_actions") != frontier:
+                raise Refusal("question action next-action frontier differs")
+            item.update(report=report, report_sha256=report_record["sha256"])
+            latest = report
         collected.append(item)
-    if session.get("action_results", []) != expected_results:
-        raise Refusal("session action result ledger differs from retained reports")
     if investigation["action_selection"] == "result-directed":
-        expected_allowed = expected_results[-1]["next_actions"] if expected_results else None
-        if session.get("allowed_actions") != expected_allowed:
+        if session.get("allowed_actions") != (latest["next_actions"] if latest else None):
             raise Refusal("session next-action frontier differs from the latest result")
     elif "allowed_actions" in session:
-        raise Refusal("session has a next-action frontier for an operator-bounded question")
-    if expected_results:
-        latest_report = next(
-            item["terminal_report"] for item in reversed(collected)
-            if "terminal_report" in item
-        )
-        if (
-            session.get("protocol_evidence") != latest_report.get("protocol")
-            or session.get("answers") != latest_report.get("answers")
-        ):
+        raise Refusal("session has an unapproved next-action frontier")
+    if latest:
+        if session.get("protocol_evidence") != latest["protocol"] or session.get("answers") != latest["answers"]:
             raise Refusal("session answer differs from the latest completed question action")
     elif "protocol_evidence" in session or "answers" in session:
         raise Refusal("session has an answer without a completed question action")
@@ -1651,15 +1146,6 @@ def render_report(session: dict[str, Any], entry: QuestionPackage) -> bytes:
                 f"action `{attempt['action']['sha256']}`; "
                 f"report `{report.get('sha256', '')}`"
             )
-            for step in attempt.get("steps", []):
-                step_report = step.get("report", {})
-                lines.append(
-                    f"  - step `{step.get('id', '')}` ({step.get('kind', '')}): "
-                    f"{step.get('state', '')}; report `{step_report.get('sha256', '')}`"
-                )
-            for name, artifact in sorted(attempt.get("artifacts", {}).items()):
-                descriptor = artifact.get("artifact", {})
-                lines.append(f"  - artifact `{name}`: `{descriptor.get('id', '')}`")
             if attempt.get("next_actions") is not None:
                 rendered_next = json.dumps(
                     attempt["next_actions"],

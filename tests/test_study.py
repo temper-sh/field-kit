@@ -2,7 +2,7 @@
 import copy
 import unittest
 
-from fieldkit_runtime.study import choose_candidate, confirm_candidate, context_summary, performance_summary, variant_records
+from fieldkit_runtime.experiments.qwen.method import choose_candidate, confirm_candidate, context_summary, performance_summary, variant_records
 
 
 def observation(seconds=100, *, identity="baseline", correct=True, valid=True):

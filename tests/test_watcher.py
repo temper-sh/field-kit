@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import signal
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,17 +9,14 @@ from threading import Event
 from fieldkit_runtime.catalog import Refusal
 from fieldkit_runtime.watcher import (
     BINDING_SCHEMA,
-    REGISTRATION_SCHEMA,
     WATCH_SCHEMA,
     CoordinatedWatcher,
     WatchFailure,
-    bind_registration,
     evaluate_snapshot,
     parse_footprint,
     parse_rss_bytes,
     parse_swap_used_bytes,
     parse_thermal,
-    terminate_bound_group,
     validate_watch_spec,
 )
 
@@ -31,7 +27,6 @@ def watch_spec() -> dict:
         "interval_milliseconds": 5000,
         "max_gap_milliseconds": 15000,
         "command_timeout_seconds": 15,
-        "term_grace_seconds": 30,
         "roles": [
             {
                 "id": "engine",
@@ -93,33 +88,6 @@ class ProcessWatcherTest(unittest.TestCase):
         with self.assertRaisesRegex(Refusal, "sorted unique"):
             validate_watch_spec(spec)
 
-    def test_registration_binds_every_pid_to_the_explicit_group(self) -> None:
-        identities = {
-            101: {"pid": 101, "pgid": 900, "ps_lstart": "engine-start"},
-            102: {"pid": 102, "pgid": 900, "ps_lstart": "router-start"},
-        }
-        registered = {
-            "schema": REGISTRATION_SCHEMA,
-            "process_group_id": 900,
-            "roles": [
-                {"id": "engine", "pid": 101},
-                {"id": "router", "pid": 102},
-            ],
-        }
-        bound = bind_registration(
-            watch_spec(),
-            registered,
-            identity_reader=lambda pid, _timeout: identities[pid],
-        )
-        self.assertEqual(bound, binding())
-
-        identities[102] = {"pid": 102, "pgid": 901, "ps_lstart": "router-start"}
-        with self.assertRaisesRegex(Refusal, "outside the explicit process group"):
-            bind_registration(
-                watch_spec(),
-                registered,
-                identity_reader=lambda pid, _timeout: identities[pid],
-            )
 
     def test_role_limits_are_evaluated_without_summing_rss(self) -> None:
         gib = 1024**3
@@ -196,52 +164,15 @@ class ProcessWatcherTest(unittest.TestCase):
         with self.assertRaises(WatchFailure):
             parse_footprint("phys_footprint: 100 B\n")
 
-    def test_termination_refuses_a_changed_role_identity(self) -> None:
-        signals: list[tuple[int, int]] = []
-        result = terminate_bound_group(
-            binding(),
-            30,
-            identity_reader=lambda pid, _timeout: {
-                "pid": pid,
-                "pgid": 901 if pid == 102 else 900,
-                "ps_lstart": "router-start" if pid == 102 else "engine-start",
-            },
-            pid_exists=lambda _pid: True,
-            group_exists=lambda _pgid: True,
-            kill_group=lambda pgid, sig: signals.append((pgid, sig)),
-        )
-        self.assertEqual(result["status"], "refused-identity")
-        self.assertEqual(signals, [])
 
-    def test_termination_reverifies_before_forced_kill(self) -> None:
-        signals: list[tuple[int, int]] = []
-        clock = iter((0.0, 1.0, 2.0, 3.0))
-        identities = {item["pid"]: {
-            "pid": item["pid"],
-            "pgid": item["pgid"],
-            "ps_lstart": item["ps_lstart"],
-        } for item in binding()["roles"]}
-        result = terminate_bound_group(
-            binding(),
-            0.5,
-            identity_reader=lambda pid, _timeout: identities[pid],
-            pid_exists=lambda _pid: True,
-            group_exists=lambda _pgid: True,
-            kill_group=lambda pgid, sig: signals.append((pgid, sig)),
-            sleep=lambda _seconds: None,
-            monotonic=lambda: next(clock),
-        )
-        self.assertEqual(result["status"], "killed")
-        self.assertEqual(signals, [(900, signal.SIGTERM), (900, signal.SIGKILL)])
 
     def test_coordinated_watcher_retains_both_roles_and_stop_decision(self) -> None:
         spec = watch_spec()
         stopped = snapshot(router_rss=2 * 1024**3)
         terminations: list[tuple[dict, float]] = []
 
-        def terminate(bound, grace, **_kwargs):
-            terminations.append((bound, grace))
-            return {"status": "terminated", "signal": "SIGTERM"}
+        def request_stop():
+            terminations.append(True)
 
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "watch.jsonl"
@@ -250,7 +181,7 @@ class ProcessWatcherTest(unittest.TestCase):
                 binding(),
                 output,
                 sampler=lambda _binding, _timeout: stopped,
-                terminator=terminate,
+                request_stop=request_stop,
                 monotonic_ns=lambda: 1_000_000,
             )
             result = watcher.run(Event())
@@ -258,7 +189,7 @@ class ProcessWatcherTest(unittest.TestCase):
 
         self.assertEqual(result["state"], "stopped")
         self.assertEqual(result["stop_reasons"][0]["role"], "router")
-        self.assertEqual(terminations, [(binding(), 30.0)])
+        self.assertEqual(terminations, [True])
         self.assertEqual(sorted(records[1]["snapshot"]["roles"]), ["engine", "router"])
 
     def test_coordinated_watcher_uses_the_prestart_swap_baseline(self) -> None:
@@ -275,7 +206,7 @@ class ProcessWatcherTest(unittest.TestCase):
                 Path(temporary) / "watch.jsonl",
                 baseline_swap_bytes=1000,
                 sampler=lambda _binding, _timeout: value,
-                terminator=lambda *_args, **_kwargs: terminations.append(True) or {"status": "terminated"},
+                request_stop=lambda: terminations.append(True),
             )
             result = watcher.run(Event())
 

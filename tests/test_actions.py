@@ -12,7 +12,7 @@ from fieldkit_runtime.catalog import Refusal
 
 def adaptive_investigation() -> dict:
     return {
-        "schema": "field-kit-investigation/v1",
+        "schema": "field-kit-investigation/v2",
         "parameters": [
             {
                 "id": "cache-format",
@@ -36,16 +36,7 @@ def adaptive_investigation() -> dict:
                 "parameters": ["cache-format", "target-context-tokens"],
                 "attempts_max": 1,
                 "runtime_minutes_max": 2,
-                "steps": [{
-                    "id": "measure-context",
-                    "kind": "measurement",
-                    "runtime_minutes_max": 2,
-                    "output_bytes_max": 0,
-                    "evidence_bytes_max": 1048576,
-                    "consumes": [],
-                    "produces": [],
-                    "process_watch": None,
-                }],
+                "evidence_bytes_max": 1048576, "process_watch": None,
             },
             {
                 "id": "measure-context",
@@ -53,16 +44,7 @@ def adaptive_investigation() -> dict:
                 "parameters": ["cache-format", "target-context-tokens"],
                 "attempts_max": 5,
                 "runtime_minutes_max": 2,
-                "steps": [{
-                    "id": "measure-context",
-                    "kind": "measurement",
-                    "runtime_minutes_max": 2,
-                    "output_bytes_max": 0,
-                    "evidence_bytes_max": 1048576,
-                    "consumes": [],
-                    "produces": [],
-                    "process_watch": None,
-                }],
+                "evidence_bytes_max": 1048576, "process_watch": None,
             },
         ],
         "initial_action": {
@@ -188,20 +170,8 @@ class ActionContractTest(unittest.TestCase):
         with self.assertRaisesRegex(Refusal, "exceeds the total runtime ceiling"):
             validate_investigation(self.investigation, "bounded-adaptive")
 
-    def test_step_cannot_consume_an_artifact_that_was_not_prepared(self) -> None:
-        self.investigation["actions"][0]["steps"][0]["consumes"] = ["missing-context"]
-        with self.assertRaisesRegex(Refusal, "consumes unavailable artifacts"):
-            validate_investigation(self.investigation, "bounded-adaptive")
 
-    def test_step_time_must_fit_inside_its_action_ceiling(self) -> None:
-        self.investigation["actions"][0]["steps"][0]["runtime_minutes_max"] = 3
-        with self.assertRaisesRegex(Refusal, "step time exceeds"):
-            validate_investigation(self.investigation, "bounded-adaptive")
 
-    def test_action_must_end_with_a_measurement_step(self) -> None:
-        self.investigation["actions"][0]["steps"][0]["kind"] = "preparation"
-        with self.assertRaisesRegex(Refusal, "must end with a measurement"):
-            validate_investigation(self.investigation, "bounded-adaptive")
 
     def test_adaptive_initial_action_cannot_be_its_final_validation(self) -> None:
         self.investigation["initial_action"] = {

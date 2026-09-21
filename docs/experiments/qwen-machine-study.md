@@ -4,8 +4,12 @@ Measure Qwen3.8 27B performance across Macs and find useful context lengths and
 runtime settings for each machine. The results can inform the Qwen model card
 and recommendations for machines with similar chips and memory.
 
-Package: `qwen-machine-study@1`. This package has passed offline checks; live
-measurements are still needed. Follow the [run guide](../START.md) to take part.
+Package: `qwen-machine-study@2`, a development revision requiring a matching
+Temper build. Model, software and workload inputs are unchanged from revision 1;
+process supervision and session/action records have changed. Live measurements
+are still needed. Keep revision 1 evidence with its producing source; see
+[development and dispatched runs](../DEVELOPMENT.md). Follow the [run guide](../START.md)
+for revision 2 setup.
 
 ## Requirements and cost
 
@@ -27,8 +31,8 @@ tuning** to include configuration comparisons and context tests. You can also
 request one tuning group before confirming the run:
 
 ```sh
-./field-kit contribute --tuning flags
-./field-kit contribute --tuning context
+./field-kit contribute --temper /absolute/path/to/temper --tuning flags
+./field-kit contribute --temper /absolute/path/to/temper --tuning context
 ```
 
 Both include the baseline. The study uses a separate installation, removes it
@@ -49,7 +53,7 @@ chip variants and operating conditions matter too.
 
 ## Baseline and measurements
 
-The [execution lock](../../catalog/packages/qwen-machine-study@1/execution.lock.json)
+The [execution lock](../../catalog/packages/qwen-machine-study@2/execution.lock.json)
 fixes the exact model and software. The baseline is:
 
 | Component or setting | Value |
@@ -63,7 +67,7 @@ fixes the exact model and software. The baseline is:
 | Batch / microbatch | 512 / 512 tokens |
 | Prompt-cache settings | 14 checkpoints; minimum spacing 8,192 tokens; 2,048 MiB extra RAM |
 
-The [workload](../../catalog/packages/qwen-machine-study@1/workloads.json) has eight
+The [workload](../../catalog/packages/qwen-machine-study@2/workloads.json) has eight
 tasks: create and amend a notice, look up a registry, continue and rewind that
 conversation, switch to another registry, return to the first, and transform a
 roster. Conversation history uses the delivered answers and omits prior reasoning.
@@ -150,8 +154,10 @@ wired-memory limit, and 96 GiB. The router has a separate 2 GiB limit. The study
 stops on 512 MiB additional swap, thermal or CPU throttling, missing resource
 observations, or loss of confidence about which processes it owns.
 
-The server listens only on this machine. Field Kit confirms its processes have
-stopped before removing the experiment installation. Reports and evidence remain.
+The server listens only on this machine. Temper supplies process identities and
+verifies listener ownership and shutdown. Field Kit measures those identities,
+chooses when to stop and requires Temper's shutdown confirmation before removing
+the experiment installation. Reports and evidence remain.
 See the [run guide](../START.md#stop-or-continue) for interruption recovery.
 
 ## Review a result
@@ -160,7 +166,7 @@ Use the same Field Kit source revision that produced the result:
 
 ```sh
 ./field-kit witness --input /absolute/path/to/result.json \
-  --package catalog/packages/qwen-machine-study@1/package.json
+  --package catalog/packages/qwen-machine-study@2/package.json
 ```
 
 This checks file consistency, grades delivered answers again, and recomputes

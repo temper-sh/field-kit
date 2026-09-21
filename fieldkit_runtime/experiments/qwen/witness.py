@@ -2,9 +2,9 @@
 from __future__ import annotations
 import json
 from pathlib import Path
-from .catalog import Refusal, canonical_json, digest, load_question_material
-from .study import SCHEMA, grade, record_value
-from .answers import validate_answers
+from ...catalog import Refusal, canonical_json, digest, load_question_material
+from .method import SCHEMA, grade, record_value
+from ...answers import validate_answers
 
 
 def review_tasks(package, completed: list[dict]) -> str:
@@ -34,7 +34,7 @@ def review_tasks(package, completed: list[dict]) -> str:
 def review_study(package, answers, expected):
     """Recompute public summaries and every tuning oracle from the frozen inputs."""
     import math
-    from .study import confirm_candidate, context_summary, finite, performance_summary, variant_records
+    from .method import confirm_candidate, context_summary, finite, performance_summary, variant_records
     base = json.loads(package.files["execution.lock.json"])
     protocol = json.loads(package.files["protocol.json"])
     model = package.package["profile"]["layout"]
@@ -121,7 +121,7 @@ def inspect_bytes(data: bytes, package_path: Path) -> dict:
     package = load_question_material(package_path)
     try:
         packet = json.loads(data)
-        if packet["schema"] != "field-kit-evidence-export/v2":
+        if packet["schema"] != "field-kit-evidence-export/v3":
             raise Refusal("unsupported witness export")
         session = json.loads(packet["session"])
         plan = packet["plan"]
@@ -145,17 +145,13 @@ def inspect_bytes(data: bytes, package_path: Path) -> dict:
         for attempt, evidence in zip(attempts, packet["action_evidence"]):
             if attempt["id"] != evidence["attempt"] or attempt["state"] != evidence["state"] or digest(canonical_json(evidence["action"])) != attempt["action"]["sha256"]:
                 raise Refusal("witness attempt identity differs")
-            if len(attempt["steps"]) != len(evidence["steps"]):
-                raise Refusal("witness omitted an execution step")
-            for recorded, step in zip(attempt["steps"], evidence["steps"]):
-                if digest(canonical_json(step["step"])) != recorded["step"]["sha256"] or step["step"]["plan_sha256"] != packet["plan_sha256"]:
-                    raise Refusal("witness step identity differs")
-                if recorded["state"] == "complete" and digest(canonical_json(step["report"])) != recorded["report"]["sha256"]:
-                    raise Refusal("witness step report differs")
             if attempt["state"] == "complete":
-                terminal = evidence["terminal_report"]
-                if digest(canonical_json(terminal)) != attempt["protocol_report"]["sha256"] or terminal != evidence["steps"][-1]["report"]:
-                    raise Refusal("witness terminal report differs")
+                terminal = evidence["report"]
+                if digest(canonical_json(terminal)) != attempt["protocol_report"]["sha256"] or terminal["plan_sha256"] != packet["plan_sha256"]:
+                    raise Refusal("witness action report differs")
+                from ...workflow import validate_action_report
+                validate_action_report(terminal, canonical_json(terminal), attempt["action"]["sha256"], packet["plan_sha256"],
+                                       session["package"]["protocol"]["schema"], package.package["profile"]["layout"], session["generation"])
                 completed.append(terminal)
         if not completed or completed[-1]["answers"] != session["answers"]:
             raise Refusal("witness answers differ from the retained observation")

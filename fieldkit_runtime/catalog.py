@@ -12,9 +12,8 @@ from typing import Any
 
 
 CATALOG_SCHEMA = "field-kit-question-catalog/v3"
-PACKAGE_SCHEMA = "field-kit-question-package/v2"
-PROMOTION_SCHEMA = "field-kit-catalog-promotion/v1"
-ORCHESTRATION = "field-kit-python/v1"
+PACKAGE_SCHEMA = "field-kit-question-package/v3"
+ORCHESTRATION = "field-kit-python/v2"
 MACHINE_SCHEMA = "temper-machine-facts/v1"
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 IDENTITY = re.compile(r"^[a-z0-9]+(?:[.-][a-z0-9]+)*$")
@@ -23,16 +22,6 @@ ACTIVE = "active"
 QUALIFYING = "qualifying"
 SUSPENDED = "suspended"
 AVAILABILITIES = frozenset({ACTIVE, QUALIFYING, SUSPENDED})
-CHECK_CLASSES = frozenset({
-    "structural", "integrity", "interface", "operational", "behavioral", "performance",
-})
-CHECK_RESULTS = frozenset({"pass", "fail", "unknown"})
-PROMOTION_TRANSITIONS = frozenset({
-    ("absent", QUALIFYING),
-    (QUALIFYING, ACTIVE),
-    (SUSPENDED, ACTIVE),
-    (ACTIVE, SUSPENDED),
-})
 
 
 class Refusal(ValueError):
@@ -456,7 +445,7 @@ def _validate_package(package: dict[str, Any], root: Path) -> dict[str, bytes]:
         raise Refusal(f"package {identity} cost and investigation runtime ceilings differ")
     possible_action_evidence: list[int] = []
     for action in investigation["actions"]:
-        per_attempt = sum(step["evidence_bytes_max"] for step in action["steps"])
+        per_attempt = action["evidence_bytes_max"]
         possible_action_evidence.extend([per_attempt] * action["attempts_max"])
     maximum_action_evidence = sum(sorted(
         possible_action_evidence,
@@ -471,12 +460,11 @@ def _validate_package(package: dict[str, Any], root: Path) -> dict[str, bytes]:
         raise Refusal(f"package {identity} has no Temper host compatibility declaration")
     required_primitives = _strings(host.get("required_primitives"), "host.required_primitives")
     baseline_primitives = [
-        "apply", "check", "fetch", "field-kit-bind", "machine-facts",
-        "probe-serve", "software-check", "software-install", "software-remove",
+        "execution-inspect", "execution-prepare", "execution-remove", "execution-serve", "machine-facts",
     ]
-    recognized_primitives = set(baseline_primitives) | {"probe-tokenize", "execution-export", "catalog-compile"}
+    recognized_primitives = set(baseline_primitives) | {"execution-render", "catalog-compile"}
     if (
-        not (set(baseline_primitives) | {"execution-export"}).issubset(required_primitives)
+        not set(baseline_primitives).issubset(required_primitives)
         or any(item not in recognized_primitives for item in required_primitives)
     ):
         raise Refusal(f"package {identity} does not declare the complete stable Temper host")

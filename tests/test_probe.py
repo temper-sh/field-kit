@@ -1,63 +1,69 @@
-from __future__ import annotations
-
-import unittest
-import tempfile
+import datetime
 import json
 from pathlib import Path
+import tempfile
 from types import SimpleNamespace
-from unittest.mock import patch
+import unittest
+from unittest.mock import Mock
 
-from fieldkit_runtime.probe import ManagedProbe
-
-from fieldkit_runtime.probe import (
-    ProbeError,
-    find_single_process,
-    parse_process_rows,
-    split_listen,
-    validate_group_rows,
-)
+from fieldkit_runtime.probe import ManagedProbe, ProbeError, split_listen
+from tests.test_watcher import watch_spec, binding
 
 
 class ProbeBoundaryTest(unittest.TestCase):
-    def test_process_rows_and_single_owned_process(self) -> None:
-        rows = parse_process_rows(
-            " 100 1 100 /tmp/llama-swap\n 101 100 100 /tmp/llama-server\n"
-        )
-        self.assertEqual(find_single_process(rows, name="llama-server", pgid=100)["pid"], 101)
-        self.assertEqual(len(validate_group_rows(rows, 100)), 2)
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name)
+        self.probe = ManagedProbe(temper=Path("/fixture/temper"), root=root,
+            installation="fixture", execution_lock=root / "execution.lock.json", generation="a" * 64,
+            listen="127.0.0.1:18080", log_dir=root, watch_spec=watch_spec(), router_ready_seconds=30, log_bytes_max=1024)
+        self.probe.process = Mock(pid=1234, returncode=0)
+        self.probe.process.poll.return_value = 0
+        self.status = {"schema": "temper-probe-status/v1", "state": "stopped", "temper_pid": 1234,
+                       "root": str(root), "installation": "fixture", "generation": "a" * 64,
+                       "listen": "127.0.0.1:18080", "process_group_id": binding()["process_group_id"],
+                       "roles": binding()["roles"], "listeners_verified": False, "safe_to_cleanup": True,
+                       "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()}
 
-    def test_duplicate_and_unexpected_processes_are_refused(self) -> None:
-        duplicate = parse_process_rows("1 0 1 /a/llama-server\n2 0 1 /b/llama-server\n")
-        with self.assertRaises(ProbeError):
-            find_single_process(duplicate, name="llama-server", pgid=1)
-        with self.assertRaises(ProbeError):
-            validate_group_rows(parse_process_rows("1 0 1 /tmp/python\n"), 1)
+    def publish(self):
+        self.probe.status_path.write_text(json.dumps(self.status))
 
-    def test_listener_is_exact_loopback(self) -> None:
+    def test_listener_is_exact_loopback(self):
         self.assertEqual(split_listen("127.0.0.1:18080"), ("127.0.0.1", 18080))
-        with self.assertRaises(ProbeError):
-            split_listen("0.0.0.0:18080")
+        with self.assertRaises(ProbeError): split_listen("0.0.0.0:18080")
 
-    def test_observation_failure_and_live_children_have_distinct_cleanup_meanings(self):
+    def test_observation_stop_and_confirmed_shutdown_have_distinct_meanings(self):
         class StoppedWatch:
             thread = SimpleNamespace(is_alive=lambda: False)
-            def finish(self):
-                raise ProbeError("process watcher fired a safety stop")
-        with tempfile.TemporaryDirectory() as temporary:
-            for children in ([], [{"pgid": 100}]):
-                with self.subTest(children=children):
-                    managed = ManagedProbe(temper=Path("/fixture/temper"), root=Path(temporary),
-                        installation="fixture", software_lock=Path("/fixture/software.lock.yaml"),
-                        generation="a" * 64, listen="127.0.0.1:18080", log_dir=Path(temporary),
-                        watch_spec=json.loads((Path(__file__).resolve().parents[1] / "catalog/packages/qwen-machine-study@1/protocol.json").read_bytes())["process_watch"],
-                        router_ready_seconds=30, log_bytes_max=1024)
-                    managed.full_watch = StoppedWatch()
-                    managed.full_binding = {"process_group_id": 100}
-                    with patch("fieldkit_runtime.probe.listener_accepting", return_value=False), patch("fieldkit_runtime.probe.process_rows", return_value=children):
-                        summary = managed.finish()
-                    self.assertTrue(summary["issues"])
-                    self.assertEqual(summary["safe_to_cleanup"], not children)
+            def finish(self): raise ProbeError("resource limit reached")
+        self.probe.full_watch = StoppedWatch()
+        self.publish()
+        result = self.probe.finish()
+        self.assertTrue(result["safe_to_cleanup"])
+        self.assertIn("resource limit reached", result["issues"])
 
+    def test_exited_temper_without_final_proof_never_permits_cleanup(self):
+        self.assertFalse(self.probe.finish()["safe_to_cleanup"])
+        for change in ({"safe_to_cleanup": False}, {"state": "running"}, {"temper_pid": 9999}):
+            original = dict(self.status)
+            self.status.update(change); self.publish()
+            with self.subTest(change=change): self.assertFalse(self.probe.finish()["safe_to_cleanup"])
+            self.status = original
 
-if __name__ == "__main__":
-    unittest.main()
+    def test_stale_or_rebound_live_identity_is_refused(self):
+        self.status.update(state="running", listeners_verified=True, safe_to_cleanup=False)
+        self.probe.full_binding = binding(); self.publish()
+        self.probe.validate_owned_boundary()
+        self.status["roles"][0]["ps_lstart"] = "different start"
+        self.publish()
+        with self.assertRaises(ProbeError): self.probe.validate_owned_boundary()
+        self.status["updated_at"] = "2000-01-01T00:00:00+00:00"; self.publish()
+        with self.assertRaisesRegex(ProbeError, "stale"): self.probe._status()
+
+    def test_stop_only_signals_its_temper_child(self):
+        self.probe.process.poll.return_value = None
+        self.probe.request_stop()
+        self.probe.process.terminate.assert_called_once_with()
+        self.assertEqual(self.probe._arguments()[1:3], ["execution", "serve"])
+        self.assertNotIn("--software-lock", self.probe._arguments())

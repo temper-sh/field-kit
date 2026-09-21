@@ -81,5 +81,9 @@ mv "$field_kit_stage/python-path" "$field_kit_local/python-path"
 printf '%s\n' 'Setup complete. Everything is inside this clone.'
 cleanup_setup
 trap - EXIT INT TERM
+if ! "$field_kit_local/temper" help | grep -q 'temper execution prepare'; then
+    printf '%s\n' 'This development study requires newer Temper execution commands than the bootstrap release.' 'Use a matching development build: ./field-kit contribute --temper /absolute/path/to/temper' 'Keep dispatched studies in their original checkout.'
+    exit 0
+fi
 if [ "$install_only" = no ] && [ -t 0 ]; then exec "$field_kit_directory/field-kit" contribute; fi
 printf '%s\n' 'Run ./field-kit to start or resume an experiment.'

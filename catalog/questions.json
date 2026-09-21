@@ -1,15 +1,15 @@
 {
   "schema": "field-kit-question-catalog/v3",
-  "revision": 1,
-  "compiled_at": "2026-09-16T00:00:00Z",
+  "revision": 2,
+  "compiled_at": "2026-09-22T00:00:00Z",
   "questions": [
     {
       "id": "qwen-machine-study",
-      "revision": 1,
+      "revision": 2,
       "availability": "qualifying",
-      "package_path": "packages/qwen-machine-study@1/package.json",
-      "package_sha256": "bdefa808e6398149bee7aa6d7be37ba1b92c95aa387ff08df134c38d9fe1ad8f",
-      "reason": "Contributor study prepared and checked offline; live measurements and external returned results remain to be reviewed."
+      "package_path": "packages/qwen-machine-study@2/package.json",
+      "package_sha256": "ba5e0316f915356961eab2b2c49f14d82ee551b1e09d37f302560790b0b15693",
+      "reason": "Development revision using direct Temper execution locks and supervised probes; offline checks passed, matching Temper release and live measurements remain pending."
     }
   ]
 }

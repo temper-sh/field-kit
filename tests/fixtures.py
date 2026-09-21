@@ -16,7 +16,7 @@ def question_material() -> tuple[dict, bytes, dict[str, bytes]]:
         return {"path": path, "sha256": digest(files[path])}
 
     package = {
-        "schema": "field-kit-question-package/v2",
+        "schema": "field-kit-question-package/v3",
         "id": "fixture-question",
         "revision": 1,
         "origin": {"kind": "synthetic-test-fixture"},
@@ -24,16 +24,11 @@ def question_material() -> tuple[dict, bytes, dict[str, bytes]]:
             "program": "temper",
             "minimum_version": "0.1.0-alpha.4",
             "required_primitives": [
-                "apply",
-                "check",
-                "execution-export",
-                "fetch",
-                "field-kit-bind",
+                "execution-inspect",
+                "execution-prepare",
+                "execution-remove",
+                "execution-serve",
                 "machine-facts",
-                "probe-serve",
-                "software-check",
-                "software-install",
-                "software-remove",
             ],
         },
         "question": "Can the synthetic fixture complete its workflow?",
@@ -71,7 +66,7 @@ def question_material() -> tuple[dict, bytes, dict[str, bytes]]:
         },
         "profile": {"layout": "fixture-layout"},
         "investigation": {
-            "schema": "field-kit-investigation/v1",
+            "schema": "field-kit-investigation/v2",
             "parameters": [],
             "actions": [{
                 "id": "measure-fixture",
@@ -79,16 +74,7 @@ def question_material() -> tuple[dict, bytes, dict[str, bytes]]:
                 "parameters": [],
                 "attempts_max": 1,
                 "runtime_minutes_max": 1,
-                "steps": [{
-                    "id": "measure-fixture",
-                    "kind": "measurement",
-                    "runtime_minutes_max": 1,
-                    "output_bytes_max": 0,
-                    "evidence_bytes_max": 1048576,
-                    "consumes": [],
-                    "produces": [],
-                    "process_watch": None,
-                }],
+                "evidence_bytes_max": 1048576, "process_watch": None,
             }],
             "initial_action": {
                 "id": "measure-fixture",
@@ -101,7 +87,7 @@ def question_material() -> tuple[dict, bytes, dict[str, bytes]]:
         },
         "execution_lock": identity("execution.lock.json"),
         "mechanics": {
-            "orchestration": "field-kit-python/v1",
+            "orchestration": "field-kit-python/v2",
             "installation": "field-kit-fixture",
             "mode": "fixture",
             "prompt": identity("PROMPT.md"),
@@ -155,7 +141,7 @@ def adaptive_question_entry(
     package["question"] = "Which synthetic context target is usable?"
     package["decision"] = "Which witnessed synthetic target to retain."
     package["investigation"] = {
-        "schema": "field-kit-investigation/v1",
+        "schema": "field-kit-investigation/v2",
         "parameters": [{
             "id": "target-context-tokens",
             "type": "integer",
@@ -171,28 +157,7 @@ def adaptive_question_entry(
                 "parameters": ["target-context-tokens"],
                 "attempts_max": 1,
                 "runtime_minutes_max": 2,
-                "steps": [
-                    {
-                        "id": "prepare-context",
-                        "kind": "preparation",
-                        "runtime_minutes_max": 1,
-                        "output_bytes_max": 1048576,
-                        "evidence_bytes_max": 2097152,
-                        "consumes": [],
-                        "produces": ["prepared-context"],
-                        "process_watch": None,
-                    },
-                    {
-                        "id": "measure-context",
-                        "kind": "measurement",
-                        "runtime_minutes_max": 1,
-                        "output_bytes_max": 0,
-                        "evidence_bytes_max": 1048576,
-                        "consumes": ["prepared-context"],
-                        "produces": [],
-                        "process_watch": None,
-                    },
-                ],
+                "evidence_bytes_max": 3145728, "process_watch": None,
             },
             {
                 "id": "measure-context",
@@ -200,28 +165,7 @@ def adaptive_question_entry(
                 "parameters": ["target-context-tokens"],
                 "attempts_max": 2,
                 "runtime_minutes_max": 2,
-                "steps": [
-                    {
-                        "id": "prepare-context",
-                        "kind": "preparation",
-                        "runtime_minutes_max": 1,
-                        "output_bytes_max": 1048576,
-                        "evidence_bytes_max": 2097152,
-                        "consumes": [],
-                        "produces": ["prepared-context"],
-                        "process_watch": None,
-                    },
-                    {
-                        "id": "measure-context",
-                        "kind": "measurement",
-                        "runtime_minutes_max": 1,
-                        "output_bytes_max": 0,
-                        "evidence_bytes_max": 1048576,
-                        "consumes": ["prepared-context"],
-                        "produces": [],
-                        "process_watch": None,
-                    },
-                ],
+                "evidence_bytes_max": 3145728, "process_watch": None,
             },
         ],
         "initial_action": {

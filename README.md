@@ -14,22 +14,27 @@ Follow an experiment's link for its requirements, run options and method.
 
 | Experiment | Useful result | Requirements | Status |
 |---|---|---|---|
-| [Qwen machine study](docs/experiments/qwen-machine-study.md) | Comparable performance numbers and tested context lengths and settings for Qwen3.8 27B | Apple Silicon Mac; ≥32 GiB RAM; about 35 GiB free disk | Prepared; live measurements needed |
+| [Qwen machine study](docs/experiments/qwen-machine-study.md) | Comparable performance numbers and tested context lengths and settings for Qwen3.8 27B | Apple Silicon Mac; ≥32 GiB RAM; about 35 GiB free disk; matching Temper development build | Revision 2 in development; live measurements needed |
 
-This build opens the Qwen study directly. Results need review before becoming
-recommendations.
+This build opens revision 2 of the Qwen study directly. Keep dispatched revision
+1 runs in their original checkout. Results need review before becoming recommendations.
 
 ## Get started
 
 ```sh
 git clone https://github.com/temper-sh/field-kit.git
 cd field-kit
-./setup.sh
+./setup.sh --install-only
+./field-kit contribute --temper /absolute/path/to/temper
 ```
 
-Setup downloads a signed [Temper](https://github.com/temper-sh/temper) release
-and a private Python runtime into this folder. You need no Homebrew, compiler
-or administrator access. The current setup supports Apple Silicon macOS.
+Setup downloads a signed [Temper](https://github.com/temper-sh/temper) bootstrap
+release and a private Python runtime into this folder. The bootstrap needs no
+Homebrew or administrator access and supports Apple Silicon macOS.
+
+Revision 2 uses new execution and process commands that are not in the pinned
+bootstrap release. Supply a matching Temper development build with `--temper`.
+This revision is not yet a standalone participant release.
 
 Before an experiment starts, Field Kit checks your machine, shows the download,
 disk and time limits, and asks for confirmation. The experiment guide explains
@@ -45,7 +50,7 @@ its requirements and choices.
   is uploaded. Review the JSON before sending it: it includes generated answers,
   machine details and local paths.
 
-Run `./field-kit` again to continue an interrupted run or view a completed
+Repeat the same command with `--temper` to continue an interrupted run or view a completed
 result. During measurement, press **Ctrl-C once** and wait for it to stop and
 save. See the [run guide](docs/START.md) for recovery instructions.
 
@@ -63,8 +68,11 @@ model:
 python3 -m unittest discover -v
 ```
 
-CI runs these checks on Python 3.9 and 3.14. Adding an experiment currently
-requires code changes as well as a package; the guided flow and result reviewer
-are wired to the Qwen study.
+CI runs these checks on Python 3.9 and 3.14. Qwen's method, grading, tuning,
+measurement, contributor flow and reviewer live in `fieldkit_runtime/experiments/qwen/`.
+The shared runtime owns consent plans, bounded actions, sessions and evidence.
+Temper owns installation, rendering and process supervision. The CLI explicitly
+routes to the included study; adding another experiment does not require a
+plugin framework. See [development and dispatched runs](docs/DEVELOPMENT.md).
 
 Licensed under [0BSD](LICENSE).

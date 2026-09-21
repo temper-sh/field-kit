@@ -11,10 +11,14 @@ In Terminal:
 ```sh
 git clone https://github.com/temper-sh/field-kit.git
 cd field-kit
-./setup.sh
+./setup.sh --install-only
+./field-kit contribute --temper /absolute/path/to/temper
 ```
 
-Setup installs Temper and Python under `.local/`, then opens the experiment.
+This development revision requires a matching Temper build supplied by the
+maintainer. Keep revision 1 runs in their original checkout. Setup installs the
+signed bootstrap Temper and Python under `.local/`; that pinned Temper release
+cannot run revision 2. Use the supplied executable with `--temper`.
 It downloads about 31 MB, verifies the Temper release's checksum and signature,
 and needs no administrator access. Rerunning setup checks and reuses the
 installation.
@@ -23,7 +27,7 @@ To install the tools and inspect the experiment before deciding to run it:
 
 ```sh
 ./setup.sh --install-only
-./field-kit contribute --preview
+./field-kit contribute --temper /absolute/path/to/temper --preview
 ```
 
 The preview checks your machine and shows the limits. It downloads no models
@@ -48,7 +52,7 @@ experiment to stop its processes and save partial results.
 To continue after an interruption, run this from the same folder:
 
 ```sh
-./field-kit
+./field-kit contribute --temper /absolute/path/to/temper
 ```
 
 If initial tool installation failed, rerun `./setup.sh`. An interrupted Python
@@ -61,11 +65,11 @@ then retain the experiment installation and refuse to continue. Send the
 maintainer the printed error and session path. Keep those files until recovery
 is resolved; completed and failed measurements are not silently repeated.
 
-Once a run is complete, `./field-kit` shows its result again. To deliberately
+Once a run is complete, repeating the command shows its result again. To deliberately
 start another run while keeping earlier results:
 
 ```sh
-./field-kit contribute --new
+./field-kit contribute --temper /absolute/path/to/temper --new
 ```
 
 ## Return the result

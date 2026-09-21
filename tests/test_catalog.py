@@ -26,13 +26,21 @@ wired_limit_source: live-sysctl
 '''.encode()
 
 class QuestionCatalogTest(unittest.TestCase):
+    def test_dispatched_package_is_frozen_and_new_revision_reuses_its_model_and_workload(self):
+        old = ROOT / "catalog/packages/qwen-machine-study@1"
+        new = ROOT / "catalog/packages/qwen-machine-study@2"
+        self.assertEqual(digest((old / "package.json").read_bytes()), "bdefa808e6398149bee7aa6d7be37ba1b92c95aa387ff08df134c38d9fe1ad8f")
+        self.assertEqual(digest((old / "execution.lock.json").read_bytes()), "457e0dd4d65073477f49a98d480c16be48a437b54259339053683f0984af9dd8")
+        for name in ("execution.lock.json", "workloads.json"):
+            self.assertEqual((old / name).read_bytes(), (new / name).read_bytes())
+
     def test_complete_question_and_prepared_visibility(self):
         for state in ('active', 'qualifying', 'suspended'):
             with self.subTest(state=state), tempfile.TemporaryDirectory() as temporary:
                 catalog = QuestionCatalog.load(write_question_catalog(Path(temporary), availability=state))
                 self.assertEqual(len(catalog.active()), int(state == 'active'))
                 self.assertEqual(len(catalog.qualifying()), int(state == 'qualifying'))
-                self.assertEqual(catalog.questions[0].package['schema'], 'field-kit-question-package/v2')
+                self.assertEqual(catalog.questions[0].package['schema'], 'field-kit-question-package/v3')
 
     def test_shipped_preparation_is_not_active(self):
         catalog = QuestionCatalog.load(ROOT/'catalog/questions.json')

@@ -1,11 +1,10 @@
-"""Shared coordinated macOS process observation and safety termination."""
+"""Shared coordinated macOS process measurement and experiment stop decisions."""
 
 from __future__ import annotations
 
 import json
 import os
 import re
-import signal
 import subprocess
 import time
 from pathlib import Path
@@ -16,7 +15,6 @@ from .catalog import IDENTITY, Refusal
 
 
 WATCH_SCHEMA = "field-kit-process-watch/v1"
-REGISTRATION_SCHEMA = "field-kit-process-registration/v1"
 BINDING_SCHEMA = "field-kit-process-binding/v1"
 EVENT_SCHEMA = "field-kit-process-watch-event/v1"
 FOOTPRINT = "/usr/bin/footprint"
@@ -31,7 +29,6 @@ class WatchFailure(RuntimeError):
 
 
 CommandReader = Callable[[Sequence[str], float], str]
-IdentityReader = Callable[[int, float], dict[str, Any]]
 
 
 def _positive_integer(value: object, label: str) -> int:
@@ -49,7 +46,7 @@ def _optional_limit(value: object, label: str) -> int | None:
 def validate_watch_spec(value: object) -> dict[str, Any]:
     fields = {
         "schema", "interval_milliseconds", "max_gap_milliseconds",
-        "command_timeout_seconds", "term_grace_seconds", "roles",
+        "command_timeout_seconds", "roles",
         "swap_growth_bytes_max", "thermal_stop", "cpu_speed_limit_stop",
     }
     if not isinstance(value, dict) or set(value) != fields:
@@ -69,10 +66,6 @@ def validate_watch_spec(value: object) -> dict[str, Any]:
     _positive_integer(
         value.get("command_timeout_seconds"),
         "process watch command_timeout_seconds",
-    )
-    _positive_integer(
-        value.get("term_grace_seconds"),
-        "process watch term_grace_seconds",
     )
     _optional_limit(value.get("swap_growth_bytes_max"), "process watch swap limit")
     if not isinstance(value.get("thermal_stop"), bool) or not isinstance(
@@ -146,55 +139,6 @@ def read_process_identity(
     pgid = command([PS, "-o", "pgid=", "-p", str(pid)], timeout_seconds)
     started = command([PS, "-o", "lstart=", "-p", str(pid)], timeout_seconds)
     return parse_process_identity(pgid, started, pid)
-
-
-def bind_registration(
-    spec: dict[str, Any],
-    registration: object,
-    identity_reader: IdentityReader = read_process_identity,
-) -> dict[str, Any]:
-    """Freeze exact PIDs, one explicit group, and each role's start identity."""
-    validate_watch_spec(spec)
-    if not isinstance(registration, dict) or set(registration) != {
-        "schema", "process_group_id", "roles",
-    }:
-        raise Refusal("process registration has missing or unknown fields")
-    if registration.get("schema") != REGISTRATION_SCHEMA:
-        raise Refusal("process registration has an unsupported schema")
-    pgid = _positive_integer(
-        registration.get("process_group_id"),
-        "process registration process_group_id",
-    )
-    if pgid == os.getpgrp():
-        raise Refusal("process registration cannot name Field Kit's own process group")
-    raw_roles = registration.get("roles")
-    if not isinstance(raw_roles, list):
-        raise Refusal("process registration roles must be a list")
-    expected_ids = [role["id"] for role in spec["roles"]]
-    if [role.get("id") for role in raw_roles if isinstance(role, dict)] != expected_ids:
-        raise Refusal("process registration roles differ from the watch declaration")
-    timeout = float(spec["command_timeout_seconds"])
-    bound_roles: list[dict[str, Any]] = []
-    pids: set[int] = set()
-    for role in raw_roles:
-        if not isinstance(role, dict) or set(role) != {"id", "pid"}:
-            raise Refusal("process registration role has missing or unknown fields")
-        pid = _positive_integer(role.get("pid"), f"process role {role.get('id')!r} pid")
-        if pid in pids:
-            raise Refusal("process registration cannot assign one PID to multiple roles")
-        pids.add(pid)
-        try:
-            identity = identity_reader(pid, timeout)
-        except WatchFailure as error:
-            raise Refusal(f"could not bind process role {role['id']!r}: {error}") from error
-        if identity.get("pid") != pid or identity.get("pgid") != pgid:
-            raise Refusal(f"process role {role['id']!r} is outside the explicit process group")
-        bound_roles.append({"id": role["id"], **identity})
-    return {
-        "schema": BINDING_SCHEMA,
-        "process_group_id": pgid,
-        "roles": bound_roles,
-    }
 
 
 def validate_binding(spec: dict[str, Any], value: object) -> dict[str, Any]:
@@ -388,97 +332,6 @@ def evaluate_snapshot(
     return peaks, reasons
 
 
-def _pid_exists(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
-
-
-def _group_exists(pgid: int) -> bool:
-    try:
-        os.killpg(pgid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
-
-
-def terminate_bound_group(
-    binding: dict[str, Any],
-    grace_seconds: float,
-    *,
-    identity_reader: IdentityReader = read_process_identity,
-    pid_exists: Callable[[int], bool] = _pid_exists,
-    group_exists: Callable[[int], bool] = _group_exists,
-    kill_group: Callable[[int, int], None] = os.killpg,
-    sleep: Callable[[float], None] = time.sleep,
-    monotonic: Callable[[], float] = time.monotonic,
-    command_timeout_seconds: float = 15,
-) -> dict[str, Any]:
-    """TERM, then reverify before KILL, only the frozen explicit group."""
-    pgid = binding["process_group_id"]
-
-    def live_verified() -> tuple[list[str], list[dict[str, Any]]]:
-        live: list[str] = []
-        failures: list[dict[str, Any]] = []
-        for bound in binding["roles"]:
-            pid = bound["pid"]
-            if not pid_exists(pid):
-                continue
-            try:
-                observed = identity_reader(pid, command_timeout_seconds)
-            except WatchFailure as error:
-                failures.append({"role": bound["id"], "error": str(error)})
-                continue
-            expected = {key: bound[key] for key in ("pid", "pgid", "ps_lstart")}
-            if observed != expected or observed.get("pgid") != pgid:
-                failures.append({
-                    "role": bound["id"],
-                    "expected": expected,
-                    "observed": observed,
-                })
-            else:
-                live.append(bound["id"])
-        return live, failures
-
-    live, failures = live_verified()
-    if failures:
-        return {"status": "refused-identity", "signal": None, "failures": failures}
-    if not live:
-        return {"status": "already-exited", "signal": None, "verified_roles": []}
-    try:
-        kill_group(pgid, signal.SIGTERM)
-    except ProcessLookupError:
-        return {"status": "already-exited", "signal": "SIGTERM", "verified_roles": live}
-    except PermissionError as error:
-        return {"status": "permission-denied", "signal": "SIGTERM", "detail": str(error)}
-    deadline = monotonic() + grace_seconds
-    while group_exists(pgid) and monotonic() < deadline:
-        sleep(min(0.1, max(0.0, deadline - monotonic())))
-    if not group_exists(pgid):
-        return {"status": "terminated", "signal": "SIGTERM", "verified_roles": live}
-    live_after_term, failures = live_verified()
-    if failures or not live_after_term:
-        return {
-            "status": "kill-refused-identity",
-            "signal": "SIGTERM",
-            "verified_roles": live_after_term,
-            "failures": failures,
-        }
-    try:
-        kill_group(pgid, signal.SIGKILL)
-    except ProcessLookupError:
-        return {"status": "terminated", "signal": "SIGTERM", "verified_roles": live_after_term}
-    except PermissionError as error:
-        return {"status": "permission-denied", "signal": "SIGKILL", "detail": str(error)}
-    return {"status": "killed", "signal": "SIGKILL", "verified_roles": live_after_term}
-
-
 def append_event(path: Path, document: dict[str, Any]) -> None:
     if path.is_symlink() or (path.exists() and not path.is_file()):
         raise WatchFailure("process watch evidence path is unsafe")
@@ -503,7 +356,7 @@ class CoordinatedWatcher:
         *,
         baseline_swap_bytes: int | None = None,
         sampler: Callable[[dict[str, Any], float], dict[str, Any]] = sample_macos,
-        terminator: Callable[..., dict[str, Any]] = terminate_bound_group,
+        request_stop: Callable[[], None],
         monotonic_ns: Callable[[], int] = time.monotonic_ns,
         wall_ns: Callable[[], int] = time.time_ns,
     ) -> None:
@@ -518,7 +371,7 @@ class CoordinatedWatcher:
             raise Refusal("process watch baseline swap bytes must be a non-negative integer")
         self.baseline_swap_bytes = baseline_swap_bytes
         self.sampler = sampler
-        self.terminator = terminator
+        self.request_stop = request_stop
         self.monotonic_ns = monotonic_ns
         self.wall_ns = wall_ns
 
@@ -580,18 +433,15 @@ class CoordinatedWatcher:
                 "stop_reasons": reasons,
             }
             if reasons:
-                record["termination"] = self.terminator(
-                    self.binding,
-                    float(self.spec["term_grace_seconds"]),
-                    command_timeout_seconds=timeout,
-                )
+                self.request_stop()
+                record["stop_requested"] = True
             append_event(self.output, record)
             if reasons:
                 return {
                     "state": "stopped",
                     "samples": samples,
                     "stop_reasons": reasons,
-                    "termination": record["termination"],
+                    "stop_requested": True,
                     "observed_rss_peak_bytes": peaks,
                 }
             if stop.wait(interval):
@@ -600,7 +450,7 @@ class CoordinatedWatcher:
             "state": "complete",
             "samples": samples,
             "stop_reasons": [],
-            "termination": None,
+            "stop_requested": False,
             "observed_rss_peak_bytes": peaks,
         }
         append_event(self.output, {

@@ -1,105 +1,51 @@
-from __future__ import annotations
-
-import copy
-import hashlib
-import json
 from pathlib import Path
 import tempfile
 import unittest
 
-from fieldkit_runtime.catalog import Refusal
-from fieldkit_runtime.execution import INPUTS, prepare_execution
-from fieldkit_runtime.workflow import CommandFailure, CommandResult
+from fieldkit_runtime.catalog import Refusal, canonical_json
+from fieldkit_runtime.execution import inspect_execution, validate_material
+from fieldkit_runtime.workflow import CommandResult
+from tests.test_workflow import FakeRunner
 
 
-class ExecutionPreparationTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+class ExecutionTest(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
         self.lock = self.root / "execution.lock.json"
-        # The adapter treats the lock as opaque bytes. Only Temper parses it.
-        self.lock.write_bytes(b"opaque Temper-owned lock\n")
-        self.destination = self.root / "derived"
-        self.arguments = []
-        self.files = {name: (name + "\n").encode() for name in INPUTS}
-        self.response = {
-            "schema": "temper-execution-inputs/v1", "profile": "qwen-local",
-            "execution_digest": "a" * 64,
-            "lock_sha256": hashlib.sha256(self.lock.read_bytes()).hexdigest(),
-            "layouts": ["qwen-chat"], "changed": True, "dry_run": False,
-            "inputs": {name: {"path": str(self.destination / name),
-                               "sha256": hashlib.sha256(data).hexdigest()}
-                       for name, data in self.files.items()},
-        }
+        self.lock.write_bytes(b"opaque Temper fixture lock\n")
+        self.runner = FakeRunner()
 
-    def runner(self, arguments, timeout):
-        self.arguments.append(list(arguments))
-        self.assertEqual(timeout, 60)
-        if "--dry-run" not in arguments:
-            self.destination.mkdir(exist_ok=True)
-            for name, data in self.files.items():
-                (self.destination / name).write_bytes(data)
-        return CommandResult(json.dumps(self.response).encode(), b"", 0)
+    def test_inspection_is_read_only_and_passes_one_opaque_lock(self):
+        value = inspect_execution(Path("/explicit/temper"), self.lock, runner=self.runner)
+        self.assertEqual(list(self.root.iterdir()), [self.lock])
+        self.assertEqual(self.runner.calls, [["/explicit/temper", "execution", "inspect", "--lock", str(self.lock)]])
+        self.assertEqual(value["profile"], "fixture")
 
-    def prepare(self, **options):
-        return prepare_execution(Path("/explicit/temper"), self.lock,
-                                 self.destination, runner=self.runner, **options)
+    def test_incomplete_or_unbound_response_is_refused(self):
+        original = self.runner.execution(self.lock)
+        for change in ({"lock_sha256": "b" * 64}, {"layouts": []}, {"execution_digest": "latest"},
+                       {"request_defaults": {}}, {"unexpected": True}):
+            response = {**original, **change}
+            with self.subTest(change=change), self.assertRaises(Refusal):
+                inspect_execution(Path("/temper"), self.lock,
+                    runner=lambda *_: CommandResult(canonical_json(response), b"", 0))
 
-    def test_receives_only_public_primitive_and_verifies_every_exported_file(self):
-        self.assertEqual(self.prepare(), self.response)
-        self.assertEqual(self.arguments, [["/explicit/temper", "execution", "export",
-                         "--lock", str(self.lock), "--out", str(self.destination), "--json"]])
+    def test_symlink_lock_refused_before_host_call(self):
+        link = self.root / "alias"; link.symlink_to(self.lock)
+        with self.assertRaises(Refusal): inspect_execution(Path("/temper"), link, runner=self.runner)
+        self.assertFalse(self.runner.calls)
 
-    def test_dry_run_does_not_require_or_create_derived_files(self):
-        self.response["dry_run"] = True
-        self.prepare(dry_run=True)
-        self.assertFalse(self.destination.exists())
-        self.assertEqual(self.arguments[0][-1], "--dry-run")
+    def test_old_host_has_actionable_refusal(self):
+        with self.assertRaisesRegex(Refusal, "matching development build"):
+            inspect_execution(Path("/temper"), self.lock, runner=lambda *_: CommandResult(b"", b"unknown command", 2))
 
-    def test_refuses_unbound_or_incomplete_temper_response(self):
-        original = copy.deepcopy(self.response)
-        variants = [
-            {"lock_sha256": "b" * 64}, {"execution_digest": "latest"},
-            {"layouts": []}, {"layouts": ["qwen-chat", "qwen-chat"]},
-            {"inputs": {}}, {"dry_run": True}, {"changed": "yes"},
-            {"unexpected": True},
-        ]
-        for change in variants:
-            with self.subTest(change=change):
-                self.response = original | change
-                with self.assertRaises(Refusal):
-                    self.prepare()
-
-    def test_refuses_escaped_path_and_changed_content(self):
-        name = "manifest.yaml"
-        self.response["inputs"][name]["path"] = str(self.root / name)
-        with self.assertRaisesRegex(Refusal, "outside"):
-            self.prepare()
-        self.response["inputs"][name]["path"] = str(self.destination / name)
-        self.files[name] = b"changed\n"
-        with self.assertRaisesRegex(Refusal, "differs"):
-            self.prepare()
-
-    def test_failed_temper_command_is_not_usable_preparation(self):
-        def failed(arguments, timeout):
-            return CommandResult(b"", b"unsupported lock\n", 1)
-        with self.assertRaises(CommandFailure):
-            prepare_execution(Path("/explicit/temper"), self.lock, self.destination, runner=failed)
-        self.assertFalse(self.destination.exists())
-
-    def test_refuses_symlink_lock_before_calling_temper(self):
-        link = self.root / "alias"
-        link.symlink_to(self.lock)
-        with self.assertRaises(Refusal):
-            prepare_execution(Path("/explicit/temper"), link, self.destination, runner=self.runner)
-        self.assertFalse(self.arguments)
-
-    def test_normalizes_parent_segments_without_resolving_a_final_symlink(self):
-        lock = self.root / "missing" / ".." / self.lock.name
-        result = prepare_execution(Path("/explicit/temper"), lock, self.destination, runner=self.runner)
-        self.assertEqual(result["lock_sha256"], self.response["lock_sha256"])
-
-
-if __name__ == "__main__":
-    unittest.main()
+    def test_material_binds_the_inspected_lock_and_generation(self):
+        execution = self.runner.execution(self.lock)
+        material = {"schema": "temper-execution-material/v1", "execution": execution,
+                    "generation": "b" * 64, "binding": "schema: temper-field-kit-binding/v1\n"}
+        self.assertEqual(validate_material(canonical_json(material), execution), material)
+        for key, value in (("generation", "unknown"), ("binding", ""), ("execution", {})):
+            with self.subTest(key=key), self.assertRaises(Refusal):
+                validate_material(canonical_json({**material, key: value}), execution)

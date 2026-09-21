@@ -8,13 +8,13 @@ import signal
 import time
 from pathlib import Path
 
-from .catalog import canonical_json, digest
-from .execution import prepare_execution
+from ...catalog import canonical_json, digest
+from ...execution import inspect_execution, validate_material
 from .measurement import construct_context, measure_chat, monitored_call
-from .probe import ManagedProbe, ProbeError
-from .study import (FIELDS, FLAG_VARIANTS, SCHEMA, choose_candidate, confirm_candidate,
+from ...probe import ManagedProbe, ProbeError
+from .method import (FIELDS, FLAG_VARIANTS, SCHEMA, choose_candidate, confirm_candidate,
                     context_summary, performance_summary, valid_work, variant_records)
-from .workflow import _atomic_write, _parse_generation, run_process_silent, CommandFailure
+from ...workflow import _atomic_write, run_process_silent, CommandFailure
 
 
 class Study:
@@ -55,25 +55,17 @@ class Study:
         _atomic_write(selection, canonical_json(self.lock["selection"]))
         self.command(["catalog", "compile", "--catalog", catalog, "--selection", selection,
                       "--target", "darwin/arm64", "--out", lock_path, "--json"], 60)
-        exported = prepare_execution(Path(self.arguments.temper), lock_path, directory / "inputs",
+        execution = inspect_execution(Path(self.arguments.temper), lock_path,
             runner=lambda argv, timeout: run_process_silent(argv, self.remaining(timeout)))
         compiled = json.loads(lock_path.read_bytes())
         if compiled["records"] != records or compiled["selection"] != self.lock["selection"]:
             raise ProbeError("Temper compiled settings outside the approved configuration")
-        inputs = directory / "inputs"
-        manifest, manifest_lock = inputs / "manifest.yaml", inputs / "manifest.lock.yaml"
-        if manifest_lock.read_bytes() != Path(self.arguments.manifest_lock).read_bytes():
-            raise ProbeError("tuning changed the pinned model or template supply")
-        generation = _parse_generation(self.command(["apply", "--root", self.arguments.root,
-            "--manifest", manifest, "--lock", manifest_lock, "--mode", exported["profile"]]))
-        self.command(["check", "--root", self.arguments.root, "--manifest", manifest,
-                      "--lock", manifest_lock, "--mode", exported["profile"], "--verify"])
-        binding = self.command(["field-kit", "bind", "--root", self.arguments.root,
-            "--manifest-lock", manifest_lock, "--generation", generation,
-            "--installation", self.arguments.installation + "=" + self.arguments.software_lock], 60)
+        material = validate_material(self.command(["execution", "render", "--lock", lock_path,
+            "--root", self.arguments.root, "--installation", self.arguments.installation]), execution)
+        binding = material["binding"].encode()
         _atomic_write(directory / "binding.yaml", binding)
-        return {"generation": generation, "execution_lock_sha256": digest(lock_path.read_bytes()),
-                "execution_digest": exported["execution_digest"], "settings": records["layouts"][self.model],
+        return {"generation": material["generation"], "execution_lock_sha256": digest(lock_path.read_bytes()),
+                "execution_digest": execution["execution_digest"], "settings": records["layouts"][self.model],
                 "binding_sha256": digest(binding)}
 
     def watch_spec(self):
@@ -87,7 +79,7 @@ class Study:
 
     def probe(self, directory, material):
         return ManagedProbe(temper=Path(self.arguments.temper), root=Path(self.arguments.root),
-            installation=self.arguments.installation, software_lock=Path(self.arguments.software_lock),
+            installation=self.arguments.installation, execution_lock=directory / "execution.lock.json",
             generation=material["generation"], listen=self.arguments.listen, log_dir=directory / "process",
             watch_spec=self.watch_spec(), router_ready_seconds=30, log_bytes_max=self.protocol["process_log_bytes_max"])
 
@@ -274,10 +266,9 @@ class Study:
             next_actions = []
         else:
             raise ProbeError("unknown study action")
-        return {"schema": "field-kit-action-step-result/v1", "status": "complete",
+        return {"schema": "field-kit-action-result/v2", "status": "complete",
                 "action_sha256": digest(Path(self.arguments.action).read_bytes()),
-                "step_sha256": digest(Path(self.arguments.step).read_bytes()),
-                "outcome": "terminal", "consumed_artifacts": {}, "produced_artifacts": {},
+                "plan_sha256": self.session["plan"]["sha256"],
                 "answers": answers, "next_actions": next_actions,
                 "protocol": {"schema": SCHEMA, "status": "complete", "model": self.model,
                     "generation": self.arguments.generation, "generation_scope": "initial approved installation; each measured configuration binds its own recorded generation",
@@ -289,7 +280,7 @@ def main(package_root: Path):
         raise KeyboardInterrupt("study interrupted")
     signal.signal(signal.SIGTERM, interrupted)
     parser = argparse.ArgumentParser()
-    for name in ("action", "step", "temper", "root", "software-lock", "execution-lock", "request-defaults", "manifest-lock", "generation", "installation", "model", "listen", "report", "log-dir", "field-kit-runtime", "session", "outcome"):
+    for name in ("action", "temper", "root", "execution-lock", "generation", "installation", "model", "listen", "report", "log-dir", "field-kit-runtime", "session", "outcome"):
         parser.add_argument("--" + name, required=True)
     arguments = parser.parse_args()
     study = Study(arguments, package_root)

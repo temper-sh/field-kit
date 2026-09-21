@@ -9,9 +9,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .catalog import QuestionCatalog, Refusal, canonical_json, digest, parse_machine_facts
-from .study import SELECTOR
-from .workflow import (Workflow, _atomic_write, _exclusive_session_lock, build_export, load_session,
+from ...catalog import QuestionCatalog, Refusal, canonical_json, digest, parse_machine_facts
+from .method import SELECTOR
+from ...workflow import (Workflow, _atomic_write, _exclusive_session_lock, build_export, load_session,
                        run_contributor_process)
 
 
@@ -141,7 +141,9 @@ def _contribute_unlocked(arguments, repository, *, input_fn=input, facts_reader=
         raise Refusal("run ./setup.sh first; it installs the signed runtime locally")
     catalog = QuestionCatalog.load(repository / "catalog/questions.json")
     entry = catalog.find(SELECTOR)
-    pointer = local / "contributor-session.json"
+    pointer = local / "qwen-study-2-session.json"
+    if not arguments.new and not pointer.exists() and (local / "contributor-session.json").exists():
+        raise Refusal("This clone has a revision 1 study. Resume or review it with its original source revision; use --new only to start a separate revision 2 study.")
     metadata = None
     if pointer.is_symlink():
         raise Refusal("contributor session pointer must not be a symlink")
@@ -169,9 +171,8 @@ def _contribute_unlocked(arguments, repository, *, input_fn=input, facts_reader=
     applicable, reasons = entry.applicable(facts)
     if not applicable:
         raise Refusal("this Qwen study cannot run here: " + "; ".join(reasons))
-    stages = {"01-install-software": "Installing the pinned inference engine", "02-fetch-model": "Downloading Qwen (about 17.6 GB; interrupted downloads can resume)",
-              "03-apply-config": "Preparing the isolated configuration", "04-check-software": "Checking installed software",
-              "05-check-artifacts": "Checking model and template bytes", "06-bind-material": "Binding the measured configuration", "field-kit-outcome": "Removing the experiment installation"}
+    stages = {"prepare-execution": "Installing and verifying the exact study configuration (about 17.6 GB of model data)",
+              "field-kit-outcome": "Removing the experiment installation"}
     def progress(message):
         for key, label in stages.items():
             if f"stage={key} " in message:

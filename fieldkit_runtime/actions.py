@@ -9,8 +9,8 @@ from .catalog import IDENTITY, Refusal, canonical_json, digest
 from .watcher import validate_watch_spec
 
 
-INVESTIGATION_SCHEMA = "field-kit-investigation/v1"
-ACTION_SCHEMA = "field-kit-action/v1"
+INVESTIGATION_SCHEMA = "field-kit-investigation/v2"
+ACTION_SCHEMA = "field-kit-action/v2"
 
 
 @dataclass(frozen=True)
@@ -123,7 +123,7 @@ def validate_investigation(value: object, question_kind: str) -> dict[str, Any]:
     if value.get("schema") != INVESTIGATION_SCHEMA:
         raise Refusal("investigation has an unsupported schema")
     parameters = _definitions_by_id(value.get("parameters"), "investigation.parameters")
-    varying = any(_validate_parameter_definition(item) for item in parameters.values())
+    varying = any([_validate_parameter_definition(item) for item in parameters.values()])
     actions = _definitions_by_id(value.get("actions"), "investigation.actions")
     if not actions:
         raise Refusal("investigation.actions must not be empty")
@@ -134,7 +134,7 @@ def validate_investigation(value: object, question_kind: str) -> dict[str, Any]:
     )
     for identity, action in actions.items():
         if set(action) != {
-            "id", "kind", "parameters", "attempts_max", "runtime_minutes_max", "steps",
+            "id", "kind", "parameters", "attempts_max", "runtime_minutes_max", "evidence_bytes_max", "process_watch",
         }:
             raise Refusal(f"action {identity!r} has missing or unknown fields")
         if action.get("kind") not in {"measurement", "final-validation"}:
@@ -156,73 +156,9 @@ def validate_investigation(value: object, question_kind: str) -> dict[str, Any]:
         )
         if runtime > total_runtime:
             raise Refusal(f"action {identity!r} exceeds the total runtime ceiling")
-        steps = action.get("steps")
-        if not isinstance(steps, list) or not steps:
-            raise Refusal(f"action {identity!r} requires at least one execution step")
-        step_ids: set[str] = set()
-        available_artifacts: set[str] = set()
-        step_runtime = 0
-        for index, step in enumerate(steps):
-            if not isinstance(step, dict) or set(step) != {
-                "id", "kind", "runtime_minutes_max", "output_bytes_max",
-                "evidence_bytes_max", "consumes", "produces", "process_watch",
-            }:
-                raise Refusal(f"action {identity!r} has an invalid execution step")
-            step_id = step.get("id")
-            if (
-                not isinstance(step_id, str)
-                or not IDENTITY.fullmatch(step_id)
-                or step_id in step_ids
-            ):
-                raise Refusal(f"action {identity!r} has an invalid or duplicate step ID")
-            step_ids.add(step_id)
-            step_kind = step.get("kind")
-            if step_kind not in {"preparation", "measurement"}:
-                raise Refusal(f"action {identity!r} step {step_id!r} has an unsupported kind")
-            if index == len(steps) - 1:
-                if step_kind != "measurement":
-                    raise Refusal(f"action {identity!r} must end with a measurement step")
-            elif step_kind != "preparation":
-                raise Refusal(f"action {identity!r} may only measure in its final step")
-            process_watch = step.get("process_watch")
-            if process_watch is not None:
-                if step_kind != "measurement":
-                    raise Refusal(f"action {identity!r} preparation step cannot watch processes")
-                validate_watch_spec(process_watch)
-            step_runtime += _positive_integer(
-                step.get("runtime_minutes_max"),
-                f"action {identity!r} step {step_id!r} runtime_minutes_max",
-            )
-            output_bytes = step.get("output_bytes_max")
-            if isinstance(output_bytes, bool) or not isinstance(output_bytes, int) or output_bytes < 0:
-                raise Refusal(
-                    f"action {identity!r} step {step_id!r} output_bytes_max "
-                    "must be a non-negative integer"
-                )
-            evidence_bytes = step.get("evidence_bytes_max")
-            if (
-                isinstance(evidence_bytes, bool)
-                or not isinstance(evidence_bytes, int)
-                or evidence_bytes < output_bytes
-            ):
-                raise Refusal(
-                    f"action {identity!r} step {step_id!r} evidence_bytes_max "
-                    "must cover its artifact output ceiling"
-                )
-            consumes = _artifact_names(step.get("consumes"), f"action {identity!r} step {step_id!r} consumes")
-            produces = _artifact_names(step.get("produces"), f"action {identity!r} step {step_id!r} produces")
-            missing = set(consumes) - available_artifacts
-            if missing:
-                raise Refusal(
-                    f"action {identity!r} step {step_id!r} consumes unavailable artifacts"
-                )
-            if set(produces) & available_artifacts:
-                raise Refusal(f"action {identity!r} produces an artifact name more than once")
-            if step_kind == "measurement" and produces:
-                raise Refusal(f"action {identity!r} measurement step cannot produce artifacts")
-            available_artifacts.update(produces)
-        if step_runtime > runtime:
-            raise Refusal(f"action {identity!r} step time exceeds its action runtime ceiling")
+        _positive_integer(action.get("evidence_bytes_max"), f"action {identity!r} evidence_bytes_max")
+        if action["process_watch"] is not None:
+            validate_watch_spec(action["process_watch"])
     initial = value.get("initial_action")
     if not isinstance(initial, dict) or set(initial) != {"id", "parameters"} or initial.get("id") not in actions:
         raise Refusal("investigation.initial_action is invalid")
@@ -260,16 +196,6 @@ def validate_investigation(value: object, question_kind: str) -> dict[str, Any]:
             raise Refusal("bounded-adaptive questions require one distinct final-validation action")
     if question_kind == "fixed" and final_action != initial["id"]:
         raise Refusal("fixed questions validate the exact initial action")
-    return value
-
-
-def _artifact_names(value: object, label: str) -> list[str]:
-    if (
-        not isinstance(value, list)
-        or any(not isinstance(item, str) or not IDENTITY.fullmatch(item) for item in value)
-        or value != sorted(set(value))
-    ):
-        raise Refusal(f"{label} must be a sorted unique artifact-name list")
     return value
 
 

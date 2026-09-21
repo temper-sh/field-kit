@@ -6,8 +6,8 @@ import json
 import threading
 import time
 
-from .probe import ProbeError
-from .study import finite, grade, record_value
+from ...probe import ProbeError
+from .method import finite, grade, record_value
 
 
 RESPONSE_LIMIT = 4 * 1024**2

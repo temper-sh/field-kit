@@ -8,8 +8,8 @@ import math
 import statistics
 
 
-SCHEMA = "field-kit-qwen-machine-study/v1"
-SELECTOR = "qwen-machine-study@1"
+SCHEMA = "field-kit-qwen-machine-study/v2"
+SELECTOR = "qwen-machine-study@2"
 FIELDS = ["completed-work", "context", "fit", "interaction", "limits", "profile", "tuning"]
 FLAG_VARIANTS = ("batch-1024", "mtp-off", "cache-reference", "kv-q4")
 

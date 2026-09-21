@@ -2,7 +2,7 @@ import io
 import json
 import unittest
 
-from fieldkit_runtime.measurement import read_stream, construct_context
+from fieldkit_runtime.experiments.qwen.measurement import read_stream, construct_context
 from fieldkit_runtime.probe import ProbeError
 
 

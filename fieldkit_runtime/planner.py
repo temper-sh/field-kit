@@ -11,18 +11,11 @@ from typing import Any
 from .catalog import MachineFacts, QuestionPackage, Refusal, canonical_json, digest
 
 
-PLAN_SCHEMA = "field-kit-plan/v1"
+PLAN_SCHEMA = "field-kit-plan/v2"
 PROBE_LISTEN = "127.0.0.1:18080"
 
 # Field Kit owns the workflow. Question packages own what is measured.
-SETUP_STAGES = [
-    {"id": "01-install-software", "operation": "software-install"},
-    {"id": "02-fetch-model", "operation": "model-fetch"},
-    {"id": "03-apply-config", "operation": "config-apply"},
-    {"id": "04-check-software", "operation": "software-check"},
-    {"id": "05-check-artifacts", "operation": "artifact-check"},
-    {"id": "06-bind-material", "operation": "material-bind"},
-]
+SETUP_STAGES = [{"id": "prepare-execution", "operation": "execution-prepare"}]
 
 
 @dataclass(frozen=True)
@@ -100,7 +93,7 @@ def build_plan(
         "execution": {
             "outcome": outcome,
             "paths": {key: str(value) for key, value in paths.items()},
-            "preparation": "temper-execution-export-and-verify",
+            "preparation": "temper-execution-prepare",
             "listeners": [PROBE_LISTEN],
             "setup_stages": SETUP_STAGES,
             "question_actions": {
@@ -139,5 +132,5 @@ def load_plan(path: Path) -> Plan:
     except json.JSONDecodeError as error:
         raise Refusal(f"invalid plan JSON: {error}") from error
     if not isinstance(document, dict) or document.get("schema") != PLAN_SCHEMA or canonical_json(document) != data:
-        raise Refusal("plan is not canonical field-kit-plan/v1")
+        raise Refusal("plan is not canonical field-kit-plan/v2")
     return Plan(document, data, digest(data))
