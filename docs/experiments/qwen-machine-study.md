@@ -23,8 +23,9 @@ for revision 2 setup.
 | Model and engine installation | Separate six-hour limit |
 
 The script also checks the Mac's wired-memory limit for GPU work: it must be
-at least 24 GiB. The study leaves that setting unchanged. Time limits are
-maximums, not duration estimates.
+at least 24 GiB (24,576 MiB). If that check fails,
+[adjust the limit](#adjust-the-wired-memory-limit) before retrying. The study
+leaves that setting unchanged. Time limits are maximums, not duration estimates.
 
 Choose **performance only** for the common baseline, or **performance and
 tuning** to include configuration comparisons and context tests. You can also
@@ -37,6 +38,99 @@ request one tuning group before confirming the run:
 
 Both include the baseline. The study uses a separate installation, removes it
 after finishing, and retains the results.
+
+### Adjust the wired-memory limit
+
+A Mac with enough physical RAM can still fail the GPU memory check:
+
+```text
+requires at least 24576 MiB wired limit, found 23961
+```
+
+When macOS reports no positive override, Temper uses a conservative estimate of
+65% of physical RAM. On a 36 GiB Mac that is 23,961 MiB. This estimate may differ
+from the effective macOS limit. Setting an explicit override lets Field Kit
+read the setting directly.
+
+For this study, use **75% of physical RAM, capped at 96 GiB**. That is the
+highest engine memory budget the study permits; a higher wired limit does not
+increase that budget. On a **36 GiB Mac, use 27 GiB (27,648 MiB)**, leaving
+9 GiB outside the GPU wired-memory cap for macOS, the router and other work.
+The 24 GiB requirement is only the admission minimum.
+
+The [macOS GPU memory override](https://ml-explore.github.io/mlx/build/html/python/_autosummary/mlx.core.set_wired_limit.html)
+requires an administrator password and applies system-wide. Wired memory stays
+in RAM. There is no universally safe maximum determined by RAM alone; other
+processes also need memory. The value below follows this study's existing
+budget, and actual fit is still measured during the run. Close other
+memory-heavy applications before starting.
+
+These steps are for a Mac with at least 32 GiB physical RAM. Make the change
+before starting a new study; keep the limit unchanged during an unfinished run.
+
+1. Run this once in Terminal, **before changing the limit**. It reads the
+   machine's RAM, calculates the study ceiling and prints both commands:
+
+   ```sh
+   if field_kit_wired_before=$(sysctl -n iogpu.wired_limit_mb) &&
+      field_kit_ram_bytes=$(sysctl -n hw.memsize); then
+     field_kit_wired_max_mib=$((field_kit_ram_bytes / 1048576 * 3 / 4))
+     if [ "$field_kit_wired_max_mib" -gt 98304 ]; then
+       field_kit_wired_max_mib=98304
+     fi
+     printf 'Current override: %s MiB\n' "$field_kit_wired_before"
+     printf 'Study ceiling: %s MiB\n' "$field_kit_wired_max_mib"
+     printf 'Apply: sudo sysctl iogpu.wired_limit_mb=%s\n' "$field_kit_wired_max_mib"
+     printf 'Rollback: sudo sysctl iogpu.wired_limit_mb=%s\n' "$field_kit_wired_before"
+   fi
+   ```
+
+   **Save the printed rollback command** so it remains available if you close
+   Terminal. A current value of `0` means macOS chooses the limit automatically;
+   preserve that raw value rather than Field Kit's estimate. If either `sysctl`
+   read fails, stop and send the error to the maintainer.
+
+2. If the current override is `0` or below the calculated ceiling, run the
+   printed **Apply** command. For a 36 GiB Mac, this is:
+
+   ```sh
+   sudo sysctl iogpu.wired_limit_mb=27648
+   sysctl -n iogpu.wired_limit_mb
+   ```
+
+   The readback should match your calculated ceiling: `27648` on a 36 GiB Mac.
+   No reboot is needed. If a positive override already meets or exceeds the
+   ceiling, leave it in place. If the change is refused, send that error to the
+   maintainer before continuing.
+
+3. From the Field Kit folder, check the plan again:
+
+   ```sh
+   ./field-kit contribute --preview
+   ```
+
+   If the check passes, run `./field-kit` to start the study and confirm its
+   plan. The preview should show a 27 GiB engine memory limit on a 36 GiB Mac.
+
+4. **Roll back after the study finishes and cleanup completes.** Run the exact
+   rollback command saved in step 1, then read the setting again. If the
+   original value was `0`, use:
+
+   ```sh
+   sudo sysctl iogpu.wired_limit_mb=0
+   sysctl -n iogpu.wired_limit_mb
+   ```
+
+   The readback should match the original value. If it was a nonzero number,
+   restore that exact number instead of `0`. If you decide not to start the
+   study, roll back immediately. For an interrupted study, follow the
+   [recovery instructions](../START.md#stop-or-continue) before changing its
+   recorded conditions.
+
+   Field Kit does not restore this manual change. These commands do not persist
+   the override across reboots; a reboot discards this temporary override, but
+   an existing startup configuration may apply its own value. The saved command
+   restores the exact prior setting without rebooting.
 
 ## What the result tells you
 

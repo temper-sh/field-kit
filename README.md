@@ -14,7 +14,7 @@ Follow an experiment's link for its requirements, run options and method.
 
 | Experiment | Useful result | Requirements | Status |
 |---|---|---|---|
-| [Qwen machine study](docs/experiments/qwen-machine-study.md) | Comparable performance numbers and tested context lengths and settings for Qwen3.8 27B | Apple Silicon Mac; ≥32 GiB RAM; about 35 GiB free disk | Revision 2; live measurements needed |
+| [Qwen machine study](docs/experiments/qwen-machine-study.md) | Comparable performance numbers and tested context lengths and settings for Qwen3.8 27B | Apple Silicon Mac; ≥32 GiB RAM; [≥24 GiB GPU wired-memory limit](docs/experiments/qwen-machine-study.md#adjust-the-wired-memory-limit); about 35 GiB free disk | Revision 2; live measurements needed |
 
 This build opens revision 2 of the Qwen study directly. Keep dispatched revision
 1 runs in their original checkout. Results need review before becoming recommendations.

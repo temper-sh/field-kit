@@ -170,7 +170,9 @@ def _contribute_unlocked(arguments, repository, *, input_fn=input, facts_reader=
     facts, raw = facts_reader(temper)
     applicable, reasons = entry.applicable(facts)
     if not applicable:
-        raise Refusal("this Qwen study cannot run here: " + "; ".join(reasons))
+        raise Refusal("this Qwen study cannot run here: " + "; ".join(reasons)
+                      + "\nSee docs/experiments/qwen-machine-study.md for requirements "
+                        "and wired-memory setup (Adjust the wired-memory limit).")
     stages = {"prepare-execution": "Installing and verifying the exact study configuration (about 17.6 GB of model data)",
               "field-kit-outcome": "Removing the experiment installation"}
     def progress(message):
