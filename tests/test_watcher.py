@@ -17,6 +17,7 @@ from fieldkit_runtime.watcher import (
     parse_rss_bytes,
     parse_swap_used_bytes,
     parse_thermal,
+    validate_binding,
     validate_watch_spec,
 )
 
@@ -81,6 +82,14 @@ def snapshot(*, engine_rss: int = 1, router_rss: int = 1) -> dict:
 
 
 class ProcessWatcherTest(unittest.TestCase):
+    def test_engine_may_have_its_own_bound_group(self) -> None:
+        value = binding()
+        value["roles"][0]["pgid"] = value["roles"][0]["pid"]
+        self.assertEqual(validate_binding(watch_spec(), value), value)
+        value["roles"][0]["pgid"] = 456
+        with self.assertRaises(Refusal):
+            validate_binding(watch_spec(), value)
+
     def test_watch_spec_requires_sorted_independent_roles(self) -> None:
         spec = watch_spec()
         validate_watch_spec(spec)

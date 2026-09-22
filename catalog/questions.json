@@ -9,7 +9,7 @@
       "availability": "qualifying",
       "package_path": "packages/qwen-machine-study@2/package.json",
       "package_sha256": "ba5e0316f915356961eab2b2c49f14d82ee551b1e09d37f302560790b0b15693",
-      "reason": "Development revision using direct Temper execution locks and supervised probes; offline checks passed, matching Temper release and live measurements remain pending."
+      "reason": "Temper 0.1.0-alpha.9 supplies direct execution locks and supervised router/engine groups; a bounded native request and private cleanup passed. Live study measurements remain pending."
     }
   ]
 }

@@ -165,8 +165,11 @@ def validate_binding(spec: dict[str, Any], value: object) -> dict[str, Any]:
         }:
             raise Refusal("process binding role has missing or unknown fields")
         pid = _positive_integer(role.get("pid"), f"process binding role {role.get('id')!r} pid")
-        if pid in pids or role.get("pgid") != pgid:
-            raise Refusal("process binding roles must be unique members of the explicit group")
+        role_group = _positive_integer(role.get("pgid"), "process binding role group")
+        if pid in pids or role_group == os.getpgrp():
+            raise Refusal("process binding roles must have unique PIDs and isolated groups")
+        if role_group not in (pgid, pid) or (role["id"] == "router" and role_group != pgid):
+            raise Refusal("process binding role must use the router group or its own child group")
         pids.add(pid)
         if not isinstance(role.get("ps_lstart"), str) or not role["ps_lstart"].strip():
             raise Refusal("process binding role has no start-time identity")

@@ -38,7 +38,7 @@ class ExecutionTest(unittest.TestCase):
         self.assertFalse(self.runner.calls)
 
     def test_old_host_has_actionable_refusal(self):
-        with self.assertRaisesRegex(Refusal, "matching development build"):
+        with self.assertRaisesRegex(Refusal, r"Run \./setup\.sh"):
             inspect_execution(Path("/temper"), self.lock, runner=lambda *_: CommandResult(b"", b"unknown command", 2))
 
     def test_material_binds_the_inspected_lock_and_generation(self):

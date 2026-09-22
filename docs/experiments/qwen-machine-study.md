@@ -4,8 +4,8 @@ Measure Qwen3.8 27B performance across Macs and find useful context lengths and
 runtime settings for each machine. The results can inform the Qwen model card
 and recommendations for machines with similar chips and memory.
 
-Package: `qwen-machine-study@2`, a development revision requiring a matching
-Temper build. Model, software and workload inputs are unchanged from revision 1;
+Package: `qwen-machine-study@2`. Setup installs its required Temper host.
+Model, software and workload inputs are unchanged from revision 1;
 process supervision and session/action records have changed. Live measurements
 are still needed. Keep revision 1 evidence with its producing source; see
 [development and dispatched runs](../DEVELOPMENT.md). Follow the [run guide](../START.md)
@@ -31,8 +31,8 @@ tuning** to include configuration comparisons and context tests. You can also
 request one tuning group before confirming the run:
 
 ```sh
-./field-kit contribute --temper /absolute/path/to/temper --tuning flags
-./field-kit contribute --temper /absolute/path/to/temper --tuning context
+./field-kit contribute --tuning flags
+./field-kit contribute --tuning context
 ```
 
 Both include the baseline. The study uses a separate installation, removes it

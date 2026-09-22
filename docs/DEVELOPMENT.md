@@ -1,12 +1,11 @@
 # Developing Field Kit and reviewing dispatched runs
 
-The current development package is `qwen-machine-study@2`. It requires Temper's
+The current package is `qwen-machine-study@2`. It requires Temper's
 `execution inspect|prepare|render|serve|remove` commands and supervised probe
-status. The pinned bootstrap Temper still installs the private Python runtime;
-it does not implement this new study's host contract. No replacement release
-has been published by this cleanup.
+status. Setup installs signed/notarized Temper 0.1.0-alpha.9, which supplies
+those commands and installs the private Python runtime.
 
-In the local-AI workspace, build Temper and preview without loading a model:
+To test a development Temper build in the local-AI workspace without loading a model:
 
 ```sh
 (cd ../../temper && go build -o build/temper ./cmd/temper)

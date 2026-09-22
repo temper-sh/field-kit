@@ -30,14 +30,14 @@ trap cleanup_setup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 field_kit_stage=$(mktemp -d "$field_kit_local/.setup.XXXXXX")
-field_kit_archive=temper_0.1.0-alpha.7_darwin_arm64.zip
-field_kit_sha=a7761219481852b200f3e810b6cc4530cd5ab40f73a9f9d453c2fd7dad905021
+field_kit_archive=temper_0.1.0-alpha.9_darwin_arm64.zip
+field_kit_sha=5e050305839d9e3a84dba7e1bf715f31ae00fdd4923c8304f8320b1e86c2b334
 field_kit_zip="$field_kit_local/$field_kit_archive"
 [ ! -L "$field_kit_zip" ] || { printf '%s\n' 'Refusing a symlink at the release cache.' >&2; exit 1; }
-printf '%s\n' 'Installing Temper 0.1.0-alpha.7 and Python locally (about 31 MB of downloads).' 'No administrator access is needed. Model downloads and inference require confirmation next.'
+printf '%s\n' 'Installing Temper 0.1.0-alpha.9 and Python locally (about 31 MB of downloads).' 'No administrator access is needed. Model downloads and inference require confirmation next.'
 if [ ! -f "$field_kit_zip" ]; then
     curl --fail --location --proto '=https' --tlsv1.2 --retry 2 --connect-timeout 20 --max-time 600 \
-        "https://github.com/temper-sh/temper/releases/download/v0.1.0-alpha.7/$field_kit_archive" \
+        "https://github.com/temper-sh/temper/releases/download/v0.1.0-alpha.9/$field_kit_archive" \
         --output "$field_kit_stage/$field_kit_archive"
     [ "$(shasum -a 256 "$field_kit_stage/$field_kit_archive" | cut -d ' ' -f 1)" = "$field_kit_sha" ] || {
         printf '%s\n' 'Temper release checksum mismatch; nothing was installed.' >&2; exit 1;
@@ -45,10 +45,10 @@ if [ ! -f "$field_kit_zip" ]; then
     mv "$field_kit_stage/$field_kit_archive" "$field_kit_zip"
 fi
 [ "$(shasum -a 256 "$field_kit_zip" | cut -d ' ' -f 1)" = "$field_kit_sha" ] || {
-    printf '%s\n' 'Cached Temper checksum mismatch. Remove .local/temper_0.1.0-alpha.7_darwin_arm64.zip and run setup again.' >&2; exit 1;
+    printf '%s\n' 'Cached Temper checksum mismatch. Remove .local/temper_0.1.0-alpha.9_darwin_arm64.zip and run setup again.' >&2; exit 1;
 }
 ditto -x -k "$field_kit_zip" "$field_kit_stage"
-field_kit_binary="$field_kit_stage/temper_0.1.0-alpha.7_darwin_arm64/temper"
+field_kit_binary="$field_kit_stage/temper_0.1.0-alpha.9_darwin_arm64/temper"
 codesign --verify --strict -R='anchor apple generic and certificate leaf[subject.OU] = "5VQ2HDTPN4"' "$field_kit_binary"
 [ ! -L "$field_kit_local/temper" ] || { printf '%s\n' 'Refusing a symlink at the Temper destination.' >&2; exit 1; }
 if [ ! -f "$field_kit_local/temper" ] || ! cmp -s "$field_kit_binary" "$field_kit_local/temper"; then
@@ -81,9 +81,5 @@ mv "$field_kit_stage/python-path" "$field_kit_local/python-path"
 printf '%s\n' 'Setup complete. Everything is inside this clone.'
 cleanup_setup
 trap - EXIT INT TERM
-if ! "$field_kit_local/temper" help | grep -q 'temper execution prepare'; then
-    printf '%s\n' 'This development study requires newer Temper execution commands than the bootstrap release.' 'Use a matching development build: ./field-kit contribute --temper /absolute/path/to/temper' 'Keep dispatched studies in their original checkout.'
-    exit 0
-fi
 if [ "$install_only" = no ] && [ -t 0 ]; then exec "$field_kit_directory/field-kit" contribute; fi
 printf '%s\n' 'Run ./field-kit to start or resume an experiment.'

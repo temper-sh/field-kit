@@ -17,7 +17,7 @@ def inspect_execution(temper: Path, lock: Path, *, runner=run_process_silent) ->
     arguments = [str(temper), "execution", "inspect", "--lock", str(lock)]
     result = runner(arguments, 60)
     if result.returncode:
-        raise Refusal("This revision requires Temper's direct execution-lock commands; use a matching development build via --temper. " + str(CommandFailure(arguments, result)))
+        raise Refusal("Temper could not inspect this execution lock. Run ./setup.sh to install the required host; if using --temper, check that executable. " + str(CommandFailure(arguments, result)))
     if len(result.stdout) > 64 * 1024:
         raise Refusal("Temper execution inspection exceeded the response bound")
     try:
