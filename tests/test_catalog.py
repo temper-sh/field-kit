@@ -42,6 +42,23 @@ class QuestionCatalogTest(unittest.TestCase):
                 self.assertEqual(len(catalog.qualifying()), int(state == 'qualifying'))
                 self.assertEqual(catalog.questions[0].package['schema'], 'field-kit-question-package/v3')
 
+    def test_engine_refresh_preserves_issued_revision_2_and_frozen_questions(self):
+        old = ROOT / "catalog/packages/qwen-machine-study@2"
+        new = ROOT / "catalog/packages/qwen-machine-study@3"
+        self.assertEqual(digest((old / "package.json").read_bytes()), "ba5e0316f915356961eab2b2c49f14d82ee551b1e09d37f302560790b0b15693")
+        for name in ("workloads.json", "protocol.json"):
+            self.assertEqual((new / name).read_bytes(), (old / name).read_bytes())
+        previous = json.loads((old / "execution.lock.json").read_bytes())["records"]
+        refreshed = json.loads((new / "execution.lock.json").read_bytes())["records"]
+        self.assertEqual(refreshed["artifacts"], previous["artifacts"])
+        self.assertEqual(refreshed["patches"], previous["patches"])
+        before = next(iter(previous["layouts"].values())).copy()
+        after = next(iter(refreshed["layouts"].values())).copy()
+        before.pop("engine")
+        after.pop("engine")
+        self.assertEqual(after, before)
+        self.assertEqual(refreshed["schema"], "temper-catalog/v2")
+
     def test_shipped_preparation_is_not_active(self):
         catalog = QuestionCatalog.load(ROOT/'catalog/questions.json')
         self.assertEqual(catalog.active(), ())
@@ -74,6 +91,21 @@ class QuestionCatalogTest(unittest.TestCase):
     def test_incomplete_machine_with_extra_fields_is_refused(self):
         raw = facts_bytes().replace(b'os_build: TESTBUILD\n', b'unrelated: value\n')
         with self.assertRaises(Refusal): parse_machine_facts(raw)
+
+    def test_live_metal_budget_controls_admission_independently_of_raw_override(self):
+        raw = facts_bytes().replace(b"predicted-metal-81-percent", b"live-metal").replace(b"live-sysctl", b"live-metal").replace(b"metal_device_memory_mib: 26542", b"metal_device_memory_mib: 24576")
+        for override in (0, 32768):
+            with self.subTest(override=override):
+                facts = parse_machine_facts(raw + f"wired_limit_override_mib: {override}\n".encode())
+                self.assertEqual(facts.document["wired_limit_override_mib"], override)
+                self.assertEqual(facts.document["wired_limit_mib"], 24576)
+                entry = question_entry()
+                entry.package["applicability"]["min_wired_limit_mib"] = 24576
+                self.assertTrue(entry.applicable(facts)[0])
+                smaller = parse_machine_facts((raw + f"wired_limit_override_mib: {override}\n".encode()).replace(b"wired_limit_mib: 24576", b"wired_limit_mib: 23000"))
+                self.assertFalse(entry.applicable(smaller)[0])
+        with self.assertRaisesRegex(Refusal, "must be an integer"):
+            parse_machine_facts(raw + b"wired_limit_override_mib: invalid\n")
 
     def test_unknown_question_is_refused(self):
         with self.assertRaisesRegex(Refusal, 'unknown Field Kit question'):

@@ -14,10 +14,11 @@ Follow an experiment's link for its requirements, run options and method.
 
 | Experiment | Useful result | Requirements | Status |
 |---|---|---|---|
-| [Qwen machine study](docs/experiments/qwen-machine-study.md) | Comparable performance numbers and tested context lengths and settings for Qwen3.8 27B | Apple Silicon Mac; ≥32 GiB RAM; [≥24 GiB GPU wired-memory limit](docs/experiments/qwen-machine-study.md#adjust-the-wired-memory-limit); about 35 GiB free disk | Revision 2; live measurements needed |
+| [Qwen machine study](docs/experiments/qwen-machine-study.md) | Comparable performance numbers and tested context lengths and settings for Qwen3.8 27B | Apple Silicon Mac; ≥32 GiB RAM; [≥24 GiB GPU wired-memory limit](docs/experiments/qwen-machine-study.md#adjust-the-wired-memory-limit); about 35 GiB free disk | Revision 3; development host required; live measurements needed |
 
-This build opens revision 2 of the Qwen study directly. Keep dispatched revision
-1 runs in their original checkout. Results need review before becoming recommendations.
+This build prepares revision 3 with updated engine software. Keep dispatched
+revision 1 and 2 runs in their original checkout. Results need review before
+becoming recommendations.
 
 ## Get started
 
@@ -30,6 +31,10 @@ cd field-kit
 Setup downloads a signed [Temper](https://github.com/temper-sh/temper)
 release and a private Python runtime into this folder. The bootstrap needs no
 Homebrew or administrator access and supports Apple Silicon macOS.
+
+The current study also needs a compatible development Temper build. Setup
+installs the bootstrap tools without opening the study; follow the
+[development host instructions](docs/DEVELOPMENT.md) before starting it.
 
 Before an experiment starts, Field Kit checks your machine, shows the download,
 disk and time limits, and asks for confirmation. The experiment guide explains

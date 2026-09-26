@@ -7,8 +7,9 @@ import json
 import signal
 import time
 from pathlib import Path
+from urllib.parse import quote
 
-from ...catalog import canonical_json, digest
+from ...catalog import canonical_json
 from ...execution import inspect_execution, validate_material
 from .measurement import construct_context, measure_chat, monitored_call
 from ...probe import ManagedProbe, ProbeError
@@ -64,9 +65,7 @@ class Study:
             "--root", self.arguments.root, "--installation", self.arguments.installation]), execution)
         binding = material["binding"].encode()
         _atomic_write(directory / "binding.yaml", binding)
-        return {"generation": material["generation"], "execution_lock_sha256": digest(lock_path.read_bytes()),
-                "execution_digest": execution["execution_digest"], "settings": records["layouts"][self.model],
-                "binding_sha256": digest(binding)}
+        return {"generation": material["generation"], "settings": records["layouts"][self.model]}
 
     def watch_spec(self):
         spec = copy.deepcopy(self.protocol["process_watch"])
@@ -127,7 +126,7 @@ class Study:
                 _atomic_write(directory / "observation.json", canonical_json(result))
                 row = measure_chat(probe, self.model, messages, case["expected"], layout["context_window_tokens"],
                                    layout["request_defaults"]["max_output_tokens"], self.remaining(self.protocol["request_seconds"]))
-                row.update(id=case["id"], transition=case["transition"], request_sha256=digest(canonical_json(messages)))
+                row.update(id=case["id"], transition=case["transition"])
                 result["cases"].append(row)
                 histories[case["id"]] = messages + [{"role": "assistant", "content": row["content"]}]
                 _atomic_write(directory / "observations.json", canonical_json(result["cases"]))
@@ -142,11 +141,12 @@ class Study:
         target = window - self.protocol["output_reserve_tokens"] - self.protocol["followup_reserve_tokens"]
 
         def run(probe, result, directory):
+            native_root = "/upstream/" + quote(self.model, safe="")
             def count(messages):
-                rendered = monitored_call(probe, "/apply-template", {"model": self.model, "messages": messages}, self.remaining(120))
+                rendered = monitored_call(probe, native_root + "/apply-template", {"model": self.model, "messages": messages}, self.remaining(120))
                 if not isinstance(rendered, dict) or not isinstance(rendered.get("prompt"), str):
                     raise ProbeError("native template endpoint did not return a prompt")
-                tokenized = monitored_call(probe, "/tokenize", {"model": self.model, "content": rendered["prompt"],
+                tokenized = monitored_call(probe, native_root + "/tokenize", {"model": self.model, "content": rendered["prompt"],
                     "add_special": True, "parse_special": True, "with_pieces": False}, self.remaining(120))
                 tokens = tokenized.get("tokens")
                 if not isinstance(tokens, list) or any(type(token) is not int or token < 0 for token in tokens):
@@ -158,7 +158,7 @@ class Study:
             result["attempted_case_ids"].append("distributed-ledger")
             _atomic_write(directory / "observation.json", canonical_json(result))
             primary = measure_chat(probe, self.model, messages, expected, window, reserve, self.remaining(self.protocol["context_request_seconds"]))
-            primary.update(id="distributed-ledger", expected=expected, request_sha256=digest(canonical_json(messages)))
+            primary.update(id="distributed-ledger", expected=expected)
             result["cases"].append(primary)
             _atomic_write(directory / "observations.json", canonical_json(result["cases"]))
             if not primary["measurement_valid"]:
@@ -173,7 +173,7 @@ class Study:
             _atomic_write(directory / "observation.json", canonical_json(result))
             followup = measure_chat(probe, self.model, messages, followup_expected, window, reserve,
                                     self.remaining(self.protocol["context_request_seconds"]))
-            followup.update(id="ledger-followup", expected=followup_expected, request_sha256=digest(canonical_json(messages)))
+            followup.update(id="ledger-followup", expected=followup_expected)
             result["cases"].append(followup)
             if not followup["measurement_valid"]:
                 raise ProbeError("; ".join(followup["measurement_problems"]))
@@ -233,7 +233,7 @@ class Study:
             "context": {"state": "observed" if tuning.get("context_points") else "unknown", "value": {"points": tuning.get("context_points", []), "summary": tuning.get("context_summary", {}), "output_reserve_tokens": self.protocol["output_reserve_tokens"]}, "reason": "observed context points only; unmeasured lengths remain unknown"},
             "fit": {"state": "observed" if baseline["valid"] else "unknown", "value": baseline["resources"], "reason": "baseline resource observation; each tuning run retains its own memory measurements"},
             "interaction": {"state": "observed" if baseline["valid"] else "unknown", "value": performance_summary(baseline), "reason": "common baseline performance; configurations are never blended"},
-            "profile": {"state": "observed", "value": {"baseline": baseline["material"], "source_lock_sha256": digest(Path(self.arguments.execution_lock).read_bytes()), "request_overrides": ["stream", "stream_options.include_usage", "timings_per_token"]}},
+            "profile": {"state": "observed", "value": {"baseline": baseline["material"], "request_overrides": ["stream", "stream_options.include_usage", "timings_per_token"]}},
             "limits": {"state": "observed", "value": {"baseline_failure": baseline["failure"], "tuning_stop": tuning.get("stop"),
                 "baseline_attempted_case_ids": baseline["attempted_case_ids"],
                 "incomplete_baseline_cases": [identity for identity in baseline["attempted_case_ids"] if identity not in {row["id"] for row in baseline["cases"]}],
@@ -266,9 +266,9 @@ class Study:
             next_actions = []
         else:
             raise ProbeError("unknown study action")
-        return {"schema": "field-kit-action-result/v2", "status": "complete",
-                "action_sha256": digest(Path(self.arguments.action).read_bytes()),
-                "plan_sha256": self.session["plan"]["sha256"],
+        return {"schema": "field-kit-action-result/v3", "status": "complete",
+                "session_id": self.session["id"],
+                "action": {"id": self.action["id"], "attempt": self.action["attempt"]},
                 "answers": answers, "next_actions": next_actions,
                 "protocol": {"schema": SCHEMA, "status": "complete", "model": self.model,
                     "generation": self.arguments.generation, "generation_scope": "initial approved installation; each measured configuration binds its own recorded generation",

@@ -14,16 +14,21 @@ cd field-kit
 ./setup.sh
 ```
 
-Setup installs signed Temper 0.1.0-alpha.9 and Python under `.local/`, then opens
-the study. It downloads about 31 MB, verifies the Temper release's checksum and
+Setup installs signed Temper 0.1.0-alpha.9 and Python under `.local/`.
+It downloads about 31 MB, verifies the Temper release's checksum and
 signature, and needs no administrator access. Rerunning setup checks and reuses
-the installation. Keep revision 1 runs in their original checkout.
+the installation. Keep revision 1 and 2 runs in their original checkout.
+
+Revision 3 requires a development Temper build with the software receipt fix;
+the signed bootstrap host cannot run it. Follow the
+[development host instructions](DEVELOPMENT.md) and pass the resulting binary
+with `--temper` on each command below until a compatible signed release ships.
 
 To install the tools and inspect the experiment before deciding to run it:
 
 ```sh
 ./setup.sh --install-only
-./field-kit contribute --preview
+./field-kit contribute --temper /absolute/path/to/temper --preview
 ```
 
 The preview checks your machine and shows the limits. It downloads no models

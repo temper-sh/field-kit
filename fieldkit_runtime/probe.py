@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import datetime
+import re
 import subprocess
 import threading
 import time
@@ -15,6 +16,10 @@ from . import watcher
 
 
 SYSTEM_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
+STATUS_TIMESTAMP = re.compile(
+    r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})"
+    r"(?:\.([0-9]{1,9}))?(Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])"
+)
 
 
 class ProbeError(RuntimeError):
@@ -194,7 +199,15 @@ class ManagedProbe:
                 raise ProbeError("Temper returned an unknown probe state")
             if type(status.get("safe_to_cleanup")) is not bool or type(status.get("listeners_verified")) is not bool:
                 raise ProbeError("Temper returned an invalid shutdown or listener state")
-            updated = datetime.datetime.fromisoformat(status["updated_at"].replace("Z", "+00:00"))
+            timestamp = status["updated_at"]
+            match = STATUS_TIMESTAMP.fullmatch(timestamp) if isinstance(timestamp, str) else None
+            if match is None:
+                raise ValueError("invalid RFC 3339 timestamp")
+            second, fraction, zone = match.groups()
+            # Python 3.9 only parses fractions of 3 or 6 digits. Go emits 0–9;
+            # truncate to microseconds for the seconds-scale freshness check.
+            fraction = "." + fraction[:6].ljust(6, "0") if fraction else ""
+            updated = datetime.datetime.fromisoformat(second + fraction + zone.replace("Z", "+00:00"))
             age = (datetime.datetime.now(datetime.timezone.utc) - updated).total_seconds()
             if not final and not -1 <= age <= 15:
                 raise ProbeError("Temper process observation is stale")

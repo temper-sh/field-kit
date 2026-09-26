@@ -1,0 +1,46 @@
+{
+  "schema": "field-kit-qwen-machine-study/v2",
+  "baseline_minutes": 45,
+  "tuning_minutes": 240,
+  "request_seconds": 600,
+  "context_request_seconds": 1800,
+  "output_reserve_tokens": 4096,
+  "followup_reserve_tokens": 1024,
+  "context_windows": [
+    16384,
+    32768,
+    65536,
+    98304,
+    131072
+  ],
+  "useful_initial_seconds": 300,
+  "useful_followup_seconds": 60,
+  "worthwhile_improvement_percent": 10,
+  "maximum_case_regression_percent": 20,
+  "process_log_bytes_max": 33554432,
+  "engine_memory_bytes_max": 103079215104,
+  "memory_rule": "min(75 percent physical memory, current wired limit, 96 GiB); no system setting changes",
+  "process_watch": {
+    "schema": "field-kit-process-watch/v1",
+    "interval_milliseconds": 5000,
+    "max_gap_milliseconds": 15000,
+    "command_timeout_seconds": 15,
+    "roles": [
+      {
+        "id": "engine",
+        "rss_bytes_max": 103079215104,
+        "current_footprint_bytes_max": 103079215104,
+        "peak_footprint_bytes_max": 103079215104
+      },
+      {
+        "id": "router",
+        "rss_bytes_max": 2147483648,
+        "current_footprint_bytes_max": 2147483648,
+        "peak_footprint_bytes_max": 2147483648
+      }
+    ],
+    "swap_growth_bytes_max": 536870912,
+    "thermal_stop": true,
+    "cpu_speed_limit_stop": true
+  }
+}

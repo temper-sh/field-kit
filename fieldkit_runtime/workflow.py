@@ -30,12 +30,12 @@ from .actions import (
     validate_action_candidate,
 )
 from .answers import validate_answers
-from .catalog import MachineFacts, QuestionPackage, Refusal, canonical_json, digest
+from .catalog import MachineFacts, QuestionPackage, Refusal, canonical_json
 from .planner import PROBE_LISTEN, Plan, build_plan, load_plan, planned_paths
 
 
-SESSION_SCHEMA = "field-kit-session/v3"
-EXPORT_SCHEMA = "field-kit-evidence-export/v3"
+SESSION_SCHEMA = "field-kit-session/v4"
+EXPORT_SCHEMA = "field-kit-evidence-export/v4"
 EVIDENCE_DISCLOSURE = (
     "Retained evidence and exports may include generated model answers, private "
     "machine facts, local paths, hashes, timings and measurements."
@@ -349,7 +349,6 @@ class Workflow:
         return build_plan(
             self.entry,
             self.facts,
-            self.facts_data,
             root_path,
             outcome,
             temper,
@@ -381,8 +380,6 @@ class Workflow:
             "schema": "field-kit-owned-root/v1",
             "session_id": session_id,
             "package": self.entry.selector,
-            "package_sha256": self.entry.package_sha256,
-            "plan_sha256": plan.sha256,
             "root": str(root),
         }
         marker_data = canonical_json(marker_document)
@@ -432,7 +429,6 @@ class Workflow:
                 "package": {
                     "selector": self.entry.selector,
                     "sha256": self.entry.package_sha256,
-                    "runner_sha256": self.entry.package["mechanics"]["runner"]["sha256"],
                     "protocol": self.entry.package["mechanics"]["runtime_protocol"],
                 },
                 "plan": {
@@ -455,7 +451,6 @@ class Workflow:
                     "machine_facts": str(machine_path),
                     "marker": str(marker_path),
                 },
-                "marker_sha256": digest(marker_data),
                 "execution": prepared,
                 "started_at": _now(),
                 "setup_elapsed_seconds": 0.0,
@@ -491,7 +486,7 @@ class Workflow:
         _verify_session_plan_paths(session, session_path, plan.document)
         if (
             plan.document["question"]["selector"] != self.entry.selector
-            or plan.document["question"]["package_sha256"] != self.entry.package_sha256
+            or plan.document["inputs"]["package"]["sha256"] != self.entry.package_sha256
             or plan.document["execution"]["paths"]["root"] != session["paths"]["root"]
             or plan.document["execution"]["outcome"] != session["outcome"]
         ):
@@ -508,7 +503,7 @@ class Workflow:
         marker = Path(session["paths"]["marker"])
         if not root.is_dir() or root.is_symlink() or marker.is_symlink() or not marker.is_file():
             raise Refusal("session-owned root or marker is absent")
-        if digest(marker.read_bytes()) != session["marker_sha256"]:
+        if json.loads(marker.read_bytes()) != ownership_marker(session):
             raise Refusal("session ownership marker differs")
         if _file_digest(Path(session["temper"]["path"])) != session["temper"]["sha256"]:
             raise Refusal("Temper binary changed during the Field Kit session")
@@ -653,7 +648,7 @@ class Workflow:
         report_path = Path(session["paths"]["report"])
         report = render_report(session, self.entry)
         _write_new_or_same(report_path, report)
-        session["report"] = {"path": str(report_path), "sha256": digest(report)}
+        session["report"] = {"path": str(report_path)}
         self._enforce_evidence_ceiling(session)
         session["state"] = "complete"
         _atomic_write(session_path, canonical_json(session))
@@ -666,7 +661,7 @@ class Workflow:
         expected = {"package.json": self.entry.package_data, **self.entry.files}
         for relative, data in expected.items():
             path = package_root / relative
-            if path.is_symlink() or not path.is_file() or digest(path.read_bytes()) != digest(data):
+            if path.is_symlink() or not path.is_file() or path.read_bytes() != data:
                 raise Refusal(f"materialized package file differs: {relative}")
         if self._inspect_execution(package_root) != session["execution"]:
             raise Refusal("session execution differs from the supplied lock")
@@ -716,9 +711,7 @@ class Workflow:
         _atomic_write(attempt_stderr, result.stderr)
         attempt["evidence"] = {
             "stdout": str(attempt_stdout),
-            "stdout_sha256": digest(result.stdout),
             "stderr": str(attempt_stderr),
-            "stderr_sha256": digest(result.stderr),
         }
         try:
             self._enforce_evidence_ceiling(session)
@@ -759,13 +752,11 @@ class Workflow:
         attempt["state"] = "complete"
         stage.update({
             "state": "complete", "completed_at": _now(),
-            "stdout_sha256": digest(result.stdout), "stderr_sha256": digest(result.stderr),
         })
         if stage["operation"] == "execution-prepare":
             from .execution import validate_material
             material = validate_material(result.stdout, session["execution"])
             session["generation"] = material["generation"]
-            session["binding"] = {"sha256": digest(material["binding"].encode())}
         _atomic_write(session_path, canonical_json(session))
 
     def _run_question_action(self, session, session_path, request):
@@ -783,8 +774,7 @@ class Workflow:
         attempt = {"id": attempt_id, "kind": "question-action", "stage": "question-action",
                    "operation": "live-protocol", "reason": action.document["reason"],
                    "candidate": action.document["parameters"], "changes": action.document["changes"],
-                   "action": {"id": action.document["id"], "kind": action.document["kind"],
-                              "path": str(action_path), "sha256": action.sha256},
+                   "action": action.document,
                    "arguments": arguments, "timeout_seconds": timeout, "state": "running", "started_at": _now()}
         session["attempts"].append(attempt)
         _atomic_write(session_path, canonical_json(session))
@@ -797,7 +787,7 @@ class Workflow:
             for stream, data in (("stdout", result.stdout), ("stderr", result.stderr)):
                 path = directory / stream
                 _atomic_write(path, data)
-                attempt["evidence"].update({stream: str(path), stream + "_sha256": digest(data)})
+                attempt["evidence"][stream] = str(path)
             if self._enforce_evidence_ceiling(session) - before > definition["evidence_bytes_max"]:
                 raise Refusal("question action exceeded its evidence byte ceiling")
             if result.returncode:
@@ -806,11 +796,11 @@ class Workflow:
                 raise Refusal("question action report is absent, unsafe or too large")
             data = report_path.read_bytes()
             report = json.loads(data)
-            validate_action_report(report, data, action.sha256, session["plan"]["sha256"],
+            validate_action_report(report, action.document, session["id"],
                                    session["package"]["protocol"]["schema"], self.entry.package["profile"]["layout"], session["generation"])
             validate_answers(report["answers"], self.entry.package["report"]["answer_fields"])
             next_actions = _validate_next_actions(self.entry.package["investigation"], action.document["id"], report["next_actions"], session["attempts"])
-            attempt.update(state="complete", protocol_report={"path": str(report_path), "sha256": digest(data)}, next_actions=next_actions)
+            attempt.update(state="complete", result=report, next_actions=next_actions)
             session["protocol_evidence"], session["answers"] = report["protocol"], report["answers"]
             if self.entry.package["investigation"]["action_selection"] == "result-directed":
                 session["allowed_actions"] = next_actions
@@ -895,7 +885,7 @@ class Workflow:
     def _restore(self, session: dict[str, Any], session_path: Path) -> None:
         root = Path(session["paths"]["root"])
         marker = Path(session["paths"]["marker"])
-        if marker.is_symlink() or not marker.is_file() or digest(marker.read_bytes()) != session["marker_sha256"]:
+        if marker.is_symlink() or not marker.is_file() or json.loads(marker.read_bytes()) != ownership_marker(session):
             raise Refusal("restore refused because the ownership marker differs")
         if root == Path(root.anchor) or root.is_symlink() or not root.is_dir():
             raise Refusal("restore refused because the root is unsafe")
@@ -950,14 +940,14 @@ def load_session(path: Path) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise Refusal(f"session is not a regular file: {path}")
     data = path.read_bytes()
-    if len(data) > 1024 * 1024:
-        raise Refusal("session exceeds 1 MiB")
+    if len(data) > 128 * 1024**2:
+        raise Refusal("session exceeds 128 MiB")
     try:
         document = json.loads(data)
     except json.JSONDecodeError as error:
         raise Refusal(f"invalid session JSON: {error}") from error
-    if not isinstance(document, dict) or document.get("schema") != SESSION_SCHEMA or canonical_json(document) != data:
-        raise Refusal("session is not canonical field-kit-session/v3")
+    if not isinstance(document, dict) or document.get("schema") != SESSION_SCHEMA:
+        raise Refusal("session needs its producing Field Kit revision; expected field-kit-session/v4")
     if document.get("state") not in {
         "running", "setup-complete", "measurement-complete", "awaiting-action",
         "ready-to-finish", "stages-complete", "complete",
@@ -966,10 +956,16 @@ def load_session(path: Path) -> dict[str, Any]:
     return document
 
 
-def validate_action_report(report, data, action_sha256, plan_sha256, schema, model, generation):
-    if (not isinstance(report, dict) or set(report) != {"schema", "status", "action_sha256", "plan_sha256", "answers", "next_actions", "protocol"}
-            or report["schema"] != "field-kit-action-result/v2" or report["status"] != "complete"
-            or canonical_json(report) != data or report["action_sha256"] != action_sha256 or report["plan_sha256"] != plan_sha256):
+def ownership_marker(session):
+    return {"schema": "field-kit-owned-root/v1", "session_id": session["id"],
+            "package": session["package"]["selector"], "root": session["paths"]["root"]}
+
+
+def validate_action_report(report, action, session_id, schema, model, generation):
+    reference = {"id": action["id"], "attempt": action["attempt"]}
+    if (not isinstance(report, dict) or set(report) != {"schema", "status", "session_id", "action", "answers", "next_actions", "protocol"}
+            or report["schema"] != "field-kit-action-result/v3" or report["status"] != "complete"
+            or report["session_id"] != session_id or report["action"] != reference):
         raise Refusal("question action returned an invalid or unbound result")
     protocol = report["protocol"]
     if (not isinstance(protocol, dict) or protocol.get("schema") != schema or protocol.get("status") != "complete"
@@ -979,49 +975,34 @@ def validate_action_report(report, data, action_sha256, plan_sha256, schema, mod
 
 
 def _collect_action_evidence(session, investigation, model):
-    """Verify every attempt and its single result; unfinished attempts stay visible."""
-    evidence_root = Path(session["paths"]["evidence"])
+    """Review retained attempts directly; transport files and logs are not identities."""
     collected, seen = [], []
     latest = None
     for attempt in session.get("attempts", []):
         if attempt.get("kind") != "question-action":
             continue
-        record = attempt["action"]
-        attempt_id = attempt["id"]
-        if not re.fullmatch(r"attempt-[0-9]+", attempt_id):
+        action = attempt["action"]
+        if not re.fullmatch(r"attempt-[0-9]+", attempt["id"]):
             raise Refusal("invalid action attempt ID")
-        directory = evidence_root / "actions" / attempt_id
-        path = directory / "action.json"
-        if record["path"] != str(path):
-            raise Refusal("question action path differs")
-        data = _read_hashed_evidence(path, record["sha256"], 65536, "question action")
-        expected = propose_action(investigation, {"id": record["id"], "parameters": attempt["candidate"], "reason": attempt["reason"]}, seen)
-        if data != expected.data or attempt["changes"] != expected.document["changes"] or record["kind"] != expected.document["kind"]:
+        expected = propose_action(investigation, {"id": action["id"], "parameters": attempt["candidate"], "reason": attempt["reason"]}, seen)
+        if action != expected.document or attempt["changes"] != action["changes"]:
             raise Refusal("question action document differs")
+        if investigation["action_selection"] == "result-directed":
+            permitted = latest["next_actions"] if latest else [investigation["initial_action"]]
+            if {"id": action["id"], "parameters": action["parameters"]} not in permitted:
+                raise Refusal("question action was not issued by the controller")
         seen.append(attempt)
-        definition = next(item for item in investigation["actions"] if item["id"] == record["id"])
-        evidence = attempt.get("evidence")
-        if evidence is not None:
-            if not isinstance(evidence, dict) or set(evidence) != {"stdout", "stdout_sha256", "stderr", "stderr_sha256"}:
-                raise Refusal("question action evidence is invalid")
-            for stream in ("stdout", "stderr"):
-                if evidence[stream] != str(directory / stream):
-                    raise Refusal("question action evidence path differs")
-                _read_hashed_evidence(directory / stream, evidence[stream + "_sha256"], definition["evidence_bytes_max"], stream)
-        item = {"attempt": attempt_id, "action": expected.document, "action_sha256": expected.sha256, "state": attempt["state"]}
+        item = {"attempt": attempt["id"], "action": action, "state": attempt["state"]}
         if attempt["state"] == "complete":
-            report_record = attempt.get("protocol_report", {})
-            report_path = directory / "report.json"
-            if evidence is None or report_record.get("path") != str(report_path):
-                raise Refusal("completed action has no bound report and evidence")
-            raw = _read_hashed_evidence(report_path, report_record.get("sha256"), 1024 * 1024, "action report")
-            report = json.loads(raw)
-            validate_action_report(report, raw, expected.sha256, session["plan"]["sha256"], session["package"]["protocol"]["schema"], model, session["generation"])
-            frontier = _validate_next_actions(investigation, record["id"], report["next_actions"], seen)
+            report = attempt.get("result")
+            validate_action_report(report, action, session["id"], session["package"]["protocol"]["schema"], model, session["generation"])
+            frontier = _validate_next_actions(investigation, action["id"], report["next_actions"], seen)
             if attempt.get("next_actions") != frontier:
                 raise Refusal("question action next-action frontier differs")
-            item.update(report=report, report_sha256=report_record["sha256"])
+            item["report"] = report
             latest = report
+        elif "result" in attempt:
+            raise Refusal("unfinished action cannot claim a completed result")
         collected.append(item)
     if investigation["action_selection"] == "result-directed":
         if session.get("allowed_actions") != (latest["next_actions"] if latest else None):
@@ -1052,17 +1033,6 @@ def _verify_session_plan_paths(
             raise Refusal(f"session {label} path differs from the approved plan")
 
 
-def _read_hashed_evidence(path: Path, expected: object, limit: int, label: str) -> bytes:
-    if path.is_symlink() or not path.is_file():
-        raise Refusal(f"{label} is absent or not a regular file")
-    if path.stat().st_size > limit:
-        raise Refusal(f"{label} exceeds {limit} bytes")
-    data = path.read_bytes()
-    if not isinstance(expected, str) or digest(data) != expected:
-        raise Refusal(f"{label} hash differs")
-    return data
-
-
 def render_report(session: dict[str, Any], entry: QuestionPackage) -> bytes:
     facts = session["machine_facts"]
     lines = [
@@ -1070,16 +1040,10 @@ def render_report(session: dict[str, Any], entry: QuestionPackage) -> bytes:
         "",
         f"- Question: {entry.package['question']}",
         f"- Question package: `{session['package']['selector']}`",
-        f"- Package SHA-256: `{session['package']['sha256']}`",
-        f"- Plan SHA-256: `{session['plan']['sha256']}`",
-        f"- Field Kit runner SHA-256: `{session['package']['runner_sha256']}`",
         f"- Protocol: `{session['package']['protocol']['id']}@{session['package']['protocol']['revision']}` (`{session['package']['protocol']['schema']}`)",
         f"- Field Kit: `{session['field_kit_runtime']['version']}`",
-        f"- Field Kit runtime SHA-256: `{session['field_kit_runtime']['sha256']}`",
         f"- Temper: `{session['temper']['version']}`",
-        f"- Temper SHA-256: `{session['temper']['sha256']}`",
         f"- Python: `{session['field_kit_runtime']['python_version']}`",
-        f"- Python SHA-256: `{session['field_kit_runtime']['python_sha256']}`",
         f"- Outcome: `{session['outcome']}`",
         f"- Started: `{session['started_at']}`",
         f"- Finished: `{session.get('finished_at', '')}`",
@@ -1139,12 +1103,9 @@ def render_report(session: dict[str, Any], entry: QuestionPackage) -> bytes:
                 sort_keys=True,
                 separators=(",", ":"),
             )
-            report = attempt.get("protocol_report", {})
             lines.append(
                 f"- `{attempt['id']}` `{attempt['action']['id']}`: {attempt['state']}; "
-                f"candidate `{candidate}`; changes `{changes}`; "
-                f"action `{attempt['action']['sha256']}`; "
-                f"report `{report.get('sha256', '')}`"
+                f"candidate `{candidate}`; changes `{changes}`"
             )
             if attempt.get("next_actions") is not None:
                 rendered_next = json.dumps(
@@ -1159,7 +1120,7 @@ def render_report(session: dict[str, Any], entry: QuestionPackage) -> bytes:
         "",
     ])
     for stage in session["stages"]:
-        lines.append(f"- `{stage['id']}` {stage['operation']}: {stage['state']} (`{stage.get('stdout_sha256', '')}`)")
+        lines.append(f"- `{stage['id']}` {stage['operation']}: {stage['state']}")
     protocol = session.get("protocol_evidence")
     if isinstance(protocol, dict):
         resources = protocol.get("resources", [])
@@ -1188,42 +1149,15 @@ def render_report(session: dict[str, Any], entry: QuestionPackage) -> bytes:
 
 def build_export(session_path: Path) -> tuple[bytes, dict[str, Any]]:
     session = load_session(session_path)
-    if session["state"] != "complete" or not isinstance(session.get("report"), dict):
+    if session["state"] != "complete":
         raise Refusal("only a complete Field Kit session can be exported")
-    report_path = Path(session["report"]["path"])
-    plan_path = Path(session["plan"]["path"])
-    if report_path.is_symlink() or not report_path.is_file():
-        raise Refusal("session report is absent")
-    plan = load_plan(plan_path)
+    plan = load_plan(Path(session["plan"]["path"]))
     if plan.sha256 != session["plan"]["sha256"]:
-        raise Refusal("session plan hash differs")
+        raise Refusal("session plan differs from the consented inputs")
     _verify_session_plan_paths(session, session_path, plan.document)
-    session_data = session_path.read_bytes()
-    report_data = report_path.read_bytes()
-    if digest(report_data) != session["report"]["sha256"]:
-        raise Refusal("session report hash differs")
-    action_evidence = _collect_action_evidence(
-        session,
-        plan.document["investigation"],
-        plan.document["question"]["model"],
-    )
-    packet = {
-        "schema": EXPORT_SCHEMA,
-        "package": session["package"],
-        "plan": plan.document,
-        "plan_sha256": plan.sha256,
-        "machine": session["machine_facts"],
-        "action_evidence": action_evidence,
-        "session": session_data.decode(),
-        "report": report_data.decode(),
-    }
-    data = canonical_json(packet)
-    summary = {
-        "package": session["package"]["selector"],
-        "machine": "retained",
-        "protocol": "retained" if session.get("protocol_evidence") else "unavailable",
-        "disclosure": EVIDENCE_DISCLOSURE,
-        "bytes": len(data),
-        "sha256": digest(data),
-    }
+    _collect_action_evidence(session, plan.document["investigation"], plan.document["question"]["model"])
+    data = canonical_json({"schema": EXPORT_SCHEMA, "plan": plan.document, "session": session})
+    summary = {"package": session["package"]["selector"], "machine": "retained",
+               "protocol": "retained" if session.get("protocol_evidence") else "unavailable",
+               "disclosure": EVIDENCE_DISCLOSURE, "bytes": len(data)}
     return data, summary

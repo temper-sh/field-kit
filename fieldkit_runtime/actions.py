@@ -5,19 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Sequence
 
-from .catalog import IDENTITY, Refusal, canonical_json, digest
+from .catalog import IDENTITY, Refusal, canonical_json
 from .watcher import validate_watch_spec
 
 
 INVESTIGATION_SCHEMA = "field-kit-investigation/v2"
-ACTION_SCHEMA = "field-kit-action/v2"
+ACTION_SCHEMA = "field-kit-action/v3"
 
 
 @dataclass(frozen=True)
 class Action:
     document: dict[str, Any]
     data: bytes
-    sha256: str
 
 
 def _positive_integer(value: object, label: str) -> int:
@@ -249,7 +248,7 @@ def propose_action(
         "reason": reason,
     }
     data = canonical_json(document)
-    return Action(document, data, digest(data))
+    return Action(document, data)
 
 
 def validate_action_candidate(

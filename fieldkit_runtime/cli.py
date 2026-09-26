@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import sys
 from pathlib import Path
 from typing import Sequence
@@ -64,7 +63,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                 counts[entry.reference["availability"]] += 1
             print(
                 f"FIELD-KIT verified revision={catalog.document['revision']} "
-                f"sha256={hashlib.sha256(catalog.data).hexdigest()} "
                 f"questions={len(catalog.questions)} active={counts['active']} "
                 f"qualifying={counts['qualifying']} suspended={counts['suspended']}"
             )

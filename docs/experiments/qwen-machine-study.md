@@ -4,12 +4,12 @@ Measure Qwen3.8 27B performance across Macs and find useful context lengths and
 runtime settings for each machine. The results can inform the Qwen model card
 and recommendations for machines with similar chips and memory.
 
-Package: `qwen-machine-study@2`. Setup installs its required Temper host.
-Model, software and workload inputs are unchanged from revision 1;
-process supervision and session/action records have changed. Live measurements
-are still needed. Keep revision 1 evidence with its producing source; see
-[development and dispatched runs](../DEVELOPMENT.md). Follow the [run guide](../START.md)
-for revision 2 setup.
+Package: `qwen-machine-study@3`. This revision uses llama.cpp b11205 and
+llama-swap v260 with the same model, template, workload and tuning questions.
+It requires a development Temper build with software receipt reuse across
+configuration changes; see [development and dispatched runs](../DEVELOPMENT.md).
+Follow the [run guide](../START.md) for setup. Live measurements are still needed.
+Keep revision 1 and 2 evidence with its producing source.
 
 ## Requirements and cost
 
@@ -22,7 +22,7 @@ for revision 2 setup.
 | Optional tuning | Up to four additional hours |
 | Model and engine installation | Separate six-hour limit |
 
-The script also checks the Mac's wired-memory limit for GPU work: it must be
+The script also checks the Mac's effective Metal memory budget: it must be
 at least 24 GiB (24,576 MiB). If that check fails,
 [adjust the limit](#adjust-the-wired-memory-limit) before retrying. The study
 leaves that setting unchanged. Time limits are maximums, not duration estimates.
@@ -47,10 +47,11 @@ A Mac with enough physical RAM can still fail the GPU memory check:
 requires at least 24576 MiB wired limit, found 23961
 ```
 
-When macOS reports no positive override, Temper uses a conservative estimate of
-65% of physical RAM. On a 36 GiB Mac that is 23,961 MiB. This estimate may differ
-from the effective macOS limit. Setting an explicit override lets Field Kit
-read the setting directly.
+The current Temper host reads Metal's recommended working set directly. Its
+`wired_limit_mib` field is the effective budget; `wired_limit_override_mib`
+records the raw sysctl setting separately when available. A zero override means
+macOS chooses the budget. Earlier hosts estimated a default from physical RAM;
+their historical observations retain that label and value.
 
 For this study, use **75% of physical RAM, capped at 96 GiB**. That is the
 highest engine memory budget the study permits; a higher wired limit does not
@@ -90,18 +91,19 @@ before starting a new study; keep the limit unchanged during an unfinished run.
    preserve that raw value rather than Field Kit's estimate. If either `sysctl`
    read fails, stop and send the error to the maintainer.
 
-2. If the current override is `0` or below the calculated ceiling, run the
-   printed **Apply** command. For a 36 GiB Mac, this is:
+2. Only if the effective Metal budget fails the study's 24 GiB requirement,
+   consider the printed **Apply** command. Do not lower an existing positive
+   override that already exceeds the proposed value. For a 36 GiB Mac, this is:
 
    ```sh
    sudo sysctl iogpu.wired_limit_mb=27648
    sysctl -n iogpu.wired_limit_mb
    ```
 
-   The readback should match your calculated ceiling: `27648` on a 36 GiB Mac.
-   No reboot is needed. If a positive override already meets or exceeds the
-   ceiling, leave it in place. If the change is refused, send that error to the
-   maintainer before continuing.
+   The sysctl readback should match the requested override: `27648` on a 36 GiB
+   Mac. This alone does not prove that Metal's effective budget changed; the
+   preview in the next step reads that budget again. If the change is refused,
+   send that error to the maintainer before continuing.
 
 3. From the Field Kit folder, check the plan again:
 
@@ -109,8 +111,11 @@ before starting a new study; keep the limit unchanged during an unfinished run.
    ./field-kit contribute --preview
    ```
 
-   If the check passes, run `./field-kit` to start the study and confirm its
-   plan. The preview should show a 27 GiB engine memory limit on a 36 GiB Mac.
+   Use the same `--temper /absolute/path/to/temper` argument as in the
+   [development instructions](../DEVELOPMENT.md). If the check passes, start
+   the study and confirm its plan. Its engine limit is the lower of 75% of RAM,
+   the observed Metal budget and 96 GiB. A 36 GiB Mac has a 27 GiB study ceiling;
+   its observed budget may be lower.
 
 4. **Roll back after the study finishes and cleanup completes.** Run the exact
    rollback command saved in step 1, then read the setting again. If the
@@ -147,21 +152,21 @@ chip variants and operating conditions matter too.
 
 ## Baseline and measurements
 
-The [execution lock](../../catalog/packages/qwen-machine-study@2/execution.lock.json)
+The [execution lock](../../catalog/packages/qwen-machine-study@3/execution.lock.json)
 fixes the exact model and software. The baseline is:
 
 | Component or setting | Value |
 |---|---|
 | Model | Qwen3.8 27B UD-Q4_K_XL |
 | Chat template | Frog v22.5 |
-| Engine and router | llama.cpp b10964 / v0.4.1; llama-swap v255 |
+| Engine and router | llama.cpp b11205; llama-swap v260 |
 | Context window / output allowance | 32,768 / 4,096 tokens |
 | Thinking / draft prediction | Medium / MTP, up to 3 tokens |
 | Context working memory (KV cache) | Q8 precision |
 | Batch / microbatch | 512 / 512 tokens |
 | Prompt-cache settings | 14 checkpoints; minimum spacing 8,192 tokens; 2,048 MiB extra RAM |
 
-The [workload](../../catalog/packages/qwen-machine-study@2/workloads.json) has eight
+The [workload](../../catalog/packages/qwen-machine-study@3/workloads.json) has eight
 tasks: create and amend a notice, look up a registry, continue and rewind that
 conversation, switch to another registry, return to the first, and transform a
 roster. Conversation history uses the delivered answers and omits prior reasoning.
@@ -260,10 +265,10 @@ Use the same Field Kit source revision that produced the result:
 
 ```sh
 ./field-kit witness --input /absolute/path/to/result.json \
-  --package catalog/packages/qwen-machine-study@2/package.json
+  --package catalog/packages/qwen-machine-study@3/package.json
 ```
 
-This checks file consistency, grades delivered answers again, and recomputes
+This checks frozen inputs and run/attempt references, grades delivered answers again, and recomputes
 configuration choices and summaries. Machine provenance and timing plausibility
 still need human review. Results describe the measured machine and workload;
 model-card updates and recommendations across machine groups require that review.

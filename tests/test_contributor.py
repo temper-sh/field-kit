@@ -39,8 +39,7 @@ class SyntheticStudy(Study):
     def configure(self, directory, variant, *, cache=None, window=None):
         self.active_configuration = variant
         records = variant_records(self.lock, self.model, variant, cache=cache, window=window)
-        return {"generation": "b" * 64, "execution_lock_sha256": "c" * 64,
-                "execution_digest": "d" * 64, "settings": records["layouts"][self.model], "binding_sha256": "e" * 64}
+        return {"generation": "b" * 64, "settings": records["layouts"][self.model]}
     def probe(self, directory, material): return QuietProbe(self.safe)
 
 
@@ -57,7 +56,7 @@ class StudyRunner(FakeRunner):
     def __call__(self, arguments, timeout):
         argv = list(arguments)
         if argv[-1:] == ["version"]:
-            return CommandResult(b"temper 0.1.0-alpha.7\n", b"", 0)
+            return CommandResult(b"temper 0.1.0-alpha.11\n", b"", 0)
         if "--action" in argv:
             pairs = {argv[index][2:].replace("-", "_"): argv[index + 1] for index in range(2, len(argv), 2)}
             args = argparse.Namespace(**pairs)
@@ -77,9 +76,11 @@ class StudyRunner(FakeRunner):
                         "prefill_tokens_per_second": 120.0, "generation_tokens_per_second": 10.0,
                         "timings": {"prompt_n": tokens, "prompt_ms": tokens * 1000 / 120, "predicted_n": 100, "predicted_ms": 10000, "cache_n": 0}}
             def native(probe, path, payload, timeout):
-                if path == "/apply-template":
+                if path == f"/upstream/{study.model}/apply-template":
                     return {"prompt": "\n".join(message["content"] for message in payload["messages"])}
-                return {"tokens": [0] * (payload["content"].count(" x") + 200)}
+                if path == f"/upstream/{study.model}/tokenize":
+                    return {"tokens": [0] * (payload["content"].count(" x") + 200)}
+                raise RuntimeError(f"HTTP 404: router does not expose {path}")
             with patch("fieldkit_runtime.experiments.qwen.protocol.measure_chat", side_effect=response), patch("fieldkit_runtime.experiments.qwen.protocol.monitored_call", side_effect=native):
                 report = study.run()
             Path(args.report).write_bytes(canonical_json(report))
@@ -115,11 +116,11 @@ class ContributorTest(unittest.TestCase):
             self.assertEqual(contribute(args, root, input_fn=approve, facts_reader=facts, runner=runner), 0)
         self.assertEqual(len(prompts), 1)
         export = next((root / "runs").glob("*/result.json"))
-        result = review(export, root / "catalog/packages/qwen-machine-study@2/package.json")
+        result = review(export, root / "catalog/packages/qwen-machine-study@3/package.json")
         self.assertEqual(result["cleanup"], "complete")
         self.assertEqual(result["answers"]["interaction"]["value"]["correct_cases"], 8)
         self.assertEqual(runner.actions, ["measure-baseline", "finish-study"])
-        consent = json.loads((root / ".local/qwen-study-2-session.json").read_bytes())["consent"]
+        consent = json.loads((root / ".local/qwen-study-3-session.json").read_bytes())
         session = load_session(Path(consent["session"]))
         self.assertFalse(Path(session["paths"]["root"]).exists())
         with redirect_stdout(io.StringIO()):
@@ -131,18 +132,18 @@ class ContributorTest(unittest.TestCase):
         self.assertEqual(runner.messages[4][:2], runner.messages[3][:2])
         self.assertEqual(len(runner.messages[4]), 3)
         self.assertEqual(len(runner.messages[6]), 5)
-        package = root / "catalog/packages/qwen-machine-study@2/package.json"
+        package = root / "catalog/packages/qwen-machine-study@3/package.json"
         checked = subprocess.run([sys.executable, "-B", "-S", "-m", "fieldkit_runtime", "witness",
                                   "--input", str(export), "--package", str(package)],
                                  cwd=ROOT, capture_output=True)
         self.assertEqual(checked.returncode, 0, checked.stderr)
         self.assertEqual(json.loads(checked.stdout)["cleanup"], "complete")
         packet = json.loads(export.read_bytes())
-        self.assertIn("generated model answers", packet["report"])
-        self.assertIn("local paths", packet["report"])
-        packet["report"] += "changed"
+        self.assertNotIn("action_evidence", packet)
+        self.assertIsInstance(packet["session"], dict)
+        packet["session"]["attempts"][1]["result"]["session_id"] = "another-run"
         export.write_bytes(canonical_json(packet))
-        with self.assertRaisesRegex(Refusal, "altered"):
+        with self.assertRaisesRegex(Refusal, "unbound"):
             review(export, package)
 
     def test_declining_creates_no_session_or_download(self):
@@ -188,7 +189,7 @@ class ContributorTest(unittest.TestCase):
         runner = StudyRunner(interrupt_at=3)
         with redirect_stdout(io.StringIO()):
             contribute(args, root, input_fn=lambda _: "yes", facts_reader=facts, runner=runner)
-        result = review(next((root / "runs").glob("*/result.json")), root / "catalog/packages/qwen-machine-study@2/package.json")
+        result = review(next((root / "runs").glob("*/result.json")), root / "catalog/packages/qwen-machine-study@3/package.json")
         self.assertEqual(result["answers"]["completed-work"]["state"], "unknown")
         self.assertEqual(len(result["answers"]["completed-work"]["value"]["cases"]), 2)
         limits = result["answers"]["limits"]["value"]
@@ -212,7 +213,7 @@ class ContributorTest(unittest.TestCase):
         runner = StudyRunner()
         with redirect_stdout(io.StringIO()):
             contribute(args, root, input_fn=lambda _: "yes", facts_reader=facts, runner=runner)
-        result = review(next((root / "runs").glob("*/result.json")), root / "catalog/packages/qwen-machine-study@2/package.json")
+        result = review(next((root / "runs").glob("*/result.json")), root / "catalog/packages/qwen-machine-study@3/package.json")
         tuning = result["answers"]["tuning"]["value"]
         self.assertEqual(tuning["decision"]["selection"], "baseline")
         self.assertEqual([run["configuration"] for run in tuning["screens"]], ["batch-1024", "mtp-off", "cache-reference", "kv-q4"])
@@ -225,7 +226,7 @@ class ContributorTest(unittest.TestCase):
         runner = StudyRunner(gain=True)
         with redirect_stdout(io.StringIO()):
             contribute(args, root, input_fn=lambda _: "yes", facts_reader=facts, runner=runner)
-        result = review(next((root / "runs").glob("*/result.json")), root / "catalog/packages/qwen-machine-study@2/package.json")
+        result = review(next((root / "runs").glob("*/result.json")), root / "catalog/packages/qwen-machine-study@3/package.json")
         tuning = result["answers"]["tuning"]["value"]
         self.assertEqual(tuning["decision"]["selection"], "batch-1024")
         self.assertEqual([run["configuration"] for run in tuning["confirmation"]], ["baseline", "batch-1024", "batch-1024", "baseline"])

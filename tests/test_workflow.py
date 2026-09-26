@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import json
+import shutil
 from pathlib import Path
 import tempfile
 import unittest
@@ -54,8 +55,8 @@ class FakeRunner:
         if "--action" in argv:
             action = Path(argv[argv.index("--action") + 1])
             session = json.loads(Path(argv[argv.index("--session") + 1]).read_bytes())
-            report = {"schema": "field-kit-action-result/v2", "status": "complete",
-                      "action_sha256": digest(action.read_bytes()), "plan_sha256": session["plan"]["sha256"],
+            report = {"schema": "field-kit-action-result/v3", "status": "complete",
+                      "session_id": session["id"], "action": {k:v for k,v in json.loads(action.read_bytes()).items() if k in ("id", "attempt")},
                       "answers": {"workflow": self.protocol_answer},
                       "next_actions": self.next_action_batches.pop(0) if self.next_action_batches else self.next_actions,
                       "protocol": {"schema": "field-kit-fixture-protocol/v1", "status": "complete",
@@ -106,9 +107,9 @@ class WorkflowTest(unittest.TestCase):
         self.assertEqual(workflow.run(path, lambda: self.fail("asked again")), result)
         self.assertEqual(len(self.runner.calls), before)
         packet, _ = build_export(path)
-        evidence = json.loads(packet)["action_evidence"]
+        evidence = [a for a in json.loads(packet)["session"]["attempts"] if a["kind"] == "question-action"]
         self.assertEqual(len(evidence), 1)
-        self.assertEqual(evidence[0]["report"]["answers"], result["answers"])
+        self.assertEqual(evidence[0]["result"]["answers"], result["answers"])
         self.assertNotIn("steps", evidence[0])
 
     def test_failed_setup_keeps_attempt_output_and_retries_only_setup(self):
@@ -123,6 +124,60 @@ class WorkflowTest(unittest.TestCase):
         self.assertEqual([a["state"] for a in result["attempts"][:2]], ["failed", "complete"])
         self.assertEqual(sum("--action" in call for call in self.runner.calls), 1)
 
+    def test_export_uses_retained_results_without_transport_files_or_log_hashes(self):
+        entry = question_entry()
+        entry.package["cost"]["evidence_bytes_max"] = 4 * 1024**2
+        data = canonical_json(entry.package)
+        entry = replace(entry, package_data=data)
+        workflow = self.workflow(entry)
+        self.runner.protocol_answer = {"state": "observed", "value": {"content": "x" * 600000}}
+        path = self.start(workflow, "restore")
+        session = workflow.run(path, lambda: True)
+        shutil.rmtree(session["paths"]["evidence"])
+        Path(session["report"]["path"]).unlink()
+        # Retained results can exceed the old metadata-only session ceiling.
+        # Formatting is not part of the session's identity.
+        path.write_text(json.dumps(session, indent=4))
+        self.assertGreater(path.stat().st_size, 1024**2)
+
+        data, _ = build_export(path)
+
+        exported = json.loads(data)
+        attempt = next(row for row in exported["session"]["attempts"] if row["kind"] == "question-action")
+        self.assertEqual(attempt["result"]["session_id"], session["id"])
+        self.assertEqual(attempt["result"]["action"], {"id": attempt["action"]["id"], "attempt": 1})
+        self.assertEqual(set(exported), {"schema", "plan", "session"})
+        self.assertNotIn("sha256", attempt["action"])
+        self.assertNotIn("stdout_sha256", attempt["evidence"])
+
+    def test_result_from_another_run_is_refused_before_resume_effects(self):
+        workflow = self.workflow(adaptive_question_entry())
+        path = self.start(workflow)
+        session = workflow.run(path, lambda: True)
+        session["attempts"][-1]["result"]["session_id"] = "another-run"
+        path.write_bytes(canonical_json(session))
+        before = sum("--action" in call or call[1:3] == ["execution", "remove"] for call in self.runner.calls)
+
+        with self.assertRaisesRegex(Refusal, "unbound"):
+            workflow.resume(path)
+
+        self.assertEqual(sum("--action" in call or call[1:3] == ["execution", "remove"] for call in self.runner.calls), before)
+
+    def test_another_sessions_ownership_marker_never_authorizes_cleanup(self):
+        workflow = self.workflow()
+        path = self.start(workflow, "restore")
+        session = load_session(path)
+        marker = Path(session["paths"]["marker"])
+        ownership = json.loads(marker.read_bytes())
+        ownership["session_id"] = "another-run"
+        marker.write_bytes(canonical_json(ownership))
+
+        with self.assertRaisesRegex(Refusal, "ownership marker"):
+            workflow.run(path, lambda: True)
+
+        self.assertTrue(Path(session["paths"]["root"]).exists())
+        self.assertFalse(any(c[1:3] == ["execution", "remove"] for c in self.runner.calls))
+
     def test_negative_answer_is_valid_evidence(self):
         workflow = self.workflow()
         self.runner.protocol_answer = {"state": "failed", "reason": "wrong answer"}
@@ -130,8 +185,8 @@ class WorkflowTest(unittest.TestCase):
         self.assertEqual(result["answers"]["workflow"]["state"], "failed")
         self.assertEqual(result["state"], "complete")
 
-    def test_resume_refuses_changed_lock_plan_binary_or_report(self):
-        for target in ("lock", "plan", "binary", "report"):
+    def test_resume_refuses_changed_lock_plan_or_binary(self):
+        for target in ("lock", "plan", "binary"):
             with self.subTest(target=target):
                 # Each case owns separate paths and runtime inputs.
                 base = self.parent / target; base.mkdir()
@@ -140,7 +195,7 @@ class WorkflowTest(unittest.TestCase):
                 path = self.start(workflow)
                 session = workflow.run(path, lambda: True)
                 file = {"lock": Path(session["paths"]["execution_lock"]), "plan": Path(session["plan"]["path"]),
-                        "binary": self.temper, "report": Path(session["attempts"][-1]["protocol_report"]["path"])}[target]
+                        "binary": self.temper}[target]
                 original = file.read_bytes(); file.write_bytes(original + b"changed")
                 try:
                     with self.assertRaises((Refusal, ValueError)): workflow.resume(path)

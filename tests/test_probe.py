@@ -61,6 +61,38 @@ class ProbeBoundaryTest(unittest.TestCase):
         self.status["updated_at"] = "2000-01-01T00:00:00+00:00"; self.publish()
         with self.assertRaisesRegex(ProbeError, "stale"): self.probe._status()
 
+    def test_go_status_fractional_seconds_are_accepted(self):
+        # Go's RFC3339Nano omits trailing zeros, producing any precision 0–9.
+        second = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+        for precision in range(10):
+            fraction = "." + "123456789"[:precision] if precision else ""
+            for zone in ("Z", "+00:00"):
+                with self.subTest(precision=precision, zone=zone):
+                    self.status["updated_at"] = second + fraction + zone
+                    self.publish()
+                    self.assertEqual(self.probe._status(), self.status)
+
+    def test_invalid_status_timestamps_are_refused(self):
+        for timestamp in (
+            None, 123, [], "", "2026-09-24T00:00:00",
+            "2026-09-24T00:00:00.Z", "2026-09-24T00:00:00.1234567890Z",
+            "2026-09-24T00:00:00+24:00", "2026-09-24T00:00:00+00:60",
+            "2026-02-30T00:00:00Z",
+            "2026-09-24T00:00:00Zjunk",
+        ):
+            with self.subTest(timestamp=timestamp):
+                self.status["updated_at"] = timestamp
+                self.publish()
+                with self.assertRaisesRegex(ProbeError, "invalid probe status"):
+                    self.probe._status(final=True)
+
+    def test_future_nanosecond_status_is_still_refused(self):
+        future = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=30)
+        self.status["updated_at"] = future.strftime("%Y-%m-%dT%H:%M:%S") + ".123456789Z"
+        self.publish()
+        with self.assertRaisesRegex(ProbeError, "stale"):
+            self.probe._status()
+
     def test_stop_only_signals_its_temper_child(self):
         self.probe.process.poll.return_value = None
         self.probe.request_stop()

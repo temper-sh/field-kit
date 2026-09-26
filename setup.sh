@@ -3,11 +3,9 @@
 set -eu
 umask 077
 field_kit_directory=$(CDPATH='' cd "$(dirname "$0")" && pwd -P)
-install_only=no
 case "$#:$*" in
-    0:) ;;
-    '1:--install-only') install_only=yes ;;
-    '1:--help') printf '%s\n' 'Usage: ./setup.sh [--install-only]' 'Install the signed Temper release and local Python, then open Field Kit.'; exit 0 ;;
+    0:|'1:--install-only') ;;
+    '1:--help') printf '%s\n' 'Usage: ./setup.sh [--install-only]' 'Install signed bootstrap tools and local Python. See docs/DEVELOPMENT.md for the current study host.'; exit 0 ;;
     *) printf '%s\n' 'Usage: ./setup.sh [--install-only]' >&2; exit 2 ;;
 esac
 [ "$(uname -s)" = Darwin ] && [ "$(uname -m)" = arm64 ] || {
@@ -81,5 +79,5 @@ mv "$field_kit_stage/python-path" "$field_kit_local/python-path"
 printf '%s\n' 'Setup complete. Everything is inside this clone.'
 cleanup_setup
 trap - EXIT INT TERM
-if [ "$install_only" = no ] && [ -t 0 ]; then exec "$field_kit_directory/field-kit" contribute; fi
-printf '%s\n' 'Run ./field-kit to start or resume an experiment.'
+printf '%s\n' 'Revision 3 needs a development Temper build with software receipt reuse; the signed bootstrap host cannot run it.' \
+    'See docs/DEVELOPMENT.md, then use ./field-kit contribute --temper /absolute/path/to/temper --preview.'

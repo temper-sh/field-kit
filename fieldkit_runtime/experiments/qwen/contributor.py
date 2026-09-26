@@ -9,7 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from ...catalog import QuestionCatalog, Refusal, canonical_json, digest, parse_machine_facts
+from ...catalog import QuestionCatalog, Refusal, canonical_json, parse_machine_facts
 from .method import SELECTOR
 from ...workflow import (Workflow, _atomic_write, _exclusive_session_lock, build_export, load_session,
                        run_contributor_process)
@@ -141,17 +141,16 @@ def _contribute_unlocked(arguments, repository, *, input_fn=input, facts_reader=
         raise Refusal("run ./setup.sh first; it installs the signed runtime locally")
     catalog = QuestionCatalog.load(repository / "catalog/questions.json")
     entry = catalog.find(SELECTOR)
-    pointer = local / "qwen-study-2-session.json"
-    if not arguments.new and not pointer.exists() and (local / "contributor-session.json").exists():
-        raise Refusal("This clone has a revision 1 study. Resume or review it with its original source revision; use --new only to start a separate revision 2 study.")
+    pointer = local / "qwen-study-3-session.json"
+    if not arguments.new and not pointer.exists():
+        for name, revision in (("contributor-session.json", 1), ("qwen-study-2-session.json", 2)):
+            if (local / name).exists():
+                raise Refusal(f"This clone has a revision {revision} study. Resume or review it with its original source revision; use --new only to start a separate revision 3 study.")
     metadata = None
     if pointer.is_symlink():
         raise Refusal("contributor session pointer must not be a symlink")
     if pointer.is_file() and not arguments.new:
         metadata = json.loads(pointer.read_bytes())
-        if digest(canonical_json(metadata["consent"])) != metadata["sha256"]:
-            raise Refusal("contributor consent record changed")
-        metadata = metadata["consent"]
         session_path = Path(metadata["session"])
         if session_path.parent != local.resolve():
             raise Refusal("contributor session is outside this clone")
@@ -224,7 +223,7 @@ def _contribute_unlocked(arguments, repository, *, input_fn=input, facts_reader=
             return 0
         _, session_path = workflow.start(plan, plan.sha256)
         metadata = {"session": str(session_path), "plan_sha256": plan.sha256, "tuning": tuning}
-        _atomic_write(pointer, canonical_json({"consent": metadata, "sha256": digest(canonical_json(metadata))}))
+        _atomic_write(pointer, canonical_json(metadata))
         destination = repository / "runs" / identity
     try:
         continue_study(workflow, session_path, tuning)

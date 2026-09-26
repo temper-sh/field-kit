@@ -121,45 +121,38 @@ def inspect_bytes(data: bytes, package_path: Path) -> dict:
     package = load_question_material(package_path)
     try:
         packet = json.loads(data)
-        if packet["schema"] != "field-kit-evidence-export/v3":
-            raise Refusal("unsupported witness export")
-        session = json.loads(packet["session"])
-        plan = packet["plan"]
-        if packet["package"]["sha256"] != package.package_sha256 or packet["package"] != session["package"]:
+        if packet["schema"] != "field-kit-evidence-export/v4":
+            raise Refusal("use the producing Field Kit revision to review this historical export")
+        session, plan = packet["session"], packet["plan"]
+        if session["schema"] != "field-kit-session/v4" or session["state"] != "complete":
+            raise Refusal("witness session is incomplete or unsupported")
+        if session["package"] != {"selector": package.selector, "sha256": package.package_sha256,
+                                  "protocol": package.package["mechanics"]["runtime_protocol"]}:
             raise Refusal("witness does not bind the supplied package")
-        if digest(canonical_json(plan)) != packet["plan_sha256"] or packet["plan_sha256"] != session["plan"]["sha256"]:
-            raise Refusal("witness plan identity differs")
-        if plan["question"]["package_sha256"] != package.package_sha256 or plan["inputs"]["package"]["sha256"] != package.package_sha256:
+        if digest(canonical_json(plan)) != session["plan"]["sha256"]:
+            raise Refusal("witness plan differs from the consented inputs")
+        if plan["question"]["selector"] != package.selector or plan["inputs"]["package"]["sha256"] != package.package_sha256:
             raise Refusal("witness plan refers to a different question")
         expected_files = [{"path": name, "sha256": digest(value), "bytes": len(value)} for name, value in sorted(package.files.items())]
         if plan["inputs"]["files"] != expected_files or plan["investigation"] != package.package["investigation"]:
             raise Refusal("witness plan differs from frozen inputs")
-        if session["state"] != "complete" or digest(packet["report"].encode()) != session["report"]["sha256"]:
-            raise Refusal("witness report is incomplete or altered")
-        if packet["machine"] != session["machine_facts"] or packet["machine"] != plan["machine"]["facts"]:
-            raise Refusal("witness machine attribution differs")
-        completed = []
-        attempts = [item for item in session["attempts"] if item.get("kind") == "question-action"]
-        if len(attempts) != len(packet["action_evidence"]):
-            raise Refusal("witness omitted a first attempt")
-        for attempt, evidence in zip(attempts, packet["action_evidence"]):
-            if attempt["id"] != evidence["attempt"] or attempt["state"] != evidence["state"] or digest(canonical_json(evidence["action"])) != attempt["action"]["sha256"]:
-                raise Refusal("witness attempt identity differs")
-            if attempt["state"] == "complete":
-                terminal = evidence["report"]
-                if digest(canonical_json(terminal)) != attempt["protocol_report"]["sha256"] or terminal["plan_sha256"] != packet["plan_sha256"]:
-                    raise Refusal("witness action report differs")
-                from ...workflow import validate_action_report
-                validate_action_report(terminal, canonical_json(terminal), attempt["action"]["sha256"], packet["plan_sha256"],
-                                       session["package"]["protocol"]["schema"], package.package["profile"]["layout"], session["generation"])
-                completed.append(terminal)
-        if not completed or completed[-1]["answers"] != session["answers"]:
-            raise Refusal("witness answers differ from the retained observation")
-        answers = session["answers"]
-        if "workloads.json" not in package.files:
-            raise Refusal("this reader requires a frozen workload package")
+        if session["machine_facts"] != plan["machine"]["facts"] or session["temper"] != plan["host"]["temper"] or session["field_kit_runtime"] != plan["host"]["field_kit_runtime"]:
+            raise Refusal("witness machine or producer attribution differs")
+        if session["execution"]["lock_sha256"] != package.package["execution_lock"]["sha256"]:
+            raise Refusal("witness execution differs from the frozen lock")
+        attempts = session["attempts"]
+        if [row["id"] for row in attempts] != [f"attempt-{index + 1:04d}" for index in range(len(attempts))]:
+            raise Refusal("witness omitted or reordered an attempt")
+        from ...workflow import _collect_action_evidence
+        evidence = _collect_action_evidence(session, package.package["investigation"], package.package["profile"]["layout"])
+        completed = [row["report"] for row in evidence if row["state"] == "complete"]
+        if not completed or completed[-1]["action"]["id"] != package.package["investigation"]["final_validation_action"]:
+            raise Refusal("witness has no completed final validation")
         workload_schema = review_tasks(package, completed)
-        return {"schema": "field-kit-witness-review/v1", "package": package.selector, "package_sha256": package.package_sha256, "export_sha256": digest(data), "machine": packet["machine"], "answers": answers, "cleanup": session.get("cleanup"), "attempts": len(attempts), "workload_schema": workload_schema, "boundary": "Integrity and delivered JSON task grades checked across all completed attempts. Context/tokenizer, cache, interface, resource and controller claims require protocol review. Operator/external-machine provenance, timing plausibility and public conclusions still require review; this is not authenticated remote attestation."}
+        return {"schema": "field-kit-witness-review/v2", "package": package.selector,
+                "machine": session["machine_facts"], "answers": session["answers"],
+                "cleanup": session.get("cleanup"), "attempts": len(evidence), "workload_schema": workload_schema,
+                "boundary": "Frozen inputs, run/attempt references and delivered JSON grades checked. Context/tokenizer, cache, interface, resource and controller claims require protocol review. Operator provenance, timing plausibility and public conclusions still require review; this is not authenticated remote attestation."}
     except (KeyError, TypeError, IndexError, ValueError) as error:
         if isinstance(error, Refusal):
             raise

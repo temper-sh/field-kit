@@ -1,0 +1,185 @@
+{
+  "schema": "temper-execution-lock/v2",
+  "source_snapshot_sha256": "90c8e7b1191ca620082fc376c161359bc94f5ccd1d7afaca6c2f84c859552232",
+  "selection": {
+    "schema": "temper-selection/v2",
+    "profile": "qwen3.8-27b-q4xl-local"
+  },
+  "target": {
+    "os": "darwin",
+    "arch": "arm64"
+  },
+  "records": {
+    "schema": "temper-catalog/v2",
+    "date": "2026-09-26",
+    "runtime": {
+      "router": {
+        "package": "llama-swap",
+        "target": {
+          "os": "darwin",
+          "arch": "arm64"
+        },
+        "source": {
+          "repository": "mostlygeek/llama-swap",
+          "asset": "llama-swap_{number}_darwin_arm64.tar.gz",
+          "archive_root": "."
+        },
+        "release": {
+          "version": "v260",
+          "revision": "fcefa7b7bebc326790937bbebc32ae87a958747c",
+          "artifact": {
+            "locator": "https://github.com/mostlygeek/llama-swap/releases/download/v260/llama-swap_260_darwin_arm64.tar.gz",
+            "sha256": "b1aa832f205aad809f8bc4d417c1fc92165e46e3519216e19d5251db265941ce",
+            "size": 21997875,
+            "unpacked_size": 40723068,
+            "installed_entries": 4,
+            "format": "tar.gz",
+            "archive_root": "."
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "qwen3.8-27b-q4xl": {
+        "repo": "unsloth/Qwen3.8-27B-GGUF",
+        "revision": "4ca720788d1e01f1bff70c033e0d0028fd02e502",
+        "format": "gguf",
+        "files": [
+          {
+            "path": "Qwen3.8-27B-UD-Q4_K_XL.gguf",
+            "bytes": 17559178144,
+            "sha256": "3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e"
+          }
+        ],
+        "license": "Apache-2.0"
+      }
+    },
+    "patches": {
+      "froggeric-qwen38-v22.5": {
+        "repo": "froggeric/Qwen-Fixed-Chat-Templates",
+        "revision": "855bffc49448e299789730ff92c9b8d834d6cc14",
+        "files": [
+          {
+            "path": "chat_template.jinja",
+            "bytes": 28234,
+            "sha256": "e57684bae4156211a55473c5a63be976a405a37ab5be5ae0e5abf1df5349c4b2"
+          }
+        ],
+        "compatible_artifacts": [
+          "qwen3.8-27b-q4xl"
+        ],
+        "license": "Apache-2.0"
+      }
+    },
+    "engines": {
+      "llama-b11205-darwin-arm64": {
+        "family": "llama-server",
+        "adapter": "llama-server/v2",
+        "supply": {
+          "package": "llama-cpp",
+          "target": {
+            "os": "darwin",
+            "arch": "arm64"
+          },
+          "source": {
+            "repository": "ggml-org/llama.cpp",
+            "asset": "llama-{version}-bin-macos-arm64.tar.gz",
+            "archive_root": "llama-{version}"
+          },
+          "release": {
+            "version": "b11205",
+            "revision": "95887577ab5fead779581a7030a83c7752ff3234",
+            "artifact": {
+              "locator": "https://github.com/ggml-org/llama.cpp/releases/download/b11205/llama-b11205-bin-macos-arm64.tar.gz",
+              "sha256": "97b06f59ad15e2b4b6044ba7338c4e3f40354c6dc2b9c5cda234e2bd6b9fd65e",
+              "size": 11755672,
+              "unpacked_size": 31084614,
+              "installed_entries": 60,
+              "format": "tar.gz",
+              "archive_root": "llama-b11205"
+            }
+          }
+        },
+        "interfaces": [
+          "chat-completions"
+        ],
+        "modalities": [
+          "text"
+        ]
+      }
+    },
+    "layouts": {
+      "qwen3.8-27b-q4xl-32k-mtp": {
+        "display_name": "Qwen3.8 27B Q4 XL / medium thinking / MTP / 32k",
+        "artifact": "qwen3.8-27b-q4xl",
+        "patches": [
+          "froggeric-qwen38-v22.5"
+        ],
+        "engine": "llama-b11205-darwin-arm64",
+        "interface": "chat-completions",
+        "modalities": [
+          "text"
+        ],
+        "context_window_tokens": 32768,
+        "request_defaults": {
+          "max_output_tokens": 4096,
+          "reasoning": "on",
+          "sampling": {
+            "temperature": 1,
+            "top_k": 20,
+            "top_p": 0.95,
+            "min_p": 0,
+            "repeat_penalty": 1,
+            "presence_penalty": 0,
+            "seed": 17
+          }
+        },
+        "speculation": {
+          "method": "mtp",
+          "source": "embedded",
+          "max_draft_tokens": 3
+        },
+        "engine_config": {
+          "kind": "llama-server/v2",
+          "parallel": 1,
+          "kv_cache": "q8",
+          "flash_attention": "on",
+          "batch_tokens": 512,
+          "microbatch_tokens": 512,
+          "context_checkpoints": 14,
+          "prompt_cache_ram_mib": 2048,
+          "gpu_layers": 99,
+          "controls": {
+            "checkpoint_min_step": 8192,
+            "cache_reuse": 0,
+            "reasoning_effort": "medium",
+            "preserve_reasoning": false,
+            "context_shift": false,
+            "cache_prompt": true,
+            "fit": "off",
+            "threads": 4,
+            "threads_batch": 4,
+            "load_mode": "mmap"
+          }
+        }
+      }
+    },
+    "profiles": {
+      "qwen3.8-27b-q4xl-local": {
+        "bindings": [
+          {
+            "layout": "qwen3.8-27b-q4xl-32k-mtp",
+            "route": "default",
+            "residency": "resident",
+            "idle_ttl_seconds": 1800,
+            "preload": false
+          }
+        ],
+        "gpu_memory_utilization": 0.85
+      }
+    }
+  },
+  "digests": {
+    "profile": "dd7e27d3f26a62be24f2dafe2ab0f31ce799b72c7393a55737290daaad44f8c3"
+  }
+}

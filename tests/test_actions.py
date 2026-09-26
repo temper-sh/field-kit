@@ -89,7 +89,7 @@ class ActionContractTest(unittest.TestCase):
             second.document["changes"]["target-context-tokens"],
             {"from": None, "to": 200000},
         )
-        self.assertNotEqual(first.sha256, second.sha256)
+        self.assertNotEqual(first.document, second.document)
 
     def test_target_outside_the_approved_integer_range_is_refused(self) -> None:
         with self.assertRaisesRegex(Refusal, "outside the approved range"):

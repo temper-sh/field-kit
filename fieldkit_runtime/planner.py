@@ -11,7 +11,7 @@ from typing import Any
 from .catalog import MachineFacts, QuestionPackage, Refusal, canonical_json, digest
 
 
-PLAN_SCHEMA = "field-kit-plan/v2"
+PLAN_SCHEMA = "field-kit-plan/v3"
 PROBE_LISTEN = "127.0.0.1:18080"
 
 # Field Kit owns the workflow. Question packages own what is measured.
@@ -46,7 +46,6 @@ def planned_paths(root: Path) -> dict[str, Path]:
 def build_plan(
     entry: QuestionPackage,
     facts: MachineFacts,
-    facts_data: bytes,
     root_path: Path,
     outcome: str,
     temper: dict[str, str],
@@ -76,14 +75,12 @@ def build_plan(
         "schema": PLAN_SCHEMA,
         "question": {
             "selector": entry.selector,
-            "package_sha256": entry.package_sha256,
             "question": entry.package["question"],
             "decision": entry.package["decision"],
             "kind": entry.package["kind"],
             "model": entry.package["profile"]["layout"],
         },
         "machine": {
-            "facts_sha256": digest(facts_data),
             "facts": facts.document,
         },
         "host": {
@@ -132,5 +129,5 @@ def load_plan(path: Path) -> Plan:
     except json.JSONDecodeError as error:
         raise Refusal(f"invalid plan JSON: {error}") from error
     if not isinstance(document, dict) or document.get("schema") != PLAN_SCHEMA or canonical_json(document) != data:
-        raise Refusal("plan is not canonical field-kit-plan/v2")
+        raise Refusal("plan is not canonical field-kit-plan/v3")
     return Plan(document, data, digest(data))

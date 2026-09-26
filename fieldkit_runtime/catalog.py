@@ -155,7 +155,7 @@ def parse_machine_facts(data: bytes) -> MachineFacts:
         key, separator, value = raw.partition(": ")
         if not separator or not key or not value:
             raise Refusal("machine facts contain an invalid field")
-        if key in {"physical_memory_bytes", "metal_device_memory_mib", "wired_limit_mib"}:
+        if key in {"physical_memory_bytes", "metal_device_memory_mib", "wired_limit_mib", "wired_limit_override_mib"}:
             try:
                 document[key] = int(value)
             except ValueError as error:

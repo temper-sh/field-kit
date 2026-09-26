@@ -5,7 +5,7 @@ import unittest
 
 from fieldkit_runtime.experiments.qwen.method import grade
 
-PACKAGE = Path(__file__).resolve().parents[1] / 'catalog/packages/qwen-machine-study@2'
+PACKAGE = Path(__file__).resolve().parents[1] / 'catalog/packages/qwen-machine-study@3'
 
 
 class StudyOracleTest(unittest.TestCase):
