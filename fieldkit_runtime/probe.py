@@ -105,6 +105,7 @@ def summarize_watch(path: Path, baseline_swap: int) -> dict[str, Any]:
         "swap_growth_bytes": 0,
         "thermal_warning_observed": False,
         "cpu_speed_limit_max": 0,
+        "stop_reasons": [],
         "roles": {},
     }
     if not path.is_file():
@@ -114,6 +115,9 @@ def summarize_watch(path: Path, baseline_swap: int) -> dict[str, Any]:
             event = json.loads(raw_line)
         except json.JSONDecodeError:
             continue
+        for reason in event.get("stop_reasons", []):
+            if reason not in summary["stop_reasons"]:
+                summary["stop_reasons"].append(reason)
         if event.get("event") != "sample":
             continue
         summary["samples"] += 1

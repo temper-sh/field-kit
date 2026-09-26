@@ -1,0 +1,201 @@
+{
+  "schema": "field-kit-qwen-splash-study/v1",
+  "cells": [
+    {
+      "id": "coding-splash-q4",
+      "kind": "coding",
+      "layout": "splash-q4",
+      "family": "splash",
+      "window": 118000,
+      "buckets": [
+        "36",
+        "48-plus"
+      ],
+      "lock": "executions/splash-q4.json"
+    },
+    {
+      "id": "context-32768",
+      "kind": "context",
+      "family": "splash",
+      "layout": "splash-q4",
+      "window": 32768,
+      "buckets": [
+        "36"
+      ],
+      "lock": "executions/splash-q4.json"
+    },
+    {
+      "id": "context-65536",
+      "kind": "context",
+      "family": "splash",
+      "layout": "splash-q4",
+      "window": 65536,
+      "buckets": [
+        "36"
+      ],
+      "lock": "executions/splash-q4.json"
+    },
+    {
+      "id": "context-98304",
+      "kind": "context",
+      "family": "splash",
+      "layout": "splash-q4",
+      "window": 98304,
+      "buckets": [
+        "36"
+      ],
+      "lock": "executions/splash-q4.json"
+    },
+    {
+      "id": "context-131072",
+      "kind": "context",
+      "family": "splash",
+      "layout": "splash-q4",
+      "window": 131072,
+      "buckets": [
+        "36"
+      ],
+      "lock": "executions/splash-q4.json"
+    },
+    {
+      "id": "context-196608",
+      "kind": "context",
+      "family": "splash",
+      "layout": "splash-q4",
+      "window": 196608,
+      "buckets": [
+        "36"
+      ],
+      "lock": "executions/splash-q4.json"
+    },
+    {
+      "id": "context-262144",
+      "kind": "context",
+      "family": "splash",
+      "layout": "splash-q4",
+      "window": 262144,
+      "buckets": [
+        "36"
+      ],
+      "lock": "executions/splash-q4.json"
+    },
+    {
+      "id": "coding-splash-q5",
+      "kind": "coding",
+      "layout": "splash-q5",
+      "family": "splash",
+      "window": 118000,
+      "buckets": [
+        "36",
+        "48-plus"
+      ],
+      "lock": "executions/splash-q5.json"
+    },
+    {
+      "id": "coding-splash-q6",
+      "kind": "coding",
+      "layout": "splash-q6",
+      "family": "splash",
+      "window": 118000,
+      "buckets": [
+        "36",
+        "48-plus"
+      ],
+      "lock": "executions/splash-q6.json"
+    },
+    {
+      "id": "coding-rapid-mlx",
+      "kind": "coding",
+      "layout": "rapid-mlx",
+      "family": "rapid-mlx",
+      "window": 118000,
+      "buckets": [
+        "48-plus"
+      ],
+      "lock": "executions/rapid-mlx.json"
+    },
+    {
+      "id": "coding-vllm-metal",
+      "kind": "coding",
+      "layout": "vllm-metal",
+      "family": "vllm-metal",
+      "window": 118000,
+      "buckets": [
+        "48-plus"
+      ],
+      "lock": "executions/vllm-metal.json"
+    },
+    {
+      "id": "coding-llama-q5",
+      "kind": "coding",
+      "layout": "llama-q5",
+      "family": "llama",
+      "window": 118000,
+      "buckets": [
+        "48-plus"
+      ],
+      "lock": "executions/llama-q5.json"
+    },
+    {
+      "id": "coding-llama-q6",
+      "kind": "coding",
+      "layout": "llama-q6",
+      "family": "llama",
+      "window": 118000,
+      "buckets": [
+        "48-plus"
+      ],
+      "lock": "executions/llama-q6.json"
+    },
+    {
+      "id": "coding-llama-q8",
+      "kind": "coding",
+      "layout": "llama-q8",
+      "family": "llama",
+      "window": 118000,
+      "buckets": [
+        "48-plus"
+      ],
+      "lock": "executions/llama-q8.json",
+      "candidate": true
+    }
+  ],
+  "prepare_seconds": 21600,
+  "request_seconds": 14400,
+  "context_request_seconds": 1800,
+  "process_log_bytes_max": 16777216,
+  "process_watch": {
+    "schema": "field-kit-process-watch/v1",
+    "interval_milliseconds": 5000,
+    "max_gap_milliseconds": 15000,
+    "command_timeout_seconds": 15,
+    "roles": [
+      {
+        "id": "engine",
+        "rss_bytes_max": 103079215104,
+        "current_footprint_bytes_max": 103079215104,
+        "peak_footprint_bytes_max": 103079215104
+      },
+      {
+        "id": "router",
+        "rss_bytes_max": 2147483648,
+        "current_footprint_bytes_max": 2147483648,
+        "peak_footprint_bytes_max": 2147483648
+      }
+    ],
+    "swap_growth_bytes_max": 536870912,
+    "thermal_stop": true,
+    "cpu_speed_limit_stop": true
+  },
+  "budget_note": "Each coding cell allows 6h preparation, two 4h requests, two 30m startups and grading/cleanup. These are ceilings, not duration estimates.",
+  "bucket_costs": {
+    "36": {
+      "network_bytes_max": 92461504541,
+      "temporary_disk_bytes_max": 138789254524
+    },
+    "48-plus": {
+      "network_bytes_max": 202258473491,
+      "temporary_disk_bytes_max": 250896334355
+    }
+  }
+}

@@ -68,27 +68,29 @@ def read_stream(response, started, *, clock=time.monotonic) -> dict:
             "stream_complete": done and finish is not None and first_token is not None}
 
 
-def monitored_call(probe, path: str, payload: dict, timeout: float, *, streaming=False):
+def monitored_call(probe, path: str, payload: dict, timeout: float, *, streaming=False, stream_reader=read_stream, method="POST"):
     if timeout <= 0:
         raise TimeoutError("study time budget exhausted")
     connection = http.client.HTTPConnection(probe.host, probe.port, timeout=timeout)
-    results, failures = [], []
+    results, failures, sockets = [], [], []
     done = threading.Event()
     started = time.monotonic()
 
     def worker():
         try:
-            connection.request("POST", path, json.dumps(payload), {"Content-Type": "application/json"})
+            connection.request(method, path, json.dumps(payload) if method == "POST" else None, {"Content-Type": "application/json"})
+            if connection.sock is not None:
+                sockets.append(connection.sock)
             response = connection.getresponse()
             if response.status != 200:
                 raise ProbeError(f"model HTTP status {response.status}: {response.read(512)!r}")
             if streaming:
-                result = read_stream(response, started)
+                result = stream_reader(response, started)
             else:
                 raw = response.read(RESPONSE_LIMIT + 1)
                 if len(raw) > RESPONSE_LIMIT:
                     raise ProbeError("response exceeded 4 MiB")
-                result = json.loads(raw)
+                result = json.loads(raw) if raw else {}
             results.append(result)
         except Exception as error:
             failures.append(error)
@@ -112,7 +114,14 @@ def monitored_call(probe, path: str, payload: dict, timeout: float, *, streaming
             raise failures[0]
         return results[0]
     finally:
+        for active_socket in sockets:
+            import socket
+            try:
+                active_socket.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
         connection.close()
+        thread.join(timeout=2)
 
 
 def measure_chat(probe, model: str, messages: list, expected: dict, window: int, reserve: int, timeout: float) -> dict:

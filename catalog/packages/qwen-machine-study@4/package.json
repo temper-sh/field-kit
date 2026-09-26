@@ -1,0 +1,689 @@
+{
+  "schema": "field-kit-question-package/v3",
+  "id": "qwen-machine-study",
+  "revision": 4,
+  "origin": {
+    "kind": "v3-preparation",
+    "method": "field-kit-qwen-splash-study/v1",
+    "baseline": "Extracted Flask first attempts from the 26 September Splash/llama comparison."
+  },
+  "host": {
+    "program": "temper",
+    "minimum_version": "0.1.0-alpha.11",
+    "required_primitives": [
+      "catalog-compile",
+      "execution-inspect",
+      "execution-paths",
+      "execution-prepare",
+      "execution-remove",
+      "execution-render",
+      "execution-serve",
+      "machine-facts"
+    ]
+  },
+  "question": "What context fits on 36 GiB with Splash, and which engines and larger quants are useful on larger Macs?",
+  "decision": "Add attributable context brackets, engine/quant viability and completed-work performance after review.",
+  "kind": "bounded-adaptive",
+  "summary": "36 GiB: Splash filled context and UD-Q4/Q5/Q6. 48 GiB+: Splash, Rapid MLX, vLLM Metal and llama.cpp Q5/Q6, with Q8 as a preflighted candidate.",
+  "evidence_scope": "One exact Mac and first-attempt workload. Different weight/template compositions remain distinct; no engine-only causal claim, global context maximum or broad quality qualification.",
+  "applicability": {
+    "os": "darwin",
+    "arch": "arm64",
+    "distribution": "macos",
+    "chip_prefixes": [
+      "Apple M"
+    ],
+    "min_physical_memory_mib": 36864,
+    "max_physical_memory_mib": 0,
+    "min_wired_limit_mib": 27648
+  },
+  "relevance": {
+    "purpose": "Qwen card performance rows and evidence for hardware-bucket tuning"
+  },
+  "cost": {
+    "setup_minutes_min": 0,
+    "setup_minutes_max": 360,
+    "live_runtime_minutes_max": 7450,
+    "network_bytes_max": 202258473491,
+    "temporary_disk_bytes_max": 250896334355,
+    "retained_disk_bytes_max": 3221225472,
+    "evidence_bytes_max": 3221225472,
+    "memory_pressure": "engine: min(75 percent physical memory, wired limit, 96 GiB); router: 2 GiB; stop at 512 MiB additional swap or thermal/observation failure",
+    "service_disruption": "one isolated loopback probe, no live-service changes",
+    "paid_provider_exposure": "none"
+  },
+  "consent": {
+    "reads": [
+      "machine, process, memory, swap, thermal and listener state",
+      "exact lock-bound installation"
+    ],
+    "writes": [
+      "dedicated installation",
+      "external local plan, session, observations and report",
+      "local contributor report and evidence export; nothing is uploaded",
+      "scoped generated Flask candidates and sandboxed test results"
+    ],
+    "network_destinations": [
+      "exact artifact and software locations in the execution lock; model inference uses only IPv4 loopback"
+    ],
+    "cleanup": "remove only the dedicated installation after verified process shutdown; retain local report and result JSON for the contributor to review and share",
+    "allowed_outcomes": [
+      "restore"
+    ]
+  },
+  "profile": {
+    "layout": "splash-q4"
+  },
+  "execution_lock": {
+    "path": "execution.lock.json",
+    "sha256": "a9a863268a3bfa7bb7bc46e7d3afdd8e0b3c62c52ffb9ca01c566f27a7ae0438"
+  },
+  "investigation": {
+    "schema": "field-kit-investigation/v2",
+    "parameters": [],
+    "actions": [
+      {
+        "id": "coding-llama-q5",
+        "kind": "measurement",
+        "parameters": [],
+        "attempts_max": 1,
+        "runtime_minutes_max": 920,
+        "evidence_bytes_max": 268435456,
+        "process_watch": {
+          "schema": "field-kit-process-watch/v1",
+          "interval_milliseconds": 5000,
+          "max_gap_milliseconds": 15000,
+          "command_timeout_seconds": 15,
+          "roles": [
+            {
+              "id": "engine",
+              "rss_bytes_max": 103079215104,
+              "current_footprint_bytes_max": 103079215104,
+              "peak_footprint_bytes_max": 103079215104
+            },
+            {
+              "id": "router",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            }
+          ],
+          "swap_growth_bytes_max": 536870912,
+          "thermal_stop": true,
+          "cpu_speed_limit_stop": true
+        }
+      },
+      {
+        "id": "coding-llama-q6",
+        "kind": "measurement",
+        "parameters": [],
+        "attempts_max": 1,
+        "runtime_minutes_max": 920,
+        "evidence_bytes_max": 268435456,
+        "process_watch": {
+          "schema": "field-kit-process-watch/v1",
+          "interval_milliseconds": 5000,
+          "max_gap_milliseconds": 15000,
+          "command_timeout_seconds": 15,
+          "roles": [
+            {
+              "id": "engine",
+              "rss_bytes_max": 103079215104,
+              "current_footprint_bytes_max": 103079215104,
+              "peak_footprint_bytes_max": 103079215104
+            },
+            {
+              "id": "router",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            }
+          ],
+          "swap_growth_bytes_max": 536870912,
+          "thermal_stop": true,
+          "cpu_speed_limit_stop": true
+        }
+      },
+      {
+        "id": "coding-llama-q8",
+        "kind": "measurement",
+        "parameters": [],
+        "attempts_max": 1,
+        "runtime_minutes_max": 920,
+        "evidence_bytes_max": 268435456,
+        "process_watch": {
+          "schema": "field-kit-process-watch/v1",
+          "interval_milliseconds": 5000,
+          "max_gap_milliseconds": 15000,
+          "command_timeout_seconds": 15,
+          "roles": [
+            {
+              "id": "engine",
+              "rss_bytes_max": 103079215104,
+              "current_footprint_bytes_max": 103079215104,
+              "peak_footprint_bytes_max": 103079215104
+            },
+            {
+              "id": "router",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            }
+          ],
+          "swap_growth_bytes_max": 536870912,
+          "thermal_stop": true,
+          "cpu_speed_limit_stop": true
+        }
+      },
+      {
+        "id": "coding-rapid-mlx",
+        "kind": "measurement",
+        "parameters": [],
+        "attempts_max": 1,
+        "runtime_minutes_max": 920,
+        "evidence_bytes_max": 268435456,
+        "process_watch": {
+          "schema": "field-kit-process-watch/v1",
+          "interval_milliseconds": 5000,
+          "max_gap_milliseconds": 15000,
+          "command_timeout_seconds": 15,
+          "roles": [
+            {
+              "id": "engine",
+              "rss_bytes_max": 103079215104,
+              "current_footprint_bytes_max": 103079215104,
+              "peak_footprint_bytes_max": 103079215104
+            },
+            {
+              "id": "router",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            }
+          ],
+          "swap_growth_bytes_max": 536870912,
+          "thermal_stop": true,
+          "cpu_speed_limit_stop": true
+        }
+      },
+      {
+        "id": "coding-splash-q4",
+        "kind": "measurement",
+        "parameters": [],
+        "attempts_max": 1,
+        "runtime_minutes_max": 920,
+        "evidence_bytes_max": 268435456,
+        "process_watch": {
+          "schema": "field-kit-process-watch/v1",
+          "interval_milliseconds": 5000,
+          "max_gap_milliseconds": 15000,
+          "command_timeout_seconds": 15,
+          "roles": [
+            {
+              "id": "engine",
+              "rss_bytes_max": 103079215104,
+              "current_footprint_bytes_max": 103079215104,
+              "peak_footprint_bytes_max": 103079215104
+            },
+            {
+              "id": "frontend",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            },
+            {
+              "id": "router",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            }
+          ],
+          "swap_growth_bytes_max": 536870912,
+          "thermal_stop": true,
+          "cpu_speed_limit_stop": true
+        }
+      },
+      {
+        "id": "coding-splash-q5",
+        "kind": "measurement",
+        "parameters": [],
+        "attempts_max": 1,
+        "runtime_minutes_max": 920,
+        "evidence_bytes_max": 268435456,
+        "process_watch": {
+          "schema": "field-kit-process-watch/v1",
+          "interval_milliseconds": 5000,
+          "max_gap_milliseconds": 15000,
+          "command_timeout_seconds": 15,
+          "roles": [
+            {
+              "id": "engine",
+              "rss_bytes_max": 103079215104,
+              "current_footprint_bytes_max": 103079215104,
+              "peak_footprint_bytes_max": 103079215104
+            },
+            {
+              "id": "frontend",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            },
+            {
+              "id": "router",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            }
+          ],
+          "swap_growth_bytes_max": 536870912,
+          "thermal_stop": true,
+          "cpu_speed_limit_stop": true
+        }
+      },
+      {
+        "id": "coding-splash-q6",
+        "kind": "measurement",
+        "parameters": [],
+        "attempts_max": 1,
+        "runtime_minutes_max": 920,
+        "evidence_bytes_max": 268435456,
+        "process_watch": {
+          "schema": "field-kit-process-watch/v1",
+          "interval_milliseconds": 5000,
+          "max_gap_milliseconds": 15000,
+          "command_timeout_seconds": 15,
+          "roles": [
+            {
+              "id": "engine",
+              "rss_bytes_max": 103079215104,
+              "current_footprint_bytes_max": 103079215104,
+              "peak_footprint_bytes_max": 103079215104
+            },
+            {
+              "id": "frontend",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            },
+            {
+              "id": "router",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            }
+          ],
+          "swap_growth_bytes_max": 536870912,
+          "thermal_stop": true,
+          "cpu_speed_limit_stop": true
+        }
+      },
+      {
+        "id": "coding-vllm-metal",
+        "kind": "measurement",
+        "parameters": [],
+        "attempts_max": 1,
+        "runtime_minutes_max": 920,
+        "evidence_bytes_max": 268435456,
+        "process_watch": {
+          "schema": "field-kit-process-watch/v1",
+          "interval_milliseconds": 5000,
+          "max_gap_milliseconds": 15000,
+          "command_timeout_seconds": 15,
+          "roles": [
+            {
+              "id": "engine",
+              "rss_bytes_max": 103079215104,
+              "current_footprint_bytes_max": 103079215104,
+              "peak_footprint_bytes_max": 103079215104
+            },
+            {
+              "id": "frontend",
+              "rss_bytes_max": 4294967296,
+              "current_footprint_bytes_max": 4294967296,
+              "peak_footprint_bytes_max": 4294967296
+            },
+            {
+              "id": "resource-tracker",
+              "rss_bytes_max": 268435456,
+              "current_footprint_bytes_max": 268435456,
+              "peak_footprint_bytes_max": 268435456
+            },
+            {
+              "id": "router",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            }
+          ],
+          "swap_growth_bytes_max": 536870912,
+          "thermal_stop": true,
+          "cpu_speed_limit_stop": true
+        }
+      },
+      {
+        "id": "context-131072",
+        "kind": "measurement",
+        "parameters": [],
+        "attempts_max": 1,
+        "runtime_minutes_max": 440,
+        "evidence_bytes_max": 134217728,
+        "process_watch": {
+          "schema": "field-kit-process-watch/v1",
+          "interval_milliseconds": 5000,
+          "max_gap_milliseconds": 15000,
+          "command_timeout_seconds": 15,
+          "roles": [
+            {
+              "id": "engine",
+              "rss_bytes_max": 103079215104,
+              "current_footprint_bytes_max": 103079215104,
+              "peak_footprint_bytes_max": 103079215104
+            },
+            {
+              "id": "frontend",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            },
+            {
+              "id": "router",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            }
+          ],
+          "swap_growth_bytes_max": 536870912,
+          "thermal_stop": true,
+          "cpu_speed_limit_stop": true
+        }
+      },
+      {
+        "id": "context-196608",
+        "kind": "measurement",
+        "parameters": [],
+        "attempts_max": 1,
+        "runtime_minutes_max": 440,
+        "evidence_bytes_max": 134217728,
+        "process_watch": {
+          "schema": "field-kit-process-watch/v1",
+          "interval_milliseconds": 5000,
+          "max_gap_milliseconds": 15000,
+          "command_timeout_seconds": 15,
+          "roles": [
+            {
+              "id": "engine",
+              "rss_bytes_max": 103079215104,
+              "current_footprint_bytes_max": 103079215104,
+              "peak_footprint_bytes_max": 103079215104
+            },
+            {
+              "id": "frontend",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            },
+            {
+              "id": "router",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            }
+          ],
+          "swap_growth_bytes_max": 536870912,
+          "thermal_stop": true,
+          "cpu_speed_limit_stop": true
+        }
+      },
+      {
+        "id": "context-262144",
+        "kind": "measurement",
+        "parameters": [],
+        "attempts_max": 1,
+        "runtime_minutes_max": 440,
+        "evidence_bytes_max": 134217728,
+        "process_watch": {
+          "schema": "field-kit-process-watch/v1",
+          "interval_milliseconds": 5000,
+          "max_gap_milliseconds": 15000,
+          "command_timeout_seconds": 15,
+          "roles": [
+            {
+              "id": "engine",
+              "rss_bytes_max": 103079215104,
+              "current_footprint_bytes_max": 103079215104,
+              "peak_footprint_bytes_max": 103079215104
+            },
+            {
+              "id": "frontend",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            },
+            {
+              "id": "router",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            }
+          ],
+          "swap_growth_bytes_max": 536870912,
+          "thermal_stop": true,
+          "cpu_speed_limit_stop": true
+        }
+      },
+      {
+        "id": "context-32768",
+        "kind": "measurement",
+        "parameters": [],
+        "attempts_max": 1,
+        "runtime_minutes_max": 440,
+        "evidence_bytes_max": 134217728,
+        "process_watch": {
+          "schema": "field-kit-process-watch/v1",
+          "interval_milliseconds": 5000,
+          "max_gap_milliseconds": 15000,
+          "command_timeout_seconds": 15,
+          "roles": [
+            {
+              "id": "engine",
+              "rss_bytes_max": 103079215104,
+              "current_footprint_bytes_max": 103079215104,
+              "peak_footprint_bytes_max": 103079215104
+            },
+            {
+              "id": "frontend",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            },
+            {
+              "id": "router",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            }
+          ],
+          "swap_growth_bytes_max": 536870912,
+          "thermal_stop": true,
+          "cpu_speed_limit_stop": true
+        }
+      },
+      {
+        "id": "context-65536",
+        "kind": "measurement",
+        "parameters": [],
+        "attempts_max": 1,
+        "runtime_minutes_max": 440,
+        "evidence_bytes_max": 134217728,
+        "process_watch": {
+          "schema": "field-kit-process-watch/v1",
+          "interval_milliseconds": 5000,
+          "max_gap_milliseconds": 15000,
+          "command_timeout_seconds": 15,
+          "roles": [
+            {
+              "id": "engine",
+              "rss_bytes_max": 103079215104,
+              "current_footprint_bytes_max": 103079215104,
+              "peak_footprint_bytes_max": 103079215104
+            },
+            {
+              "id": "frontend",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            },
+            {
+              "id": "router",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            }
+          ],
+          "swap_growth_bytes_max": 536870912,
+          "thermal_stop": true,
+          "cpu_speed_limit_stop": true
+        }
+      },
+      {
+        "id": "context-98304",
+        "kind": "measurement",
+        "parameters": [],
+        "attempts_max": 1,
+        "runtime_minutes_max": 440,
+        "evidence_bytes_max": 134217728,
+        "process_watch": {
+          "schema": "field-kit-process-watch/v1",
+          "interval_milliseconds": 5000,
+          "max_gap_milliseconds": 15000,
+          "command_timeout_seconds": 15,
+          "roles": [
+            {
+              "id": "engine",
+              "rss_bytes_max": 103079215104,
+              "current_footprint_bytes_max": 103079215104,
+              "peak_footprint_bytes_max": 103079215104
+            },
+            {
+              "id": "frontend",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            },
+            {
+              "id": "router",
+              "rss_bytes_max": 2147483648,
+              "current_footprint_bytes_max": 2147483648,
+              "peak_footprint_bytes_max": 2147483648
+            }
+          ],
+          "swap_growth_bytes_max": 536870912,
+          "thermal_stop": true,
+          "cpu_speed_limit_stop": true
+        }
+      },
+      {
+        "id": "finish-study",
+        "kind": "final-validation",
+        "parameters": [],
+        "attempts_max": 1,
+        "runtime_minutes_max": 90,
+        "evidence_bytes_max": 16777216,
+        "process_watch": null
+      }
+    ],
+    "initial_action": {
+      "id": "coding-splash-q4",
+      "parameters": {}
+    },
+    "final_validation_action": "finish-study",
+    "action_selection": "result-directed",
+    "total_attempts_max": 10,
+    "total_runtime_minutes_max": 7450
+  },
+  "mechanics": {
+    "orchestration": "field-kit-python/v2",
+    "installation": "qwen-machine-study",
+    "mode": "splash-q4",
+    "prompt": {
+      "path": "PROMPT.md",
+      "sha256": "a4213f1cd845e1964b688cb96f4d3d89da02212c27a06bddb497aa15718d059b"
+    },
+    "runner": {
+      "path": "runner.py",
+      "sha256": "3bd7346184450a8e9bb7b32331a41d13f60ede29fcc4b863ace45845e788f7c4"
+    },
+    "protocols": [
+      {
+        "path": "protocol.json",
+        "sha256": "e08b47e2cc2275d4b8716ded676b32626ee438253bca363062b11d07ef5ce696"
+      },
+      {
+        "path": "workloads.json",
+        "sha256": "5613ae67c1f80f2952c82dcae400351e4675539020e8ae5d02ed3ef795f6a203"
+      },
+      {
+        "path": "flask.tar.gz",
+        "sha256": "6edd2012babb7ff2fc6d2de562feb562861c513d89e42a5f12de3c2fdb185e87"
+      },
+      {
+        "path": "executions/splash-q4.json",
+        "sha256": "a9a863268a3bfa7bb7bc46e7d3afdd8e0b3c62c52ffb9ca01c566f27a7ae0438"
+      },
+      {
+        "path": "executions/splash-q5.json",
+        "sha256": "7ebe9be5151892ba74e88bb3c2462245c4a4fc1c8841de1fcc3ffdb7859bc467"
+      },
+      {
+        "path": "executions/splash-q6.json",
+        "sha256": "8f3d06bbb0895bb563d19fdf8cdf2b33466406a5489dd5486ee1fd5de7c6550c"
+      },
+      {
+        "path": "executions/rapid-mlx.json",
+        "sha256": "3a6037ea4435fc5ac178450e725437f5009c917243ee0bf6d9b9ae06e74cc4d7"
+      },
+      {
+        "path": "executions/vllm-metal.json",
+        "sha256": "42fc336f7b37be779f28a4a5aa881745eb095595c583db82395ec276bca17b07"
+      },
+      {
+        "path": "executions/llama-q5.json",
+        "sha256": "5b31b05151b64dafbc2689f4db746a1b02f9923262a8cbf0d2c5751e45d69741"
+      },
+      {
+        "path": "executions/llama-q6.json",
+        "sha256": "4f53b4506f16390e681168a8953e7b2b21e2366f6e0a93ac6724351479703450"
+      },
+      {
+        "path": "executions/llama-q8.json",
+        "sha256": "5eeccc4ee51630308a55adfddbca6815a4785ed5fe077e2c5d6449274a36a7a6"
+      }
+    ],
+    "runtime_protocol": {
+      "id": "qwen-splash-study",
+      "revision": 1,
+      "schema": "field-kit-qwen-splash-study/v1"
+    }
+  },
+  "report": {
+    "answer_fields": [
+      "completed-work",
+      "context",
+      "fit",
+      "interaction",
+      "limits",
+      "profile",
+      "tuning"
+    ],
+    "required_conditions": [
+      "exact-material-bound",
+      "owned-process-group-stopped",
+      "protocol-evidence-complete",
+      "watcher-complete"
+    ],
+    "submission": "explicit-export-only"
+  },
+  "invalidation_triggers": [
+    "changed lock, workload, oracle, protocol, runtime, costs, stops or applicability"
+  ]
+}

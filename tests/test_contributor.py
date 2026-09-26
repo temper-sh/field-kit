@@ -99,6 +99,14 @@ class ContributorTest(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         root = Path(temporary.name).resolve()
         shutil.copytree(ROOT / "catalog", root / "catalog")
+        # Exercise the retained revision 3 workflow with its historical index;
+        # the current contributor catalog now selects the Splash matrix.
+        package_path = root / "catalog/packages/qwen-machine-study@3/package.json"
+        index = {"schema": "field-kit-question-catalog/v3", "revision": 3, "compiled_at": "2026-09-26T00:00:00Z",
+                 "questions": [{"id": "qwen-machine-study", "revision": 3, "availability": "qualifying",
+                    "package_path": "packages/qwen-machine-study@3/package.json", "package_sha256": digest(package_path.read_bytes()),
+                    "reason": "Historical development checkpoint under test."}]}
+        (root / "catalog/questions.json").write_bytes(canonical_json(index))
         (root / ".local").mkdir()
         (root / ".local/temper").write_bytes(b"synthetic signed release\n")
         args = argparse.Namespace(temper=None, tuning="none", preview=False, new=False)

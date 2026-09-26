@@ -1,15 +1,15 @@
 {
   "schema": "field-kit-question-catalog/v3",
-  "revision": 3,
-  "compiled_at": "2026-09-26T00:00:00Z",
+  "revision": 4,
+  "compiled_at": "2026-09-27T00:00:00Z",
   "questions": [
     {
       "id": "qwen-machine-study",
-      "revision": 3,
+      "revision": 4,
       "availability": "qualifying",
-      "package_path": "packages/qwen-machine-study@3/package.json",
-      "package_sha256": "de079bf1bfa319d817a4c6315f883b59d12e192bb25bbeb7f4c70d105ca31985",
-      "reason": "Development revision: refreshed engines and simplified evidence records. Requires a Temper build with software-only receipt identity; native study measurements and signed host delivery are pending."
+      "package_path": "packages/qwen-machine-study@4/package.json",
+      "package_sha256": "b76296d70e3ac7cad1fc2a2ec78ccf81bed84793b7b9e86dd86a507dea0e6015",
+      "reason": "Prepared matrix and pinned runners. Native qualification on eligible 36 GiB and 48 GiB+ Macs and a matching signed Temper release are pending."
     }
   ]
 }

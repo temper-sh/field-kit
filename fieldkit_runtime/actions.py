@@ -171,8 +171,10 @@ def validate_investigation(value: object, question_kind: str) -> dict[str, Any]:
     final_action = value.get("final_validation_action")
     if final_action not in actions:
         raise Refusal("investigation.final_validation_action is unknown")
-    if question_kind == "bounded-adaptive" and not varying:
-        raise Refusal("bounded-adaptive questions require at least one varying parameter")
+    if (question_kind == "bounded-adaptive" and not varying
+            and not (value.get("action_selection") == "result-directed"
+                     and sum(action["kind"] == "measurement" for action in actions.values()) > 1)):
+        raise Refusal("bounded-adaptive questions require varying parameters or a result-directed choice of measurements")
     if question_kind == "fixed" and varying:
         raise Refusal("fixed questions cannot declare a varying parameter")
     selection = value.get("action_selection")

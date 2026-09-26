@@ -1,39 +1,46 @@
 # Developing Field Kit and reviewing dispatched runs
 
-The current package is `qwen-machine-study@3`. It requires Temper's
-`execution inspect|prepare|render|serve|remove` commands and supervised probe
-status, plus software receipt reuse across configuration changes. The package
-reserves 0.1.0-alpha.11 as its minimum released host; a compatible signed build
-has not been delivered. Setup still uses signed/notarized 0.1.0-alpha.9 to
-install private Python and stops before opening the study.
+The current package is `qwen-machine-study@4`. It requires the Temper host with
+exact Python supplies, `execution paths`, and supervised Rapid/vLLM processes,
+in addition to Splash and software receipt reuse (`98b99ce`). The package
+reserves alpha.11 as its minimum released host; a matching signed release is
+still pending. Setup retains signed/notarized alpha.9 for private Python and
+stops before opening the study.
 
-The receipt fix is integrated locally with Temper's Splash work (`3ba7813` plus
-the uncommitted receipt changes). The same host reports the effective Metal
-budget and its optional raw sysctl override separately; Field Kit retains both.
-Build that checkout without loading a model:
+Build the prepared Temper checkout without loading a model:
 
 ```sh
 temper_source=/absolute/path/to/temper-checkout
 (cd "$temper_source" && go build -o build/temper ./cmd/temper)
+./setup.sh --install-only
 ./field-kit contribute --temper "$temper_source/build/temper" --preview
 ```
 
-Use `./setup.sh --install-only` first if the private runtime is not installed.
-A preview performs reads only. Omitting `--preview` enters the exact-plan
-consent flow before any model download or inference. Pass the same `--temper`
-path when resuming. A default development version is accepted for local work;
-its exact executable bytes are still bound by consent. Before contributor
-delivery, set the actual released host minimum and bootstrap
-pin/checksum, and verify setup with that signed release.
+A preview is read-only. Omit `--preview` to review and consent to the exact
+machine route before any model download or inference. Pass the same `--temper`
+path when resuming. Development binaries are accepted locally; their exact
+bytes remain bound by consent. Before dispatch, deliver the matching signed
+host, set its actual release minimum and bootstrap pin, and verify setup with it.
 
-Revision 3 pins llama.cpp b11205 and llama-swap v260. The model, template,
-workload, oracles, tuning variants and thresholds are unchanged from revision 2.
-Software checks establish compatibility with the commands, not model quality.
+The [study guide](experiments/qwen-machine-study.md) owns the matrix, costs and
+method. [Authoring instructions](../scripts/README.md) describe regeneration.
+All eight configurations compile and render offline. Both exact Python engine
+environments installed on the development Mac, passed `pip check`, and accepted
+the selected CLI options. The extracted evaluator reproduced the retained
+Splash patches' original/independent test outcomes and rejected unchanged Flask
+baselines. These checks establish preparation and grading behavior. No new
+model inference or weight download was used for this preparation; eligible
+36 GiB and 48 GiB+ hardware qualification remains pending.
+
+Revision 3 at `3400df0` is the receipt-cleanup checkpoint, retaining its
+llama-only workload. Revisions 1–3 keep their original frozen packages. Revision
+4 uses a separate contributor pointer and never resumes or rewrites an older
+study. Use `--new` deliberately for a separate run after keeping old evidence.
 
 ## Dispatched revision 1
 
 Do not update a checkout with an unfinished run. Its exact runtime, Python and
-Temper bytes are part of the approved plan. Revision 3 refuses old sessions and
+Temper bytes are part of the approved plan. Revision 4 refuses old sessions and
 leaves their contributor pointers and package files untouched.
 The preserved local producer source is commit
 `f1fc7e0dcb268858dcbe67910a054b99731e6539`.
@@ -49,7 +56,7 @@ git worktree add --detach ../field-kit-dispatched f1fc7e0dcb268858dcbe67910a054b
 This preserves current development edits. To resume a dispatched run, use its
 unchanged original checkout, interpreter and Temper executable. If that checkout
 was updated, retain its `.local/`, session and evidence and arrange recovery with
-the maintainer; never migrate the session to revision 3 or replay its first
+the maintainer; never migrate the session to revision 4 or replay its first
 measurements automatically.
 
 ## Dispatched revision 2
@@ -63,8 +70,8 @@ git worktree add --detach ../field-kit-dispatched-2 9a060f1
   --package ../field-kit-dispatched-2/catalog/packages/qwen-machine-study@2/package.json
 ```
 
-Other returned runs use the source that produced them. Revision 3 does not
-reinterpret historical exports. Start a separate revision 3 run explicitly
+Other returned runs use the source that produced them. Revision 4 does not
+reinterpret historical exports. Start a separate revision 4 run explicitly
 with `--new`; it does not replace old evidence.
 
 ## Ownership and verification

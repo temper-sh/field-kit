@@ -82,6 +82,16 @@ def snapshot(*, engine_rss: int = 1, router_rss: int = 1) -> dict:
 
 
 class ProcessWatcherTest(unittest.TestCase):
+    def test_worker_may_inherit_the_bound_frontend_group(self) -> None:
+        spec, value = watch_spec(), binding()
+        spec["roles"].insert(1, dict(spec["roles"][0], id="frontend"))
+        value["roles"].insert(1, {"id": "frontend", "pid": 103, "pgid": 103, "ps_lstart": "frontend-start"})
+        value["roles"][0]["pgid"] = 103
+        self.assertEqual(validate_binding(spec, value), value)
+        value["roles"][0]["pgid"] = 456
+        with self.assertRaises(Refusal):
+            validate_binding(spec, value)
+
     def test_engine_may_have_its_own_bound_group(self) -> None:
         value = binding()
         value["roles"][0]["pgid"] = value["roles"][0]["pid"]

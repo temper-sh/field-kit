@@ -148,11 +148,15 @@ def inspect_bytes(data: bytes, package_path: Path) -> dict:
         completed = [row["report"] for row in evidence if row["state"] == "complete"]
         if not completed or completed[-1]["action"]["id"] != package.package["investigation"]["final_validation_action"]:
             raise Refusal("witness has no completed final validation")
-        workload_schema = review_tasks(package, completed)
+        if package.package["mechanics"]["runtime_protocol"]["schema"] == "field-kit-qwen-splash-study/v1":
+            from .splash_witness import review
+            workload_schema = review(package, completed, session["machine_facts"])
+        else:
+            workload_schema = review_tasks(package, completed)
         return {"schema": "field-kit-witness-review/v2", "package": package.selector,
                 "machine": session["machine_facts"], "answers": session["answers"],
                 "cleanup": session.get("cleanup"), "attempts": len(evidence), "workload_schema": workload_schema,
-                "boundary": "Frozen inputs, run/attempt references and delivered JSON grades checked. Context/tokenizer, cache, interface, resource and controller claims require protocol review. Operator provenance, timing plausibility and public conclusions still require review; this is not authenticated remote attestation."}
+                "boundary": "Frozen inputs, run/attempt references and delivered grades checked. Returned Python is never executed by this reader. Test execution, tokenizer, resource and timing claims are reported observations requiring review; this is not authenticated remote attestation."}
     except (KeyError, TypeError, IndexError, ValueError) as error:
         if isinstance(error, Refusal):
             raise

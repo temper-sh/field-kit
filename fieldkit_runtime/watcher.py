@@ -159,6 +159,10 @@ def validate_binding(spec: dict[str, Any], value: object) -> dict[str, Any]:
     ] != expected_ids:
         raise Refusal("process binding roles differ from the watch declaration")
     pids: set[int] = set()
+    # Python workers inherit their selected frontend's child group. Temper
+    # proves parentage; the watcher requires that group's leader in the binding.
+    owned_groups = {pgid} | {role.get("pid") for role in roles
+                            if isinstance(role, dict) and role.get("pid") == role.get("pgid")}
     for role in roles:
         if not isinstance(role, dict) or set(role) != {
             "id", "pid", "pgid", "ps_lstart",
@@ -168,8 +172,8 @@ def validate_binding(spec: dict[str, Any], value: object) -> dict[str, Any]:
         role_group = _positive_integer(role.get("pgid"), "process binding role group")
         if pid in pids or role_group == os.getpgrp():
             raise Refusal("process binding roles must have unique PIDs and isolated groups")
-        if role_group not in (pgid, pid) or (role["id"] == "router" and role_group != pgid):
-            raise Refusal("process binding role must use the router group or its own child group")
+        if role_group not in owned_groups or (role["id"] == "router" and role_group != pgid):
+            raise Refusal("process binding role must use the router group or a bound child group")
         pids.add(pid)
         if not isinstance(role.get("ps_lstart"), str) or not role["ps_lstart"].strip():
             raise Refusal("process binding role has no start-time identity")

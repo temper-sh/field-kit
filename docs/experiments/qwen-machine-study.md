@@ -1,50 +1,140 @@
 # Qwen machine study
 
-Measure Qwen3.8 27B performance across Macs and find useful context lengths and
-runtime settings for each machine. The results can inform the Qwen model card
-and recommendations for machines with similar chips and memory.
+Find how much context Qwen3.8 27B can use on a 36 GiB Mac with Splash, and which
+engines and larger model builds complete useful coding work on larger Macs.
 
-Package: `qwen-machine-study@3`. This revision uses llama.cpp b11205 and
-llama-swap v260 with the same model, template, workload and tuning questions.
-It requires a development Temper build with software receipt reuse across
-configuration changes; see [development and dispatched runs](../DEVELOPMENT.md).
-Follow the [run guide](../START.md) for setup. Live measurements are still needed.
-Keep revision 1 and 2 evidence with its producing source.
+Package: `qwen-machine-study@4`. A compatible development Temper build is
+required; see [setup and development](../DEVELOPMENT.md). The software and
+workload are frozen. Native qualification on eligible 36 GiB and 48 GiB+ Macs
+is still pending. Earlier measurements remain attached to their producing
+source and are not relabeled as this study.
+
+## What runs on your Mac
+
+| Physical RAM | Splash | Rapid MLX | vLLM Metal | llama.cpp |
+|---|---|---|---|---|
+| 36 GiB | UD-Q4 coding reference and filled-context ladder; UD-Q5/Q6 fit and coding | — | — | — |
+| 48 GiB+ | UD-Q4/Q5/Q6 fit and coding | Shared MLX 4-bit, coding | Shared MLX 4-bit, coding | UD-Q5/Q6 coding; UD-Q8 candidate after memory admission |
+
+32 GiB remains existing reference evidence. There is no intermediate bucket.
+Each coding cell runs the same two Flask tasks once. Larger quants retain more
+weight precision; this study measures whether that improves completed work and
+what it costs. Q8 admission requires its weights plus 4 GiB minimum headroom to
+fit the approved engine budget. Admission alone does not establish runtime fit.
 
 ## Requirements and cost
 
-| Requirement | This study |
+Apple M3 or newer, macOS 26.4 or newer, and an effective Metal memory budget of
+at least 27 GiB are required. Field Kit checks physical RAM, the chip, OS, budget
+and free disk before consent. It does not change system memory settings.
+
+| Limit | 36 GiB route | 48 GiB+ route |
+|---|---:|---:|
+| Download ceiling | 86.1 GiB | 188.4 GiB |
+| Free disk required | 129.3 GiB | 233.7 GiB |
+| Retained evidence ceiling | 3 GiB | 3 GiB |
+| Coding cells | 3 | 8 |
+| Filled-context points | Up to 6 | — |
+
+These conservative bounds do not assume cross-layout download reuse or shared
+file storage. A coding cell permits six hours of preparation, two four-hour
+requests, two thirty-minute startups and grading/cleanup: at most 920 minutes.
+Each context point permits 440 minutes; final cleanup permits 90 minutes.
+Initial preparation has its own six-hour limit. The shared measurement ceiling
+is 7,450 minutes. These are hard bounds, not expected completion times. A
+particular route can finish much earlier, including after failed admission.
+
+Use [the run guide](../START.md) to preview and start. Connect power, prevent
+sleep and close demanding applications. One confirmation covers the selected
+finite matrix. No failed model request is retried or repaired automatically.
+
+## Frozen compositions
+
+| Component | Exact selection |
 |---|---|
-| Machine | Apple Silicon Mac with at least 32 GiB RAM |
-| Free disk space | About 35 GiB |
-| Model download | About 17.6 GB; reused across configurations within the run |
-| Baseline measurement | Up to 45 minutes |
-| Optional tuning | Up to four additional hours |
-| Model and engine installation | Separate six-hour limit |
+| Splash | 1.1.0; GGUF UD-Q4/Q5/Q6, Frog v22.5, external DFlash2 draft |
+| Rapid MLX | 0.15.2; native MLX 4-bit weights and template; no draft |
+| vLLM Metal | 0.30.0 with vLLM 0.30.0+cpu; the same MLX weights/template; no draft |
+| llama.cpp | b11205; GGUF UD-Q5/Q6/Q8, Frog v22.5, embedded MTP |
+| Router | llama-swap v260 |
+| Coding request | 118,000-token total window; medium reasoning; seed 17; temperature 1; top-p 0.95; top-k 20 |
 
-The script also checks the Mac's effective Metal memory budget: it must be
-at least 24 GiB (24,576 MiB). If that check fails,
-[adjust the limit](#adjust-the-wired-memory-limit) before retrying. The study
-leaves that setting unchanged. Time limits are maximums, not duration estimates.
+The [execution locks](../../catalog/packages/qwen-machine-study@4/executions/)
+retain artifact revisions, software dependencies and all engine settings.
+The output allowance is the total window minus the engine's native prompt
+count, matching the completed Splash comparison. Token counts must agree with
+the delivered response. A fresh engine starts for each coding task, with no
+warm-up generation. Verification may warm filesystem caches; storage-cold
+startup is not claimed.
 
-Choose **performance only** for the common baseline, or **performance and
-tuning** to include configuration comparisons and context tests. You can also
-request one tuning group before confirming the run:
+Different formats, templates and draft mechanisms make these comparisons of
+usable compositions. They do not isolate engine implementation as the cause of
+a performance or quality difference. The previous Q4 Splash/llama decision is
+already established; this matrix does not repeat that contest.
 
-```sh
-./field-kit contribute --tuning flags
-./field-kit contribute --tuning context
-```
+## Coding correctness and performance
 
-Both include the baseline. The study uses a separate installation, removes it
-after finishing, and retains the results.
+The [frozen workload](../../catalog/packages/qwen-machine-study@4/workloads.json)
+reuses `async-stream` and `template-decorators`, the original Flask source
+packet, restricted `submit_patch` tool contract and independent oracles. Each
+first submission is retained. Original tests, independent tests and the model's
+new tests run separately in a local macOS sandbox using a locked evaluator.
+Returned-result review never executes generated Python.
+
+Passing tests is a candidate for source review. The retained async task's
+cleanup-error caveat remains outside the frozen oracle; this revision does not
+silently strengthen the old task or claim broad coding qualification.
+
+The report separates preparation, model startup, first output, first answer,
+request time, test outcomes, engine RAM and swap growth. Prompt processing
+(prefill) and generation rates use native counters when available; missing
+counters remain unmeasured. Observed streaming output rate is labeled separately
+and includes transport overhead and speculative batches. Incorrect answers
+retain their timing but do not count as successful completed work.
+
+## Filled context on 36 GiB
+
+Splash UD-Q4 tests total windows of **32,768, 65,536, 98,304, 131,072, 196,608 and
+262,144 tokens**. Each point fills the initial prompt to window minus 5,120,
+reserving 4,096 output tokens and 1,024 for continuation. The native template and
+tokenizer construct the prompt, and the response must confirm the count.
+
+Five ledger facts are distributed across the input. The initial answer must
+recover three correctly; a follow-up must recover the other two while retaining
+4,096 output tokens of room. Each request has a thirty-minute limit. The first
+unsuccessful point stops larger context points; the larger-quant coding cells
+can still run if shutdown and machine conditions permit.
+
+The result gives the largest successful input and total window, the next
+unsuccessful point, and latency/memory observations. Untested sizes stay unknown.
+This is a sampled bracket under declared limits, not a universal context ceiling
+or a claim about long-document reasoning.
+
+## Failures, stopping and cleanup
+
+Startup failures, out-of-memory errors, incompatible formats, truncated answers
+and invalid submissions remain distinct observations. A stopped request keeps
+its partial response. A safe engine failure permits the next matrix cell;
+resource watcher stops, thermal/CPU throttling, excessive swap, missing counters
+or uncertain process ownership end further measurement.
+
+The engine limit is the minimum of 75% of RAM, the effective Metal budget and
+96 GiB. The router has a separate 2 GiB limit; Splash's frontend has 2 GiB,
+vLLM's frontend 4 GiB and its Python resource tracker 256 MiB. Additional swap
+is limited to 512 MiB. Per-process RAM is retained separately, not summed into
+a claimed physical-memory total.
+
+Temper verifies exact process identities, loopback listeners and shutdown.
+Field Kit removes its installation only after shutdown is confirmed. Failed
+cleanup retains the installation for recovery. Reports and evidence stay local.
+See [interruption and recovery](../START.md#stop-or-continue).
 
 ### Adjust the wired-memory limit
 
 A Mac with enough physical RAM can still fail the GPU memory check:
 
 ```text
-requires at least 24576 MiB wired limit, found 23961
+requires at least 27648 MiB wired limit, found 24576
 ```
 
 The current Temper host reads Metal's recommended working set directly. Its
@@ -57,7 +147,7 @@ For this study, use **75% of physical RAM, capped at 96 GiB**. That is the
 highest engine memory budget the study permits; a higher wired limit does not
 increase that budget. On a **36 GiB Mac, use 27 GiB (27,648 MiB)**, leaving
 9 GiB outside the GPU wired-memory cap for macOS, the router and other work.
-The 24 GiB requirement is only the admission minimum.
+The admission minimum is 27 GiB.
 
 The [macOS GPU memory override](https://ml-explore.github.io/mlx/build/html/python/_autosummary/mlx.core.set_wired_limit.html)
 requires an administrator password and applies system-wide. Wired memory stays
@@ -66,7 +156,7 @@ processes also need memory. The value below follows this study's existing
 budget, and actual fit is still measured during the run. Close other
 memory-heavy applications before starting.
 
-These steps are for a Mac with at least 32 GiB physical RAM. Make the change
+These steps are for a Mac with 36 GiB or at least 48 GiB physical RAM. Make the change
 before starting a new study; keep the limit unchanged during an unfinished run.
 
 1. Run this once in Terminal, **before changing the limit**. It reads the
@@ -91,7 +181,7 @@ before starting a new study; keep the limit unchanged during an unfinished run.
    preserve that raw value rather than Field Kit's estimate. If either `sysctl`
    read fails, stop and send the error to the maintainer.
 
-2. Only if the effective Metal budget fails the study's 24 GiB requirement,
+2. Only if the effective Metal budget fails the study's 27 GiB requirement,
    consider the printed **Apply** command. Do not lower an existing positive
    override that already exceeds the proposed value. For a 36 GiB Mac, this is:
 
@@ -137,138 +227,17 @@ before starting a new study; keep the limit unchanged during an unfinished run.
    an existing startup configuration may apply its own value. The saved command
    restores the exact prior setting without rebooting.
 
-## What the result tells you
-
-- **Performance:** prompt-processing and generation speed, time to first output
-  and first answer, total request time, correctness, memory use and swap growth.
-- **Settings:** whether one tested change gave a repeatable improvement over
-  the baseline on this machine.
-- **Context:** how much input the model handled correctly, and which tested
-  sizes also met the study's response-time budget.
-
-Baseline and tuning results stay separate. Comparisons across machines must use
-this same workload and configuration. Equal RAM does not imply equal speed;
-chip variants and operating conditions matter too.
-
-## Baseline and measurements
-
-The [execution lock](../../catalog/packages/qwen-machine-study@3/execution.lock.json)
-fixes the exact model and software. The baseline is:
-
-| Component or setting | Value |
-|---|---|
-| Model | Qwen3.8 27B UD-Q4_K_XL |
-| Chat template | Frog v22.5 |
-| Engine and router | llama.cpp b11205; llama-swap v260 |
-| Context window / output allowance | 32,768 / 4,096 tokens |
-| Thinking / draft prediction | Medium / MTP, up to 3 tokens |
-| Context working memory (KV cache) | Q8 precision |
-| Batch / microbatch | 512 / 512 tokens |
-| Prompt-cache settings | 14 checkpoints; minimum spacing 8,192 tokens; 2,048 MiB extra RAM |
-
-The [workload](../../catalog/packages/qwen-machine-study@3/workloads.json) has eight
-tasks: create and amend a notice, look up a registry, continue and rewind that
-conversation, switch to another registry, return to the first, and transform a
-roster. Conversation history uses the delivered answers and omits prior reasoning.
-
-Each first answer is checked against facts in the supplied documents. JSON key
-order and whitespace may vary. Wrong values, extra fields, duplicate keys and
-truncated responses fail the task. Incorrect answers remain recorded alongside
-their timings.
-
-Tokens are the pieces of text processed by the model. Speed figures are medians
-of per-request engine measurements:
-
-- **Prompt processing (prefill)** counts newly processed input; cached input is
-  recorded separately.
-- **Generation** includes reasoning as well as the delivered answer.
-- **First output** is the first nonempty reasoning or answer chunk. **First
-  answer** is the first answer chunk. Headers and empty events count as neither.
-- **Total request time** ends when the response finishes. The first baseline
-  request includes model loading.
-
-File caches may already be warm from verifying the downloaded model. Missing
-or invalid counters leave performance unresolved while preserving the answer.
-Per-request measurements remain available so fresh prompts and cached
-conversations can be examined separately.
-
-## Settings compared
-
-Each configuration uses the same model, template and software, starts a fresh
-model process, and records its exact settings. The study tests these changes
-independently:
-
-| Variant | Change from baseline |
-|---|---|
-| `batch-1024` | Increase batch size to 1,024; keep microbatch at 512 |
-| `mtp-off` | Disable the built-in draft predictor, or multi-token prediction (MTP) |
-| `cache-reference` | Use 16 checkpoints and no extra prompt-cache RAM |
-| `kv-q4` | Use Q4 precision for the KV cache; model weights stay unchanged |
-
-A correct, valid trial at least **10% faster** in total request time can nominate
-one candidate. Confirmation uses four fresh runs: baseline, candidate,
-candidate, baseline. The candidate must improve both pairs by at least 10%,
-answer every task correctly, and make no individual task more than **20% slower**.
-
-Missing or invalid confirmation leaves the choice unresolved. A valid comparison
-that misses those thresholds retains the baseline. Successful changes are kept
-separate; their combination has not been tested.
-
-## Context tests
-
-The context window must hold both the input and generated output. The study
-checks windows of **16,384, 32,768, 65,536, 98,304 and 131,072 tokens**, alternating
-Q8 and Q4 cache precision at each size. Other settings stay at the baseline.
-
-Each test reserves 4,096 output tokens and 1,024 tokens for a follow-up, so the
-initial input is the window size minus 5,120 tokens. The running server's chat
-template and tokenizer construct that input; the response's token count must
-confirm its length. This preparation loads the model before context timing starts.
-
-A generated ledger places five facts across the input. The first request asks
-for three; a follow-up asks for the other two and must still leave room for
-4,096 output tokens. An incorrect answer stops larger tests for that cache
-precision. An invalid measurement or safety stop ends tuning. Untested sizes
-remain unknown.
-
-The report gives two separate limits for each cache precision:
-
-- the largest tested input answered correctly;
-- the largest tested window that also completed the initial answer within
-  **300 seconds** and the follow-up within **60 seconds**.
-
-These are sampled results under a declared latency budget. They do not establish
-a universal maximum, performance at untested sizes, or broad long-document
-quality. Context tests use baseline flags, so a faster flag setting and a larger
-context are not a tested combination.
-
-## Run limits
-
-The four-hour tuning budget covers configuration trials, confirmation and context
-tests together. A final one-minute step consolidates the observations. Failed
-and interrupted attempts remain in the result.
-
-The engine memory limit is the smallest of 75% of physical RAM, the existing
-wired-memory limit, and 96 GiB. The router has a separate 2 GiB limit. The study
-stops on 512 MiB additional swap, thermal or CPU throttling, missing resource
-observations, or loss of confidence about which processes it owns.
-
-The server listens only on this machine. Temper supplies process identities and
-verifies listener ownership and shutdown. Field Kit measures those identities,
-chooses when to stop and requires Temper's shutdown confirmation before removing
-the experiment installation. Reports and evidence remain.
-See the [run guide](../START.md#stop-or-continue) for interruption recovery.
-
 ## Review a result
 
-Use the same Field Kit source revision that produced the result:
+Use the source that produced it:
 
 ```sh
 ./field-kit witness --input /absolute/path/to/result.json \
-  --package catalog/packages/qwen-machine-study@3/package.json
+  --package catalog/packages/qwen-machine-study@4/package.json
 ```
 
-This checks frozen inputs and run/attempt references, grades delivered answers again, and recomputes
-configuration choices and summaries. Machine provenance and timing plausibility
-still need human review. Results describe the measured machine and workload;
-model-card updates and recommendations across machine groups require that review.
+The reader checks frozen inputs, session/attempt references, matrix order,
+settings, tool submissions, reported test groups, native timing arithmetic and
+context answers. It does not attest the machine or rerun candidate code.
+Inspect retained patches, failure details and measurement plausibility before
+using a result in a model card. Equal RAM does not imply equal performance.

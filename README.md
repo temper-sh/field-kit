@@ -14,11 +14,12 @@ Follow an experiment's link for its requirements, run options and method.
 
 | Experiment | Useful result | Requirements | Status |
 |---|---|---|---|
-| [Qwen machine study](docs/experiments/qwen-machine-study.md) | Comparable performance numbers and tested context lengths and settings for Qwen3.8 27B | Apple Silicon Mac; ≥32 GiB RAM; [≥24 GiB GPU wired-memory limit](docs/experiments/qwen-machine-study.md#adjust-the-wired-memory-limit); about 35 GiB free disk | Revision 3; development host required; live measurements needed |
+| [Qwen machine study](docs/experiments/qwen-machine-study.md) | Splash context on 36 GiB; engine and larger-quant performance on 48 GiB+ | Apple M3 or newer, macOS 26.4+; 36 GiB or ≥48 GiB RAM; ≥27 GiB effective Metal budget; 130 / 234 GiB free disk | Revision 4; development host required; hardware qualification pending |
 
-This build prepares revision 3 with updated engine software. Keep dispatched
-revision 1 and 2 runs in their original checkout. Results need review before
-becoming recommendations.
+The study reuses two Flask coding tasks from the Splash comparison. Results
+retain first attempts, including failed startup and incomplete work, and need
+review before becoming recommendations. Keep unfinished earlier runs in their
+original checkout.
 
 ## Get started
 
@@ -68,7 +69,7 @@ model:
 python3 -m unittest discover -v
 ```
 
-CI runs these checks on Python 3.9 and 3.14. Qwen's method, grading, tuning,
+CI runs these checks on Python 3.9 and 3.14. Qwen's method, grading,
 measurement, contributor flow and reviewer live in `fieldkit_runtime/experiments/qwen/`.
 The shared runtime owns consent plans, bounded actions, sessions and evidence.
 Temper owns installation, rendering and process supervision. The CLI explicitly
