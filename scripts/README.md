@@ -6,8 +6,9 @@ code remains compatible with Python 3.9; authoring uses Python 3.11 or newer.
 
 `catalog/packages/qwen-machine-study@4/` owns the tasks, fixtures and experiment
 protocol. Temper's `catalog/experiments/qwen-study.json` owns exact software and
-model compositions. Execution locks are compiled snapshots for the dispatched
-study. No dependency resolver runs on a participant's machine.
+model compositions in `temper-catalog/v3` presets. Execution locks are opaque,
+compiled snapshots for the dispatched study. No dependency resolver runs on a
+participant's machine.
 
 ## Rebuild from the reviewed inputs
 
@@ -30,7 +31,16 @@ The first command validates that source and extracts both original requests and
 independent oracles. It removes transport hashes from the runner rather than
 creating a second receipt chain. The second compiles all eight compositions,
 freezes package checksums, costs and action bounds, and updates the question
-index. Neither command downloads weights or runs inference.
+index. It uses `catalog compile --preset`, with no legacy Selection file or
+revision 3 seed. The experiment derives bounded context/output/memory settings
+through `execution configure`; it never reads or rewrites the lock's internals.
+Neither command downloads weights or runs inference.
+
+The current eight locks were regenerated with Temper's alpha.11 candidate after
+the preset and schema cleanup in `24df332`. The package's minimum remains
+`0.1.0-alpha.11`; signed release verification and the bootstrap pin are the
+remaining contributor delivery steps, as described in the
+[development guide](../docs/DEVELOPMENT.md).
 
 Changes to a dispatched package require a new revision. Regeneration here is
 for preparation before revision 4 is dispatched. Use the original producer

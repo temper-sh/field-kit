@@ -1,15 +1,15 @@
 {
   "schema": "field-kit-question-catalog/v3",
   "revision": 4,
-  "compiled_at": "2026-09-27T00:00:00Z",
+  "compiled_at": "2026-09-29T00:00:00Z",
   "questions": [
     {
       "id": "qwen-machine-study",
       "revision": 4,
       "availability": "qualifying",
       "package_path": "packages/qwen-machine-study@4/package.json",
-      "package_sha256": "b76296d70e3ac7cad1fc2a2ec78ccf81bed84793b7b9e86dd86a507dea0e6015",
-      "reason": "Prepared matrix and pinned runners. Native qualification on eligible 36 GiB and 48 GiB+ Macs and a matching signed Temper release are pending."
+      "package_sha256": "8175da8ef85df2ca1149307f6c97c2e166ae173dfa593f3c3efef22f16598164",
+      "reason": "Prepared matrix and pinned runners. First study runs on 36 GiB and 48 GiB+ Macs and a matching signed Temper release are pending."
     }
   ]
 }

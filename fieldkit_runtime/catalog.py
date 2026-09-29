@@ -462,7 +462,7 @@ def _validate_package(package: dict[str, Any], root: Path) -> dict[str, bytes]:
     baseline_primitives = [
         "execution-inspect", "execution-prepare", "execution-remove", "execution-serve", "machine-facts",
     ]
-    recognized_primitives = set(baseline_primitives) | {"execution-render", "execution-paths", "catalog-compile"}
+    recognized_primitives = set(baseline_primitives) | {"execution-render", "execution-paths", "execution-configure", "catalog-compile"}
     if (
         not set(baseline_primitives).issubset(required_primitives)
         or any(item not in recognized_primitives for item in required_primitives)

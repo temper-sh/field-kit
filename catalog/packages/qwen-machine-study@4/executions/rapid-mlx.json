@@ -1,16 +1,13 @@
 {
-  "schema": "temper-execution-lock/v2",
-  "source_snapshot_sha256": "01ec7f43440028c5e4b2cfb7b58e6384b1ee5830df34f7cfb79015f2013252bc",
-  "selection": {
-    "schema": "temper-selection/v2",
-    "profile": "rapid-mlx"
-  },
+  "schema": "temper-execution-lock/v3",
+  "source_snapshot_sha256": "e001366c0603c3aab9e62eae1764c66de7587e82c3acc3ef1c35e68a93fe1c18",
+  "preset": "rapid-mlx",
   "target": {
     "os": "darwin",
     "arch": "arm64"
   },
   "records": {
-    "schema": "temper-catalog/v2",
+    "schema": "temper-catalog/v3",
     "date": "2026-09-27",
     "runtime": {
       "router": {
@@ -909,7 +906,7 @@
         ]
       }
     },
-    "layouts": {
+    "presets": {
       "rapid-mlx": {
         "display_name": "rapid-mlx",
         "memory_tier": "S",
@@ -958,23 +955,7 @@
           }
         }
       }
-    },
-    "profiles": {
-      "rapid-mlx": {
-        "bindings": [
-          {
-            "layout": "rapid-mlx",
-            "route": "default",
-            "residency": "resident",
-            "idle_ttl_seconds": 0,
-            "preload": false
-          }
-        ],
-        "gpu_memory_utilization": 0.75
-      }
     }
   },
-  "digests": {
-    "profile": "c8e7d256f04dc38e1261925f26d2993c05f75fd10b83a31a6b07de4b739f2d2f"
-  }
+  "execution_digest": "287cd507eabdd7125f534ad1e8710e7f085cac6dd6899904f822f8f7213b934d"
 }

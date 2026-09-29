@@ -3,7 +3,7 @@ import tempfile
 import unittest
 
 from fieldkit_runtime.catalog import Refusal, canonical_json
-from fieldkit_runtime.execution import inspect_execution, validate_material
+from fieldkit_runtime.execution import configure_execution, inspect_execution, validate_material
 from fieldkit_runtime.workflow import CommandResult
 from tests.test_workflow import FakeRunner
 
@@ -49,3 +49,23 @@ class ExecutionTest(unittest.TestCase):
         for key, value in (("generation", "unknown"), ("binding", ""), ("execution", {})):
             with self.subTest(key=key), self.assertRaises(Refusal):
                 validate_material(canonical_json({**material, key: value}), execution)
+
+    def test_configuration_refuses_old_host_and_mismatched_settings_without_fallback(self):
+        settings = {"context_window_tokens": 32768, "max_output_tokens": 4096}
+        good = {"schema": "temper-execution-configuration/v1", "preset": "fixture",
+                "settings": settings, "context_execution_sha256": "c"*64}
+        failures = [CommandResult(b"", b"unknown operation", 2)]
+        for changed in ({"preset": "different"}, {"settings": {**settings, "max_output_tokens": 1}},
+                        {"context_execution_sha256": ""}):
+            failures.append(CommandResult(canonical_json({**good, **changed}), b"", 0))
+        for response in failures:
+            calls = []
+            def run(argv, timeout):
+                calls.append(argv)
+                return response
+            with self.subTest(response=response), self.assertRaises(Refusal):
+                configure_execution("/temper", self.lock, "fixture", settings, self.root/"new.lock",
+                                    dry_run=True, runner=run)
+            self.assertEqual(len(calls), 1)
+            self.assertIn("--dry-run", calls[0])
+            self.assertEqual(list(self.root.iterdir()), [self.lock])

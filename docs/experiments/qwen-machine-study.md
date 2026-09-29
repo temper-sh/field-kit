@@ -5,8 +5,8 @@ engines and larger model builds complete useful coding work on larger Macs.
 
 Package: `qwen-machine-study@4`. A compatible development Temper build is
 required; see [setup and development](../DEVELOPMENT.md). The software and
-workload are frozen. Native qualification on eligible 36 GiB and 48 GiB+ Macs
-is still pending. Earlier measurements remain attached to their producing
+workload are frozen. First study runs on 36 GiB and 48 GiB+ Macs
+are still pending. Earlier measurements remain attached to their producing
 source and are not relabeled as this study.
 
 ## What runs on your Mac
@@ -36,7 +36,7 @@ and free disk before consent. It does not change system memory settings.
 | Coding cells | 3 | 8 |
 | Filled-context points | Up to 6 | — |
 
-These conservative bounds do not assume cross-layout download reuse or shared
+These conservative bounds do not assume cross-preset download reuse or shared
 file storage. A coding cell permits six hours of preparation, two four-hour
 requests, two thirty-minute startups and grading/cleanup: at most 920 minutes.
 Each context point permits 440 minutes; final cleanup permits 90 minutes.
@@ -109,6 +109,27 @@ The result gives the largest successful input and total window, the next
 unsuccessful point, and latency/memory observations. Untested sizes stay unknown.
 This is a sampled bracket under declared limits, not a universal context ceiling
 or a claim about long-document reasoning.
+
+## Evidence for Temper's preset cards
+
+The study also supplies the evidence needed to improve the wizard's memory
+guidance and tested-context choices. Each configured cell retains Temper's
+context identity, total window, output allowance and explicit memory limit.
+The result includes the Mac's chip, RAM and effective Metal budget, per-role
+peak RSS and footprint, swap growth, first-output/answer latency and failures.
+Configured limits stay separate from measured peaks; process peaks are not
+summed into an alleged physical-memory total.
+
+The wizard currently estimates from weight sizes and declared caps. These runs
+can expose missing KV-cache or runtime overhead in that estimate. A reviewed
+successful filled-context point can support a catalog `context_findings` entry
+for the exact tested composition and machine. A coding pass at 118,000 configured
+tokens does not establish filled-context capacity at that size.
+
+Field Kit does not change the catalog or automatically recommend a preset.
+Review returned evidence before updating Temper's authored cards and estimates.
+Different software, templates, memory caps or machines need an explicit
+assessment; a preset's name alone is not a match.
 
 ## Failures, stopping and cleanup
 

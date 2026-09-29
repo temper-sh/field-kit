@@ -17,30 +17,33 @@ def write(path, value):
 def main(args):
     root = Path(__file__).resolve().parents[1]
     package_root = root / "catalog/packages/qwen-machine-study@4"
-    package = json.loads((root / "catalog/packages/qwen-machine-study@3/package.json").read_bytes())
-    protocol = json.loads((root / "catalog/packages/qwen-machine-study@3/protocol.json").read_bytes())
+    package = json.loads((root / "catalog/packages/qwen-machine-study@4/package.json").read_bytes())
+    protocol = json.loads((root / "catalog/packages/qwen-machine-study@4/protocol.json").read_bytes())
+    catalog = json.loads(args.catalog.read_bytes())
+    if catalog["schema"] != "temper-catalog/v3":
+        raise ValueError("Qwen authoring requires the current preset catalog")
     cells = []
-    for layout in ("splash-q4", "splash-q5", "splash-q6", "rapid-mlx", "vllm-metal", "llama-q5", "llama-q6", "llama-q8"):
-        family = "splash" if layout.startswith("splash") else "llama" if layout.startswith("llama") else layout
-        cell = {"id": "coding-" + layout, "kind": "coding", "layout": layout, "family": family,
+    for preset in ("splash-q4", "splash-q5", "splash-q6", "rapid-mlx", "vllm-metal", "llama-q5", "llama-q6", "llama-q8"):
+        family = "splash" if preset.startswith("splash") else "llama" if preset.startswith("llama") else preset
+        cell = {"id": "coding-" + preset, "kind": "coding", "preset": preset, "family": family,
                 "window": 118000, "buckets": ["36", "48-plus"] if family == "splash" else ["48-plus"],
-                "lock": "executions/" + layout + ".json"}
-        if layout == "llama-q8":
+                "lock": "executions/" + preset + ".json"}
+        if preset == "llama-q8":
             cell["candidate"] = True
+            artifact = catalog["artifacts"][catalog["presets"][preset]["artifact"]]
+            cell["minimum_engine_memory_bytes"] = sum(item["bytes"] for item in artifact["files"]) + 4*1024**3
         cells.append(cell)
         with tempfile.TemporaryDirectory(prefix="qwen-compile-") as temporary:
-            selection = Path(temporary) / "selection.json"
-            write(selection, {"schema": "temper-selection/v2", "profile": layout})
             output = Path(temporary) / "execution.json"
             subprocess.run([str(args.temper), "catalog", "compile", "--catalog", str(args.catalog),
-                            "--selection", str(selection), "--target", "darwin/arm64", "--out", str(output), "--json"],
+                            "--preset", preset, "--target", "darwin/arm64", "--out", str(output), "--json"],
                            check=True, capture_output=True)
             target = package_root / cell["lock"]
             target.parent.mkdir(exist_ok=True)
             target.write_bytes(output.read_bytes())
     # Coding reference first, then the 36 GiB filled-context ladder, then larger
     # quants. At 48 GiB+ the ladder is absent; there is no intermediate bucket.
-    contexts = [{"id": "context-" + str(window), "kind": "context", "family": "splash", "layout": "splash-q4",
+    contexts = [{"id": "context-" + str(window), "kind": "context", "family": "splash", "preset": "splash-q4",
                  "window": window, "buckets": ["36"], "lock": "executions/splash-q4.json"}
                 for window in (32768, 65536, 98304, 131072, 196608, 262144)]
     cells[1:1] = contexts
@@ -54,9 +57,10 @@ def main(args):
         for cell in cells:
             if cell["kind"] != "coding" or bucket not in cell["buckets"]:
                 continue
-            lock = json.loads((package_root / cell["lock"]).read_bytes())
-            sizes.append(sum(item["bytes"] for artifact in lock["records"]["artifacts"].values() for item in artifact["files"]))
-        # Do not assume reflinks, hardlinks or cross-layout download reuse.
+            preset = catalog["presets"][cell["preset"]]
+            artifacts = {preset["artifact"], preset["speculation"].get("draft_artifact")} - {None, ""}
+            sizes.append(sum(item["bytes"] for identity in artifacts for item in catalog["artifacts"][identity]["files"]))
+        # Do not assume reflinks, hardlinks or cross-preset download reuse.
         protocol["bucket_costs"][bucket] = {"network_bytes_max": sum(sizes) + 16*1024**3,
             "temporary_disk_bytes_max": sum(sizes) + max(sizes) + 32*1024**3}
     write(package_root / "protocol.json", protocol)
@@ -78,10 +82,10 @@ def main(args):
     package.update(revision=4,
         origin={"kind": "v3-preparation", "method": protocol["schema"], "baseline": "Extracted Flask first attempts from the 26 September Splash/llama comparison."},
         question="What context fits on 36 GiB with Splash, and which engines and larger quants are useful on larger Macs?",
-        decision="Add attributable context brackets, engine/quant viability and completed-work performance after review.",
+        decision="Use reviewed context, memory and completed-work evidence to improve preset cards, fit estimates and engine/quant choices.",
         summary="36 GiB: Splash filled context and UD-Q4/Q5/Q6. 48 GiB+: Splash, Rapid MLX, vLLM Metal and llama.cpp Q5/Q6, with Q8 as a preflighted candidate.",
         evidence_scope="One exact Mac and first-attempt workload. Different weight/template compositions remain distinct; no engine-only causal claim, global context maximum or broad quality qualification.")
-    package["host"]["required_primitives"] = sorted(set(package["host"]["required_primitives"] + ["execution-paths"]))
+    package["host"]["required_primitives"] = sorted((set(package["host"]["required_primitives"]) | {"execution-paths", "execution-configure"}) - {"catalog-compile"})
     package["applicability"].update(chip_prefixes=["Apple M"], min_physical_memory_mib=36*1024, min_wired_limit_mib=27*1024)
     actions = []
     for cell in cells:
@@ -110,7 +114,9 @@ def main(args):
         network_bytes_max=max(cost["network_bytes_max"] for cost in protocol["bucket_costs"].values()),
         temporary_disk_bytes_max=max(cost["temporary_disk_bytes_max"] for cost in protocol["bucket_costs"].values()),
         retained_disk_bytes_max=3*1024**3, evidence_bytes_max=3*1024**3)
-    package["consent"]["writes"].append("scoped generated Flask candidates and sandboxed test results")
+    write_scope = "scoped generated Flask candidates and sandboxed test results"
+    if write_scope not in package["consent"]["writes"]:
+        package["consent"]["writes"].append(write_scope)
     package["profile"] = {"layout": "splash-q4"}
     package["execution_lock"] = identity("execution.lock.json")
     package["mechanics"].update(mode="splash-q4", prompt=identity("PROMPT.md"), runner=identity("runner.py"),
@@ -119,9 +125,9 @@ def main(args):
         runtime_protocol={"id":"qwen-splash-study", "revision":1, "schema":protocol["schema"]})
     write(package_root / "package.json", package)
     write(root / "catalog/questions.json", {"schema":"field-kit-question-catalog/v3", "revision":4,
-        "compiled_at":"2026-09-27T00:00:00Z", "questions":[{"id":package["id"], "revision":4, "availability":"qualifying",
+        "compiled_at":"2026-09-29T00:00:00Z", "questions":[{"id":package["id"], "revision":4, "availability":"qualifying",
             "package_path":"packages/qwen-machine-study@4/package.json", "package_sha256":identity("package.json")["sha256"],
-            "reason":"Prepared matrix and pinned runners. Native qualification on eligible 36 GiB and 48 GiB+ Macs and a matching signed Temper release are pending."}]})
+            "reason":"Prepared matrix and pinned runners. First study runs on 36 GiB and 48 GiB+ Macs and a matching signed Temper release are pending."}]})
 
 
 if __name__ == "__main__":

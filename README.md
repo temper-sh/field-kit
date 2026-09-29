@@ -14,7 +14,7 @@ Follow an experiment's link for its requirements, run options and method.
 
 | Experiment | Useful result | Requirements | Status |
 |---|---|---|---|
-| [Qwen machine study](docs/experiments/qwen-machine-study.md) | Splash context on 36 GiB; engine and larger-quant performance on 48 GiB+ | Apple M3 or newer, macOS 26.4+; 36 GiB or ≥48 GiB RAM; ≥27 GiB effective Metal budget; 130 / 234 GiB free disk | Revision 4; development host required; hardware qualification pending |
+| [Qwen machine study](docs/experiments/qwen-machine-study.md) | Splash context on 36 GiB; engine and larger-quant performance on 48 GiB+ | Apple M3 or newer, macOS 26.4+; 36 GiB or ≥48 GiB RAM; ≥27 GiB effective Metal budget; 130 / 234 GiB free disk | Revision 4; development host required; first study runs pending |
 
 The study reuses two Flask coding tasks from the Splash comparison. Results
 retain first attempts, including failed startup and incomplete work, and need

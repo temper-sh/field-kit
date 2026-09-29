@@ -1,16 +1,13 @@
 {
-  "schema": "temper-execution-lock/v2",
-  "source_snapshot_sha256": "01ec7f43440028c5e4b2cfb7b58e6384b1ee5830df34f7cfb79015f2013252bc",
-  "selection": {
-    "schema": "temper-selection/v2",
-    "profile": "vllm-metal"
-  },
+  "schema": "temper-execution-lock/v3",
+  "source_snapshot_sha256": "e001366c0603c3aab9e62eae1764c66de7587e82c3acc3ef1c35e68a93fe1c18",
+  "preset": "vllm-metal",
   "target": {
     "os": "darwin",
     "arch": "arm64"
   },
   "records": {
-    "schema": "temper-catalog/v2",
+    "schema": "temper-catalog/v3",
     "date": "2026-09-27",
     "runtime": {
       "router": {
@@ -1751,7 +1748,7 @@
         ]
       }
     },
-    "layouts": {
+    "presets": {
       "vllm-metal": {
         "display_name": "vllm-metal",
         "memory_tier": "S",
@@ -1798,23 +1795,7 @@
           }
         }
       }
-    },
-    "profiles": {
-      "vllm-metal": {
-        "bindings": [
-          {
-            "layout": "vllm-metal",
-            "route": "default",
-            "residency": "resident",
-            "idle_ttl_seconds": 0,
-            "preload": false
-          }
-        ],
-        "gpu_memory_utilization": 0.75
-      }
     }
   },
-  "digests": {
-    "profile": "f6427b6e2746df3acd0038119ab7cca519c85986b7f9fbb4df6b808d322a9093"
-  }
+  "execution_digest": "efd320d62cd21a4a2ade12fdf6acc9fbc1ea540f80faf6dcbc80bf4323c03ee8"
 }

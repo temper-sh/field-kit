@@ -11,12 +11,12 @@ from contextlib import redirect_stdout
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from fieldkit_runtime.catalog import Refusal, canonical_json, parse_machine_facts
+from fieldkit_runtime.catalog import Refusal, canonical_json, digest, parse_machine_facts
 from fieldkit_runtime.experiments.qwen.coding import CodingStream, performance, request_body
 from fieldkit_runtime.experiments.qwen.evaluation import EvaluationFailure, unpack
 from fieldkit_runtime.experiments.qwen.patches import InvalidPatch, staged_texts, submission
 from fieldkit_runtime.experiments.qwen.splash_contributor import contribute
-from fieldkit_runtime.experiments.qwen.splash_study import SplashStudy, bucket, matrix, next_cell
+from fieldkit_runtime.experiments.qwen.splash_study import SplashStudy, bucket, execution_settings, matrix, next_cell
 from fieldkit_runtime.experiments.qwen.witness import inspect as review
 from fieldkit_runtime.workflow import CommandResult, load_session
 from tests.test_catalog import ROOT, facts_bytes
@@ -37,12 +37,9 @@ class SyntheticStudy(SplashStudy):
     requests = None
 
     def configure(self, cell, directory):
-        layout = copy.deepcopy(json.loads((self.package_root/cell["lock"]).read_bytes())["records"]["layouts"][cell["layout"]])
-        layout["context_window_tokens"] = cell["window"]
-        layout["request_defaults"]["max_output_tokens"] = 4096 if cell["kind"] == "context" else 100000
-        if cell["family"] == "splash": layout["engine_config"]["max_memory_bytes"] = self.limit
         if cell["id"] == self.fail: raise RuntimeError("Metal out of memory during startup")
-        return {"settings": layout, "generation": "b"*64, "installation": self.args.installation,
+        return {"settings": execution_settings(cell, self.limit), "context_execution_sha256": "c"*64,
+                "generation": "b"*64, "installation": self.args.installation,
                 "lock": str(directory/"execution.lock.json"), "paths": {}, "preparation_seconds": 1.0}
 
     def probe(self, cell, material, directory):
@@ -76,11 +73,29 @@ class SyntheticStudy(SplashStudy):
 
 
 class MatrixRunner(FakeRunner):
+    def execution(self, lock):
+        return {"schema": "temper-execution/v1", "profile": "splash-q4", "layouts": ["splash-q4"],
+                "lock_sha256": digest(lock.read_bytes()), "execution_digest": "a"*64,
+                "request_defaults": {"splash-q4": {}}}
+
     def __init__(self, **settings):
         super().__init__();self.settings=settings;self.actions=[];self.requests=[]
     def __call__(self, arguments, timeout):
         argv=list(arguments)
         if argv[-1:]==["version"]: return CommandResult(b"temper 0.1.0-alpha.11\n",b"",0)
+        if argv[1:3] == ["execution", "configure"]:
+            if "--dry-run" not in argv:
+                raise AssertionError("the preview must not write a lock")
+            # Temper validates output paths even for a dry run. Planning has
+            # not created the session or its installation directory yet.
+            if not Path(argv[argv.index("--out")+1]).parent.is_dir():
+                return CommandResult(b"", b"output parent must already be a real directory", 1)
+            settings = {"context_window_tokens": int(argv[argv.index("--context")+1]),
+                        "max_output_tokens": int(argv[argv.index("--max-output")+1])}
+            if "--max-memory" in argv:
+                settings["max_memory_bytes"] = int(argv[argv.index("--max-memory")+1])
+            return CommandResult(canonical_json({"schema": "temper-execution-configuration/v1",
+                "preset": argv[argv.index("--preset")+1], "settings": settings, "context_execution_sha256": "c"*64}), b"", 0)
         if "--action" in argv:
             args=argparse.Namespace(**{argv[i][2:].replace("-","_"):argv[i+1] for i in range(2,len(argv),2)})
             study=SyntheticStudy(args,Path(argv[1]).parent)
@@ -98,6 +113,51 @@ class SplashStudyTest(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory(prefix="qwen matrix ");self.addCleanup(self.temp.cleanup)
         self.root=Path(self.temp.name).resolve()
+
+    def test_configuration_uses_opaque_lock_and_explicit_limits(self):
+        study = object.__new__(SplashStudy)
+        study.args = SimpleNamespace(temper="temper", root=str(self.root / "install"), installation="study")
+        study.package_root = self.root
+        study.protocol = {"prepare_seconds": 600}
+        study.limit = 27 * 1024**3
+        study.remaining = lambda seconds: seconds
+        source = self.root / "source.lock"
+        source.write_bytes(b"future Temper lock: opaque to Field Kit\n")
+        cell = {"preset": "splash-q4", "lock": source.name, "window": 32768, "kind": "context", "family": "splash"}
+        directory = self.root / "cell"
+        directory.mkdir()
+        calls = []
+        def run(argv, timeout):
+            calls.append(argv)
+            operation = argv[2]
+            lock = directory / "execution.lock.json"
+            execution = {"schema": "temper-execution/v1", "profile": "splash-q4", "layouts": ["splash-q4"],
+                         "execution_digest": "a"*64, "lock_sha256": digest(b"configured opaque lock"),
+                         "request_defaults": {"splash-q4": {}}}
+            if operation == "configure":
+                self.assertEqual(Path(argv[argv.index("--lock")+1]), source)
+                self.assertEqual(argv[argv.index("--context")+1], "32768")
+                self.assertEqual(argv[argv.index("--max-output")+1], "4096")
+                self.assertEqual(argv[argv.index("--max-memory")+1], str(27 * 1024**3))
+                lock.write_bytes(b"configured opaque lock")
+                result = {"schema": "temper-execution-configuration/v1", "preset": "splash-q4",
+                          "settings": execution_settings(cell, study.limit), "context_execution_sha256": "c"*64}
+            elif operation == "inspect":
+                result = execution
+            elif operation == "prepare":
+                result = {"schema": "temper-execution-material/v1", "execution": execution,
+                          "generation": "b"*64, "binding": "schema: temper-field-kit-binding/v1\n"}
+            elif operation == "paths":
+                result = {"schema": "temper-execution-paths/v1", "execution": execution, "models": {}, "python": {}}
+            else:
+                self.fail("unexpected host operation: " + operation)
+            return CommandResult(canonical_json(result), b"", 0)
+        with patch("fieldkit_runtime.experiments.qwen.splash_study.run_process_silent", side_effect=run):
+            material = study.configure(cell, directory)
+        self.assertEqual(material["context_execution_sha256"], "c"*64)
+        self.assertEqual([argv[2] for argv in calls], ["configure", "inspect", "prepare", "paths"])
+        self.assertEqual(source.read_bytes(), b"future Temper lock: opaque to Field Kit\n")
+        self.assertEqual([p.name for p in directory.iterdir()], ["execution.lock.json"])
 
     def test_grading_failure_preserves_submission_and_shutdown_authority(self):
         for safe in (True, False):
@@ -126,7 +186,7 @@ class SplashStudyTest(unittest.TestCase):
         self.assertEqual(bucket({"physical_memory_bytes":128*1024**3}),"48-plus")
         small=matrix(PROTOCOL,{"physical_memory_bytes":36*1024**3})
         large=matrix(PROTOCOL,{"physical_memory_bytes":48*1024**3})
-        self.assertEqual([c["layout"] for c in small if c["kind"]=="coding"],["splash-q4","splash-q5","splash-q6"])
+        self.assertEqual([c["preset"] for c in small if c["kind"]=="coding"],["splash-q4","splash-q5","splash-q6"])
         self.assertEqual(len([c for c in small if c["kind"]=="context"]),6)
         self.assertEqual(len(large),8)
         self.assertFalse(any(c["kind"]=="context" for c in large))
@@ -169,6 +229,23 @@ class SplashStudyTest(unittest.TestCase):
         (base/"tests/test_candidate_async_stream_link.py").symlink_to(self.root/"outside")
         with self.assertRaises(InvalidPatch): staged_texts({"edits":[],"new_files":[{"path":"tests/test_candidate_async_stream_link.py","content":"x"}]},base,case["edit_scope"])
         with self.assertRaises(InvalidPatch): submission({"message":{"tool_calls":[{"function":{"name":"submit_patch","arguments":'{"edits":[],"edits":[]}'}}]}})
+
+    def test_preview_checks_current_host_without_creating_session_or_lock(self):
+        shutil.copytree(ROOT / "catalog", self.root / "catalog")
+        local = self.root / ".local"
+        local.mkdir()
+        (local / "temper").write_bytes(b"fixture")
+        args = argparse.Namespace(temper=None, preview=True, new=False)
+        before = sorted(self.root.rglob("*"))
+        for memory in (36, 48):
+            raw = machine(memory)
+            runner = MatrixRunner()
+            with self.subTest(memory=memory), redirect_stdout(io.StringIO()):
+                self.assertEqual(contribute(args, self.root,
+                    input_fn=lambda _: self.fail("preview requested consent"),
+                    facts_reader=lambda _: (parse_machine_facts(raw), raw), runner=runner), 0)
+            self.assertEqual(sorted(self.root.rglob("*")), before)
+            self.assertFalse(runner.actions)
 
     def run_study(self,memory=48,**settings):
         shutil.copytree(ROOT/"catalog",self.root/"catalog")

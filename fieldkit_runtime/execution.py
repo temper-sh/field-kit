@@ -63,3 +63,32 @@ def validate_material(data: bytes, execution: dict) -> dict:
     if not isinstance(material["binding"], str) or not material["binding"].startswith("schema: temper-field-kit-binding/v1\n"):
         raise Refusal("Temper returned no material binding")
     return material
+
+
+def configure_execution(temper, lock, preset, settings, out, *, dry_run=False, runner=run_process_silent):
+    """Ask Temper to derive a preset lock; its serialized contents stay opaque."""
+    arguments = [str(temper), "execution", "configure", "--lock", str(lock),
+                 "--preset", preset, "--context", str(settings["context_window_tokens"]),
+                 "--max-output", str(settings["max_output_tokens"]), "--out", str(out)]
+    if "max_memory_bytes" in settings:
+        arguments += ["--max-memory", str(settings["max_memory_bytes"])]
+    if dry_run:
+        arguments.append("--dry-run")
+    result = runner(arguments, 120)
+    if result.returncode:
+        raise Refusal("This study requires Temper's current preset execution commands. "
+                      "Use a build with execution configure; legacy hosts are unsupported. "
+                      + str(CommandFailure(arguments, result)))
+    if len(result.stdout) > 64 * 1024:
+        raise Refusal("Temper configuration response exceeded the response bound")
+    try:
+        configured = json.loads(result.stdout)
+    except (ValueError, UnicodeError) as error:
+        raise Refusal("Temper returned invalid configuration JSON") from error
+    if (not isinstance(configured, dict)
+            or configured.get("schema") != "temper-execution-configuration/v1"
+            or configured.get("preset") != preset or configured.get("settings") != settings
+            or not isinstance(configured.get("context_execution_sha256"), str)
+            or not SHA256.fullmatch(configured["context_execution_sha256"])):
+        raise Refusal("Temper changed the approved preset configuration")
+    return configured

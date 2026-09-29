@@ -4,7 +4,7 @@
     {
       "id": "coding-splash-q4",
       "kind": "coding",
-      "layout": "splash-q4",
+      "preset": "splash-q4",
       "family": "splash",
       "window": 118000,
       "buckets": [
@@ -17,7 +17,7 @@
       "id": "context-32768",
       "kind": "context",
       "family": "splash",
-      "layout": "splash-q4",
+      "preset": "splash-q4",
       "window": 32768,
       "buckets": [
         "36"
@@ -28,7 +28,7 @@
       "id": "context-65536",
       "kind": "context",
       "family": "splash",
-      "layout": "splash-q4",
+      "preset": "splash-q4",
       "window": 65536,
       "buckets": [
         "36"
@@ -39,7 +39,7 @@
       "id": "context-98304",
       "kind": "context",
       "family": "splash",
-      "layout": "splash-q4",
+      "preset": "splash-q4",
       "window": 98304,
       "buckets": [
         "36"
@@ -50,7 +50,7 @@
       "id": "context-131072",
       "kind": "context",
       "family": "splash",
-      "layout": "splash-q4",
+      "preset": "splash-q4",
       "window": 131072,
       "buckets": [
         "36"
@@ -61,7 +61,7 @@
       "id": "context-196608",
       "kind": "context",
       "family": "splash",
-      "layout": "splash-q4",
+      "preset": "splash-q4",
       "window": 196608,
       "buckets": [
         "36"
@@ -72,7 +72,7 @@
       "id": "context-262144",
       "kind": "context",
       "family": "splash",
-      "layout": "splash-q4",
+      "preset": "splash-q4",
       "window": 262144,
       "buckets": [
         "36"
@@ -82,7 +82,7 @@
     {
       "id": "coding-splash-q5",
       "kind": "coding",
-      "layout": "splash-q5",
+      "preset": "splash-q5",
       "family": "splash",
       "window": 118000,
       "buckets": [
@@ -94,7 +94,7 @@
     {
       "id": "coding-splash-q6",
       "kind": "coding",
-      "layout": "splash-q6",
+      "preset": "splash-q6",
       "family": "splash",
       "window": 118000,
       "buckets": [
@@ -106,7 +106,7 @@
     {
       "id": "coding-rapid-mlx",
       "kind": "coding",
-      "layout": "rapid-mlx",
+      "preset": "rapid-mlx",
       "family": "rapid-mlx",
       "window": 118000,
       "buckets": [
@@ -117,7 +117,7 @@
     {
       "id": "coding-vllm-metal",
       "kind": "coding",
-      "layout": "vllm-metal",
+      "preset": "vllm-metal",
       "family": "vllm-metal",
       "window": 118000,
       "buckets": [
@@ -128,7 +128,7 @@
     {
       "id": "coding-llama-q5",
       "kind": "coding",
-      "layout": "llama-q5",
+      "preset": "llama-q5",
       "family": "llama",
       "window": 118000,
       "buckets": [
@@ -139,7 +139,7 @@
     {
       "id": "coding-llama-q6",
       "kind": "coding",
-      "layout": "llama-q6",
+      "preset": "llama-q6",
       "family": "llama",
       "window": 118000,
       "buckets": [
@@ -150,14 +150,15 @@
     {
       "id": "coding-llama-q8",
       "kind": "coding",
-      "layout": "llama-q8",
+      "preset": "llama-q8",
       "family": "llama",
       "window": 118000,
       "buckets": [
         "48-plus"
       ],
       "lock": "executions/llama-q8.json",
-      "candidate": true
+      "candidate": true,
+      "minimum_engine_memory_bytes": 35752958976
     }
   ],
   "prepare_seconds": 21600,

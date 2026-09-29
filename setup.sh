@@ -79,5 +79,5 @@ mv "$field_kit_stage/python-path" "$field_kit_local/python-path"
 printf '%s\n' 'Setup complete. Everything is inside this clone.'
 cleanup_setup
 trap - EXIT INT TERM
-printf '%s\n' 'Revision 3 needs a development Temper build with software receipt reuse; the signed bootstrap host cannot run it.' \
+printf '%s\n' 'Revision 4 needs a development Temper build with preset execution commands; the signed bootstrap host cannot run it.' \
     'See docs/DEVELOPMENT.md, then use ./field-kit contribute --temper /absolute/path/to/temper --preview.'

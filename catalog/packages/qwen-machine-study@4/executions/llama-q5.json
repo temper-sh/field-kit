@@ -1,16 +1,13 @@
 {
-  "schema": "temper-execution-lock/v2",
-  "source_snapshot_sha256": "01ec7f43440028c5e4b2cfb7b58e6384b1ee5830df34f7cfb79015f2013252bc",
-  "selection": {
-    "schema": "temper-selection/v2",
-    "profile": "llama-q5"
-  },
+  "schema": "temper-execution-lock/v3",
+  "source_snapshot_sha256": "e001366c0603c3aab9e62eae1764c66de7587e82c3acc3ef1c35e68a93fe1c18",
+  "preset": "llama-q5",
   "target": {
     "os": "darwin",
     "arch": "arm64"
   },
   "records": {
-    "schema": "temper-catalog/v2",
+    "schema": "temper-catalog/v3",
     "date": "2026-09-27",
     "runtime": {
       "router": {
@@ -251,7 +248,7 @@
         ]
       }
     },
-    "layouts": {
+    "presets": {
       "llama-q5": {
         "display_name": "llama-q5",
         "artifact": "qwen-q5",
@@ -307,23 +304,7 @@
           }
         }
       }
-    },
-    "profiles": {
-      "llama-q5": {
-        "bindings": [
-          {
-            "layout": "llama-q5",
-            "route": "default",
-            "residency": "resident",
-            "idle_ttl_seconds": 0,
-            "preload": false
-          }
-        ],
-        "gpu_memory_utilization": 0.75
-      }
     }
   },
-  "digests": {
-    "profile": "ed5d727ecbc40f72cf4fbae9f68841f4c09b377bef799225e8c5aadabbb6e29c"
-  }
+  "execution_digest": "b185d226cbc698f8f06320c6151f8a2a0816fba6f87f5cd5abae21d57528384b"
 }

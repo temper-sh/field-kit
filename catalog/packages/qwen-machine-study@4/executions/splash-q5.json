@@ -1,16 +1,13 @@
 {
-  "schema": "temper-execution-lock/v2",
-  "source_snapshot_sha256": "01ec7f43440028c5e4b2cfb7b58e6384b1ee5830df34f7cfb79015f2013252bc",
-  "selection": {
-    "schema": "temper-selection/v2",
-    "profile": "splash-q5"
-  },
+  "schema": "temper-execution-lock/v3",
+  "source_snapshot_sha256": "e001366c0603c3aab9e62eae1764c66de7587e82c3acc3ef1c35e68a93fe1c18",
+  "preset": "splash-q5",
   "target": {
     "os": "darwin",
     "arch": "arm64"
   },
   "records": {
-    "schema": "temper-catalog/v2",
+    "schema": "temper-catalog/v3",
     "date": "2026-09-27",
     "runtime": {
       "router": {
@@ -211,8 +208,7 @@
             "sha256": "67fc76d68dc5a9415511a4f394ef744d67510cd20e93b37cc2cc7d28e4bab65c"
           }
         ],
-        "license": "Apache-2.0",
-        "description": "Architecture-matched DFlash2 sidecar selected by Splash 1.1.0. Included with the Qwen–Splash layout."
+        "license": "Apache-2.0"
       }
     },
     "patches": {
@@ -273,7 +269,7 @@
         ]
       }
     },
-    "layouts": {
+    "presets": {
       "splash-q5": {
         "display_name": "splash-q5",
         "memory_tier": "S",
@@ -315,23 +311,7 @@
           "request_timeout_seconds": 14400
         }
       }
-    },
-    "profiles": {
-      "splash-q5": {
-        "bindings": [
-          {
-            "layout": "splash-q5",
-            "route": "default",
-            "residency": "resident",
-            "idle_ttl_seconds": 0,
-            "preload": false
-          }
-        ],
-        "gpu_memory_utilization": 0.75
-      }
     }
   },
-  "digests": {
-    "profile": "715a445dc6670b3c177408d4f9bb37d9e877d6b16202079e69e5003fcc9860d0"
-  }
+  "execution_digest": "6c2a3c557cc43c2d7907efb87eb6071e2de2b144ca389b138078164e008318ce"
 }

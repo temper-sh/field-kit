@@ -1,16 +1,15 @@
 """Review the frozen matrix and submissions without executing returned Python."""
-import copy
 import difflib
 import json
 from pathlib import Path
 import tempfile
 
-from ...catalog import Refusal
+from ...catalog import Refusal, SHA256
 from .coding import performance
 from .evaluation import unpack
 from .method import grade, record_value
 from .patches import InvalidPatch, staged_texts, submission
-from .splash_study import context_summary, matrix, next_cell
+from .splash_study import context_summary, execution_settings, matrix, next_cell
 
 
 def review(package, completed, facts):
@@ -36,18 +35,16 @@ def review(package, completed, facts):
             if cell is None or report["action"]["id"] != cell["id"] or len(rows) != len(prior) + 1 or rows[:-1] != prior:
                 raise Refusal("witness skipped, repeated or rewrote a matrix cell")
             row = rows[-1]
-            if any(row[key] != cell[key] for key in ("id", "layout", "kind", "window")):
+            if any(row[key] != cell[key] for key in ("id", "preset", "kind", "window")):
                 raise Refusal("witness matrix identity differs")
             material = row.get("material")
             if material:
-                lock = json.loads(package.files[cell["lock"]])
-                expected = copy.deepcopy(lock["records"]["layouts"][cell["layout"]])
-                expected["context_window_tokens"] = cell["window"]
-                expected["request_defaults"]["max_output_tokens"] = 4096 if cell["kind"] == "context" else 100000
-                if cell["family"] == "splash":
-                    expected["engine_config"]["max_memory_bytes"] = min(facts["physical_memory_bytes"] * 3 // 4, facts["wired_limit_mib"]*1024**2, 96*1024**3)
+                expected = execution_settings(cell, min(facts["physical_memory_bytes"] * 3 // 4, facts["wired_limit_mib"]*1024**2, 96*1024**3))
                 if material["settings"] != expected:
                     raise Refusal("witness settings differ from the frozen cell")
+                identity = material.get("context_execution_sha256")
+                if not isinstance(identity, str) or not SHA256.fullmatch(identity):
+                    raise Refusal("witness has no exact preset context identity")
             expected_ids = list(cases) if cell["kind"] == "coding" else ["distributed-ledger", "ledger-followup"]
             if [item["id"] for item in row["cases"]] != expected_ids[:len(row["cases"])]:
                 raise Refusal("witness omitted, reordered or repeated a task")

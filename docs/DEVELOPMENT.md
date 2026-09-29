@@ -1,11 +1,31 @@
 # Developing Field Kit and reviewing dispatched runs
 
-The current package is `qwen-machine-study@4`. It requires the Temper host with
-exact Python supplies, `execution paths`, and supervised Rapid/vLLM processes,
-in addition to Splash and software receipt reuse (`98b99ce`). The package
-reserves alpha.11 as its minimum released host; a matching signed release is
-still pending. Setup retains signed/notarized alpha.9 for private Python and
-stops before opening the study.
+The current package is `qwen-machine-study@4`. It targets the current preset
+machinery: `catalog compile --preset` for authoring, and `execution configure`
+for bounded changes to an opaque frozen lock. It also requires `execution
+inspect/prepare/paths/serve/remove`, exact Python supplies and supervised
+Splash/Rapid/vLLM processes. The contributor preview checks the configuration
+command before consent or downloads. There is no legacy fallback.
+
+The host changes and legacy removal are integrated in Temper `24df332`.
+The package's eight execution locks have been regenerated as v3 with the
+0.1.0-alpha.11 candidate. Alpha.11 remains an unpublished candidate. Setup
+retains signed/notarized alpha.9 for private Python and stops before opening the
+study. Deliver a matching signed host and update the actual version and checksum
+before contributor release.
+
+After the tag workflow publishes alpha.11, download and verify its checksum,
+Developer ID signature and notarization, then update `setup.sh` to that exact
+version and archive checksum. Exercise setup and its replay in a fresh clone
+before switching the start guide to the default host. The local unsigned
+rehearsal archive is not a bootstrap input.
+
+Preparation passes package verification and 97 tests on Python 3.9 and 3.14.
+The real alpha.11 candidate accepts both contributor previews with synthetic
+machine facts without creating a session or output. All 17 route cells pass
+configuration, inspection and replay through that host. Preview uses the
+existing local directory to satisfy Temper's output-parent check even during a
+dry run. These are integration checks, not machine-fit observations.
 
 Build the prepared Temper checkout without loading a model:
 
@@ -30,7 +50,7 @@ the selected CLI options. The extracted evaluator reproduced the retained
 Splash patches' original/independent test outcomes and rejected unchanged Flask
 baselines. These checks establish preparation and grading behavior. No new
 model inference or weight download was used for this preparation; eligible
-36 GiB and 48 GiB+ hardware qualification remains pending.
+36 GiB and 48 GiB+ study runs remain pending.
 
 Revision 3 at `3400df0` is the receipt-cleanup checkpoint, retaining its
 llama-only workload. Revisions 1–3 keep their original frozen packages. Revision

@@ -7,10 +7,11 @@ import re
 import shutil
 
 from ...catalog import QuestionCatalog, Refusal, canonical_json
+from ...execution import configure_execution
 from ...workflow import (Workflow, _atomic_write, _exclusive_session_lock, build_export,
                          load_session, run_contributor_process)
 from .contributor import confirm, read_machine_facts
-from .splash_study import SELECTOR, bucket, matrix
+from .splash_study import SELECTOR, bucket, execution_settings, matrix
 
 
 def check_machine(facts):
@@ -46,6 +47,18 @@ def format_report(session):
         swap = max((r.get("swap_growth_bytes", 0) for r in resources), default=None)
         failure = (row.get("failure") or {}).get("message", "").replace("\n", " ").replace("|", "/")
         lines.append(f"| {row['id']} | {number((row.get('material') or {}).get('preparation_seconds'))} | {number(rss/1024**3 if rss else None)} | {number(swap/1024**3 if swap is not None else None)} | {failure} |")
+    lines += ["", "Memory observations for preset review. Limits are configured allowances; process peaks are measured separately and are not added together.",
+              f"Effective Metal budget: {facts['wired_limit_mib']/1024:g} GiB.",
+              "", "| Configuration | Role | Peak RSS GiB | Peak footprint GiB |", "|---|---|---:|---:|"]
+    for row in rows:
+        roles = sorted({role for sample in row["resources"] for role in sample.get("roles", {})})
+        for role in roles:
+            peaks = []
+            for metric in ("rss_bytes_max", "peak_footprint_bytes_max"):
+                values = [sample["roles"][role][metric] for sample in row["resources"]
+                          if metric in sample.get("roles", {}).get(role, {}) and sample["roles"][role][metric] > 0]
+                peaks.append(number(max(values)/1024**3 if values else None))
+            lines.append("| " + " | ".join([row["id"], role, *peaks]) + " |")
     context = answers.get("context", {}).get("value", {})
     lines += ["", f"Largest successful filled context: {context.get('highest_successful_window_tokens') or 'unmeasured'} tokens.",
         f"First unsuccessful point: {context.get('first_unsuccessful_window_tokens') or 'not observed'}.",
@@ -54,6 +67,7 @@ def format_report(session):
         "Splash/llama use GGUF and Frog; Rapid/vLLM use shared MLX weights and their native template. These are composition results, not isolated engine effects.",
         "Native prefill/decode rates are unmeasured when the engine does not report their timing counters. Observed output rate includes streaming overhead and speculative batches.",
         "Storage-cold startup is unproven. Preparation, model startup and request time are separate. No measurements are extrapolated to another Mac.",
+        "The JSON retains each preset's exact context identity, context/output settings and memory limit for review against Temper's preset cards. Only reviewed successful context points can support a tested-context choice; failures and untested points stay distinct.",
         "Results are local. Review generated patches, test results, machine facts and local paths before sharing.", ""]
     return "\n".join(lines)
 
@@ -139,6 +153,13 @@ def _run(arguments, repository, input_fn, facts_reader, runner):
         cells = matrix(protocol, facts.document)
         identity = "qwen-" + datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
         plan = workflow.plan(local.resolve() / identity, "restore")
+        # Refuse an older development host before consent or materialization.
+        first = cells[0]
+        limit = min(facts.document["physical_memory_bytes"] * 3 // 4,
+                    facts.document["wired_limit_mib"] * 1024**2, 96 * 1024**3)
+        configure_execution(temper, entry.package_root / first["lock"], first["preset"],
+                            execution_settings(first, limit), local.resolve() / (identity + "-preview.lock.json"),
+                            dry_run=True, runner=runner)
         print(f"\nQwen3.8 27B · {facts.document['chip']} · bucket {selected}\n{entry.availability_notice()}")
         print("\n".join("  " + cell["id"] + (" (candidate after memory preflight)" if cell.get("candidate") else "") for cell in cells))
         cost = protocol["bucket_costs"][selected]

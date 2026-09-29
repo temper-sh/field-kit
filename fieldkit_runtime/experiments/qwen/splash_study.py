@@ -10,7 +10,7 @@ import subprocess
 import time
 
 from ...catalog import Refusal, canonical_json
-from ...execution import inspect_execution, validate_material
+from ...execution import configure_execution, inspect_execution, validate_material
 from ...probe import ManagedProbe, ProbeError
 from ...workflow import _atomic_write, run_process_silent, CommandFailure
 from .coding import CodingStream, native_count, performance, request_body
@@ -66,6 +66,14 @@ def context_summary(rows):
             "points": points}
 
 
+def execution_settings(cell, limit):
+    settings = {"context_window_tokens": cell["window"],
+                "max_output_tokens": 4096 if cell["kind"] == "context" else 100000}
+    if cell["family"] == "splash":
+        settings["max_memory_bytes"] = limit
+    return settings
+
+
 class SplashStudy:
     def __init__(self, arguments, package_root):
         self.args, self.package_root = arguments, Path(package_root)
@@ -111,24 +119,15 @@ class SplashStudy:
                 time.sleep(self.remaining(15))
 
     def configure(self, cell, directory):
-        base = json.loads((self.package_root / cell["lock"]).read_bytes())
-        records = copy.deepcopy(base["records"])
-        model = cell["layout"]
-        layout = records["layouts"][model]
-        layout["context_window_tokens"] = cell["window"]
-        layout["request_defaults"]["max_output_tokens"] = 4096 if cell["kind"] == "context" else 100000
-        if cell["family"] == "splash":
-            layout["engine_config"]["max_memory_bytes"] = self.limit
-        for name, value in (("catalog.json", records), ("selection.json", base["selection"])):
-            _atomic_write(directory / name, canonical_json(value))
+        model = cell["preset"]
+        settings = execution_settings(cell, self.limit)
         lock = directory / "execution.lock.json"
-        self.command(["catalog", "compile", "--catalog", directory / "catalog.json", "--selection", directory / "selection.json",
-                      "--target", "darwin/arm64", "--out", lock, "--json"])
-        compiled = json.loads(lock.read_bytes())
-        if compiled["records"] != records or compiled["selection"] != base["selection"]:
-            raise ProbeError("Temper changed the approved cell configuration")
+        configured = configure_execution(self.args.temper, self.package_root / cell["lock"], model, settings, lock,
+            runner=lambda argv, timeout: run_process_silent(argv, self.remaining(timeout)))
         execution = inspect_execution(Path(self.args.temper), lock,
             runner=lambda argv, timeout: run_process_silent(argv, self.remaining(timeout)))
+        if execution["layouts"] != [model] or execution["profile"] != model:
+            raise ProbeError("Temper configured a different preset")
         installation = self.args.installation if model == "splash-q4" else "qwen-study-" + model
         common = ["--lock", lock, "--root", self.args.root, "--installation", installation]
         started = time.monotonic()
@@ -138,7 +137,8 @@ class SplashStudy:
         if paths.get("schema") != "temper-execution-paths/v1" or paths.get("execution") != execution:
             raise ProbeError("installed paths are not bound to this execution")
         return {"lock": str(lock), "generation": material["generation"], "installation": installation,
-                "settings": layout, "paths": paths, "preparation_seconds": preparation_seconds}
+                "settings": settings, "context_execution_sha256": configured["context_execution_sha256"],
+                "paths": paths, "preparation_seconds": preparation_seconds}
 
     def probe(self, cell, material, directory):
         watch = copy.deepcopy(self.protocol["process_watch"])
@@ -162,19 +162,19 @@ class SplashStudy:
             path = directory / "tokenizer-request.json"
             _atomic_write(path, canonical_json(request))
             command = [material["paths"]["python"]["rapid-mlx"], "-I", "-B", str(Path(__file__).with_name("rapid_tokenize.py")),
-                       material["paths"]["models"][cell["layout"]], str(path)]
+                       material["paths"]["models"][cell["preset"]], str(path)]
             result = subprocess.run(command, capture_output=True, timeout=self.remaining(180), check=False,
                 env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1",
                      "RAPID_MLX_TELEMETRY": "0", "DO_NOT_TRACK": "1"})
             if result.returncode:
                 raise ProbeError("Rapid tokenizer failed: " + result.stderr.decode(errors="replace")[-2048:])
             return json.loads(result.stdout.splitlines()[-1])["count"]
-        return native_count(probe, cell["layout"], cell["family"], body, self.remaining(1800), rapid)
+        return native_count(probe, cell["preset"], cell["family"], body, self.remaining(1800), rapid)
 
     def chat(self, probe, cell, material, case, directory, *, reserve=None):
-        body = request_body(case, cell["layout"], cell["window"], 1, cell["family"])
+        body = request_body(case, cell["preset"], cell["window"], 1, cell["family"])
         count = self.count(probe, cell, material, body, directory)
-        body = request_body(case, cell["layout"], cell["window"], count, cell["family"])
+        body = request_body(case, cell["preset"], cell["window"], count, cell["family"])
         if reserve is not None:
             if count + reserve > cell["window"]:
                 raise ProbeError("context continuation exceeds the declared window")
@@ -234,7 +234,7 @@ class SplashStudy:
     def context_cases(self, probe, cell, material, directory):
         target = cell["window"] - 4096 - 1024
         def count(messages):
-            body = request_body({"request": {"messages": messages}}, cell["layout"], cell["window"], 1)
+            body = request_body({"request": {"messages": messages}}, cell["preset"], cell["window"], 1)
             return self.count(probe, cell, material, body, directory)
         messages, expected, followup_expected = construct_context(target, count)
         results = []
@@ -257,9 +257,9 @@ class SplashStudy:
     def measure(self, cell):
         directory = self.directory / cell["id"]
         directory.mkdir()
-        row = {"id": cell["id"], "layout": cell["layout"], "kind": cell["kind"], "window": cell["window"],
+        row = {"id": cell["id"], "preset": cell["preset"], "kind": cell["kind"], "window": cell["window"],
                "status": "unmeasured", "cases": [], "failure": None, "resources": [], "material": None}
-        row["installation"] = self.args.installation if cell["layout"] == "splash-q4" else "qwen-study-" + cell["layout"]
+        row["installation"] = self.args.installation if cell["preset"] == "splash-q4" else "qwen-study-" + cell["preset"]
         row["execution_lock"] = str(directory / "execution.lock.json")
         if cell["kind"] == "context":
             row["target_input_tokens"] = cell["window"] - 5120
@@ -268,9 +268,7 @@ class SplashStudy:
             # Q8 remains a candidate. This is a necessary admission floor, not
             # a prediction that weights, caches and the task will fit.
             if cell.get("candidate"):
-                lock = json.loads((self.package_root / cell["lock"]).read_bytes())
-                artifact = lock["records"]["artifacts"][lock["records"]["layouts"][cell["layout"]]["artifact"]]
-                minimum = sum(item["bytes"] for item in artifact["files"]) + 4 * 1024**3
+                minimum = cell["minimum_engine_memory_bytes"]
                 if minimum > self.limit:
                     row.update(status="preflight-refused", failure={"kind": "memory-admission", "message": "weights plus 4 GiB minimum headroom exceed the approved engine budget"})
                     return row
@@ -287,7 +285,7 @@ class SplashStudy:
                     # Readiness starts the upstream model without a warm-up
                     # generation. Each coding task gets a fresh process.
                     endpoint = "/health/ready" if cell["family"] == "rapid-mlx" else "/health"
-                    monitored_call(probe, "/upstream/" + cell["layout"] + endpoint, {}, self.remaining(1800), method="GET")
+                    monitored_call(probe, "/upstream/" + cell["preset"] + endpoint, {}, self.remaining(1800), method="GET")
                     startup = time.monotonic() - started
                     result = (self.coding_case(probe, cell, material, case, stage) if cell["kind"] == "coding"
                               else self.context_cases(probe, cell, material, stage))

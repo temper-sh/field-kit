@@ -11,7 +11,7 @@
     "program": "temper",
     "minimum_version": "0.1.0-alpha.11",
     "required_primitives": [
-      "catalog-compile",
+      "execution-configure",
       "execution-inspect",
       "execution-paths",
       "execution-prepare",
@@ -22,7 +22,7 @@
     ]
   },
   "question": "What context fits on 36 GiB with Splash, and which engines and larger quants are useful on larger Macs?",
-  "decision": "Add attributable context brackets, engine/quant viability and completed-work performance after review.",
+  "decision": "Use reviewed context, memory and completed-work evidence to improve preset cards, fit estimates and engine/quant choices.",
   "kind": "bounded-adaptive",
   "summary": "36 GiB: Splash filled context and UD-Q4/Q5/Q6. 48 GiB+: Splash, Rapid MLX, vLLM Metal and llama.cpp Q5/Q6, with Q8 as a preflighted candidate.",
   "evidence_scope": "One exact Mac and first-attempt workload. Different weight/template compositions remain distinct; no engine-only causal claim, global context maximum or broad quality qualification.",
@@ -76,7 +76,7 @@
   },
   "execution_lock": {
     "path": "execution.lock.json",
-    "sha256": "a9a863268a3bfa7bb7bc46e7d3afdd8e0b3c62c52ffb9ca01c566f27a7ae0438"
+    "sha256": "1634c43808008258bac495605ee5c91eeff03b6b43d8cdf86a4e57cb0a6b4870"
   },
   "investigation": {
     "schema": "field-kit-investigation/v2",
@@ -616,7 +616,7 @@
     "protocols": [
       {
         "path": "protocol.json",
-        "sha256": "e08b47e2cc2275d4b8716ded676b32626ee438253bca363062b11d07ef5ce696"
+        "sha256": "fdb09b3235574704c6f252b6683fca5b9bc39cc890f21f68cb2554e185efe9c2"
       },
       {
         "path": "workloads.json",
@@ -628,35 +628,35 @@
       },
       {
         "path": "executions/splash-q4.json",
-        "sha256": "a9a863268a3bfa7bb7bc46e7d3afdd8e0b3c62c52ffb9ca01c566f27a7ae0438"
+        "sha256": "1634c43808008258bac495605ee5c91eeff03b6b43d8cdf86a4e57cb0a6b4870"
       },
       {
         "path": "executions/splash-q5.json",
-        "sha256": "7ebe9be5151892ba74e88bb3c2462245c4a4fc1c8841de1fcc3ffdb7859bc467"
+        "sha256": "a95269f5b3f22782818d811a45b3a3dd2f1dbe38bbefc6dc334c8e4af56301b6"
       },
       {
         "path": "executions/splash-q6.json",
-        "sha256": "8f3d06bbb0895bb563d19fdf8cdf2b33466406a5489dd5486ee1fd5de7c6550c"
+        "sha256": "4f35f5ccf4d675d61077513b652b986184adae6efbfcaf77ce8b8b830a2344fd"
       },
       {
         "path": "executions/rapid-mlx.json",
-        "sha256": "3a6037ea4435fc5ac178450e725437f5009c917243ee0bf6d9b9ae06e74cc4d7"
+        "sha256": "10cea10626c3f4961a7b6c99e2d97cd51d503a8235d676ee6ccd26fa4db55dc6"
       },
       {
         "path": "executions/vllm-metal.json",
-        "sha256": "42fc336f7b37be779f28a4a5aa881745eb095595c583db82395ec276bca17b07"
+        "sha256": "9f52d1c1c4298ca2e5f9553778f2b8e4d17377f822b9393927eb032187a83ef2"
       },
       {
         "path": "executions/llama-q5.json",
-        "sha256": "5b31b05151b64dafbc2689f4db746a1b02f9923262a8cbf0d2c5751e45d69741"
+        "sha256": "da6aa504298df307b0546bc21d4519d43f52123e8ebeefe959f1efa9b6c206b9"
       },
       {
         "path": "executions/llama-q6.json",
-        "sha256": "4f53b4506f16390e681168a8953e7b2b21e2366f6e0a93ac6724351479703450"
+        "sha256": "ff59bd2a1e9124b652cb798affc8b679a5cb3590b838332fa00c7c74deb89bad"
       },
       {
         "path": "executions/llama-q8.json",
-        "sha256": "5eeccc4ee51630308a55adfddbca6815a4785ed5fe077e2c5d6449274a36a7a6"
+        "sha256": "747f61e0a46aabdc9bf799ccfb00c23423202b911ea5fc6ff98e5fc3b5da8405"
       }
     ],
     "runtime_protocol": {

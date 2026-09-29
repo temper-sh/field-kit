@@ -1,16 +1,13 @@
 {
-  "schema": "temper-execution-lock/v2",
-  "source_snapshot_sha256": "01ec7f43440028c5e4b2cfb7b58e6384b1ee5830df34f7cfb79015f2013252bc",
-  "selection": {
-    "schema": "temper-selection/v2",
-    "profile": "splash-q4"
-  },
+  "schema": "temper-execution-lock/v3",
+  "source_snapshot_sha256": "e001366c0603c3aab9e62eae1764c66de7587e82c3acc3ef1c35e68a93fe1c18",
+  "preset": "splash-q4",
   "target": {
     "os": "darwin",
     "arch": "arm64"
   },
   "records": {
-    "schema": "temper-catalog/v2",
+    "schema": "temper-catalog/v3",
     "date": "2026-09-27",
     "runtime": {
       "router": {
@@ -198,8 +195,7 @@
             "sha256": "67fc76d68dc5a9415511a4f394ef744d67510cd20e93b37cc2cc7d28e4bab65c"
           }
         ],
-        "license": "Apache-2.0",
-        "description": "Architecture-matched DFlash2 sidecar selected by Splash 1.1.0. Included with the Qwen–Splash layout."
+        "license": "Apache-2.0"
       },
       "qwen3.8-27b-q4xl": {
         "model_name": "Qwen3.8 27B",
@@ -214,8 +210,7 @@
             "sha256": "3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e"
           }
         ],
-        "license": "Apache-2.0",
-        "description": "Useful for source-based document work and verified tool workflows. Strict output formats and Swedish prose need review."
+        "license": "Apache-2.0"
       }
     },
     "patches": {
@@ -276,7 +271,7 @@
         ]
       }
     },
-    "layouts": {
+    "presets": {
       "splash-q4": {
         "display_name": "splash-q4",
         "memory_tier": "S",
@@ -318,23 +313,7 @@
           "request_timeout_seconds": 14400
         }
       }
-    },
-    "profiles": {
-      "splash-q4": {
-        "bindings": [
-          {
-            "layout": "splash-q4",
-            "route": "default",
-            "residency": "resident",
-            "idle_ttl_seconds": 0,
-            "preload": false
-          }
-        ],
-        "gpu_memory_utilization": 0.75
-      }
     }
   },
-  "digests": {
-    "profile": "517c8f676c44c39da993989230157efe9c0e2a2a8d9a7aeb50f79e3567f98b5a"
-  }
+  "execution_digest": "0749370263a847960b82c28f93b8498d0a481c6d7888714797239751f041d27d"
 }
