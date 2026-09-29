@@ -14,21 +14,19 @@ cd field-kit
 ./setup.sh
 ```
 
-Setup installs signed Temper 0.1.0-alpha.9 and Python under `.local/`.
+Setup installs signed Temper 0.1.0-alpha.11 and Python under `.local/`.
 It downloads about 31 MB, verifies the Temper release's checksum and
 signature, and needs no administrator access. Rerunning setup checks and reuses
 the installation. Keep unfinished earlier runs in their original checkout.
 
-Revision 4 requires a development Temper build with the Qwen study support;
-the signed bootstrap host cannot run it. Follow the
-[development host instructions](DEVELOPMENT.md) and pass the resulting binary
-with `--temper` on each command below until a compatible signed release ships.
+The installed host supports revision 4 directly. Setup opens the machine check
+and consent flow after verifying the tools.
 
 To install the tools and inspect the experiment before deciding to run it:
 
 ```sh
 ./setup.sh --install-only
-./field-kit contribute --temper /absolute/path/to/temper --preview
+./field-kit contribute --preview
 ```
 
 The preview checks your machine and shows the limits. It downloads no models
@@ -48,7 +46,7 @@ recorded experiment.
 To start after inspecting the preview:
 
 ```sh
-./field-kit contribute --temper /absolute/path/to/temper
+./field-kit contribute
 ```
 
 The selected RAM bucket fixes the matrix; there is no tuning submenu. The full
@@ -63,7 +61,7 @@ experiment to stop its processes and save partial results.
 To continue after an interruption, run this from the same folder:
 
 ```sh
-./field-kit contribute --temper /absolute/path/to/temper
+./field-kit contribute
 ```
 
 If initial tool installation failed, rerun `./setup.sh`. An interrupted Python
@@ -80,7 +78,7 @@ Once a run is complete, repeating the command shows its result again. To deliber
 start another run while keeping earlier results:
 
 ```sh
-./field-kit contribute --temper /absolute/path/to/temper --new
+./field-kit contribute --new
 ```
 
 ## Return the result

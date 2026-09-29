@@ -9,7 +9,7 @@
       "availability": "qualifying",
       "package_path": "packages/qwen-machine-study@4/package.json",
       "package_sha256": "8175da8ef85df2ca1149307f6c97c2e166ae173dfa593f3c3efef22f16598164",
-      "reason": "Prepared matrix and pinned runners. First study runs on 36 GiB and 48 GiB+ Macs and a matching signed Temper release are pending."
+      "reason": "Pinned matrix and runners with signed Temper alpha.11 support. First study runs on 36 GiB and 48 GiB+ Macs remain pending."
     }
   ]
 }

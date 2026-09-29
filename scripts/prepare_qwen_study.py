@@ -127,7 +127,7 @@ def main(args):
     write(root / "catalog/questions.json", {"schema":"field-kit-question-catalog/v3", "revision":4,
         "compiled_at":"2026-09-29T00:00:00Z", "questions":[{"id":package["id"], "revision":4, "availability":"qualifying",
             "package_path":"packages/qwen-machine-study@4/package.json", "package_sha256":identity("package.json")["sha256"],
-            "reason":"Prepared matrix and pinned runners. First study runs on 36 GiB and 48 GiB+ Macs and a matching signed Temper release are pending."}]})
+            "reason":"Pinned matrix and runners with signed Temper alpha.11 support. First study runs on 36 GiB and 48 GiB+ Macs remain pending."}]})
 
 
 if __name__ == "__main__":

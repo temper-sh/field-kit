@@ -14,7 +14,7 @@ Follow an experiment's link for its requirements, run options and method.
 
 | Experiment | Useful result | Requirements | Status |
 |---|---|---|---|
-| [Qwen machine study](docs/experiments/qwen-machine-study.md) | Splash context on 36 GiB; engine and larger-quant performance on 48 GiB+ | Apple M3 or newer, macOS 26.4+; 36 GiB or ≥48 GiB RAM; ≥27 GiB effective Metal budget; 130 / 234 GiB free disk | Revision 4; development host required; first study runs pending |
+| [Qwen machine study](docs/experiments/qwen-machine-study.md) | Splash context on 36 GiB; engine and larger-quant performance on 48 GiB+ | Apple M3 or newer, macOS 26.4+; 36 GiB or ≥48 GiB RAM; ≥27 GiB effective Metal budget; 130 / 234 GiB free disk | Revision 4 ready for contributors; first study runs pending |
 
 The study reuses two Flask coding tasks from the Splash comparison. Results
 retain first attempts, including failed startup and incomplete work, and need
@@ -33,9 +33,9 @@ Setup downloads a signed [Temper](https://github.com/temper-sh/temper)
 release and a private Python runtime into this folder. The bootstrap needs no
 Homebrew or administrator access and supports Apple Silicon macOS.
 
-The current study also needs a compatible development Temper build. Setup
-installs the bootstrap tools without opening the study; follow the
-[development host instructions](docs/DEVELOPMENT.md) before starting it.
+Setup installs Temper 0.1.0-alpha.11 and opens the study's machine check and
+consent flow. Use `./setup.sh --install-only` to install the tools, then
+`./field-kit contribute --preview` to inspect the plan before deciding to run.
 
 Before an experiment starts, Field Kit checks your machine, shows the download,
 disk and time limits, and asks for confirmation. The experiment guide explains

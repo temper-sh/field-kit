@@ -3,8 +3,8 @@
 Find how much context Qwen3.8 27B can use on a 36 GiB Mac with Splash, and which
 engines and larger model builds complete useful coding work on larger Macs.
 
-Package: `qwen-machine-study@4`. A compatible development Temper build is
-required; see [setup and development](../DEVELOPMENT.md). The software and
+Package: `qwen-machine-study@4`. Setup installs the compatible signed Temper
+0.1.0-alpha.11 host; see [setup and running](../START.md). The software and
 workload are frozen. First study runs on 36 GiB and 48 GiB+ Macs
 are still pending. Earlier measurements remain attached to their producing
 source and are not relabeled as this study.
@@ -222,9 +222,9 @@ before starting a new study; keep the limit unchanged during an unfinished run.
    ./field-kit contribute --preview
    ```
 
-   Use the same `--temper /absolute/path/to/temper` argument as in the
-   [development instructions](../DEVELOPMENT.md). If the check passes, start
-   the study and confirm its plan. Its engine limit is the lower of 75% of RAM,
+   If the check passes, start the study and confirm its plan. If you explicitly
+   chose a development host, keep the same `--temper` argument. The engine
+   limit is the lower of 75% of RAM,
    the observed Metal budget and 96 GiB. A 36 GiB Mac has a 27 GiB study ceiling;
    its observed budget may be lower.
 

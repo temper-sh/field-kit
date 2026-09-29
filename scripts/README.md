@@ -36,15 +36,15 @@ revision 3 seed. The experiment derives bounded context/output/memory settings
 through `execution configure`; it never reads or rewrites the lock's internals.
 Neither command downloads weights or runs inference.
 
-The current eight locks were regenerated with Temper's alpha.11 candidate after
+The current eight locks were regenerated with Temper's alpha.11 build after
 the preset and schema cleanup in `24df332`. The package's minimum remains
-`0.1.0-alpha.11`; signed release verification and the bootstrap pin are the
-remaining contributor delivery steps, as described in the
-[development guide](../docs/DEVELOPMENT.md).
+`0.1.0-alpha.11`; setup pins the verified signed release. See the
+[development guide](../docs/DEVELOPMENT.md) for host changes and older runs.
 
-Changes to a dispatched package require a new revision. Regeneration here is
-for preparation before revision 4 is dispatched. Use the original producer
-checkout to review older reports, as described in the development guide.
+Changes to a dispatched package require a new revision. Regeneration is for
+preparing a new revision, or checking that the exact inputs reproduce. Use the
+original producer checkout to review older reports, as described in the
+development guide.
 
 ## Validation boundary
 

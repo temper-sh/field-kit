@@ -9,25 +9,23 @@ command before consent or downloads. There is no legacy fallback.
 
 The host changes and legacy removal are integrated in Temper `24df332`.
 The package's eight execution locks have been regenerated as v3 with the
-0.1.0-alpha.11 candidate. Alpha.11 remains an unpublished candidate. Setup
-retains signed/notarized alpha.9 for private Python and stops before opening the
-study. Deliver a matching signed host and update the actual version and checksum
-before contributor release.
+0.1.0-alpha.11 build. Setup pins the verified signed/notarized
+[alpha.11 release](https://github.com/temper-sh/temper/releases/tag/v0.1.0-alpha.11)
+and its exact archive checksum. Contributors use the default host; no compiler
+or development checkout is required.
 
-After the tag workflow publishes alpha.11, download and verify its checksum,
-Developer ID signature and notarization, then update `setup.sh` to that exact
-version and archive checksum. Exercise setup and its replay in a fresh clone
-before switching the start guide to the default host. The local unsigned
-rehearsal archive is not a bootstrap input.
+Fresh software-only setup and unchanged replay pass with the published archive
+and private Python 3.14.7. The default setup command reaches machine admission
+without creating a study session on the ineligible development Mac.
 
 Preparation passes package verification and 97 tests on Python 3.9 and 3.14.
-The real alpha.11 candidate accepts both contributor previews with synthetic
+The alpha.11 host accepts both contributor previews with synthetic
 machine facts without creating a session or output. All 17 route cells pass
 configuration, inspection and replay through that host. Preview uses the
 existing local directory to satisfy Temper's output-parent check even during a
 dry run. These are integration checks, not machine-fit observations.
 
-Build the prepared Temper checkout without loading a model:
+For host development, build the Temper checkout without loading a model:
 
 ```sh
 temper_source=/absolute/path/to/temper-checkout
@@ -39,8 +37,8 @@ temper_source=/absolute/path/to/temper-checkout
 A preview is read-only. Omit `--preview` to review and consent to the exact
 machine route before any model download or inference. Pass the same `--temper`
 path when resuming. Development binaries are accepted locally; their exact
-bytes remain bound by consent. Before dispatch, deliver the matching signed
-host, set its actual release minimum and bootstrap pin, and verify setup with it.
+bytes remain bound by consent. Future host updates require verification of the
+signed release and a matching bootstrap pin before contributor delivery.
 
 The [study guide](experiments/qwen-machine-study.md) owns the matrix, costs and
 method. [Authoring instructions](../scripts/README.md) describe regeneration.
