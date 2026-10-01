@@ -10,7 +10,7 @@ model compositions in `temper-catalog/v3` presets. Execution locks are opaque,
 compiled snapshots for the dispatched study. No dependency resolver runs on a
 participant's machine.
 
-## Rebuild from the reviewed inputs
+## Reproduce the package from reviewed inputs
 
 From this repository, substitute the actual source paths:
 
@@ -36,10 +36,9 @@ revision 3 seed. The experiment derives bounded context/output/memory settings
 through `execution configure`; it never reads or rewrites the lock's internals.
 Neither command downloads weights or runs inference.
 
-The current eight locks were regenerated with Temper's alpha.11 build after
-the preset and schema cleanup in `24df332`. The package's minimum remains
-`0.1.0-alpha.11`; setup pins the verified signed release. See the
-[development guide](../docs/DEVELOPMENT.md) for host changes and older runs.
+The package requires Temper `0.1.0-alpha.11`; setup pins the verified signed
+release. See the [development guide](../docs/DEVELOPMENT.md) for the host
+interface and reviewing older runs.
 
 Changes to a dispatched package require a new revision. Regeneration is for
 preparing a new revision, or checking that the exact inputs reproduce. Use the

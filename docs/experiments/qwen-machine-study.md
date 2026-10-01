@@ -1,156 +1,153 @@
 # Qwen machine study
 
-Find how much context Qwen3.8 27B can use on a 36 GiB Mac with Splash, and which
-engines and larger model builds complete useful coding work on larger Macs.
+Help find out how much text Qwen3.8 27B can handle on a 36 GiB Mac, and whether
+other engines or larger model files improve coding on Macs with more memory.
+The results will inform Temper's presets and memory guidance.
 
-Package: `qwen-machine-study@4`. Setup installs the compatible signed Temper
-0.1.0-alpha.11 host; see [setup and running](../START.md). The software and
-workload are frozen. First study runs on 36 GiB and 48 GiB+ Macs
-are still pending. Earlier measurements remain attached to their producing
-source and are not relabeled as this study.
-
-## What runs on your Mac
-
-| Physical RAM | Splash | Rapid MLX | vLLM Metal | llama.cpp |
-|---|---|---|---|---|
-| 36 GiB | UD-Q4 coding reference and filled-context ladder; UD-Q5/Q6 fit and coding | — | — | — |
-| 48 GiB+ | UD-Q4/Q5/Q6 fit and coding | Shared MLX 4-bit, coding | Shared MLX 4-bit, coding | UD-Q5/Q6 coding; UD-Q8 candidate after memory admission |
-
-32 GiB remains existing reference evidence. There is no intermediate bucket.
-Each coding cell runs the same two Flask tasks once. Larger quants retain more
-weight precision; this study measures whether that improves completed work and
-what it costs. Q8 admission requires its weights plus 4 GiB minimum headroom to
-fit the approved engine budget. Admission alone does not establish runtime fit.
+This study needs **Apple M3 or newer, macOS 26.4+, and either 36 GiB or at least
+48 GiB RAM**. Measurements on these machines are still pending. The existing
+32 GiB results are a reference, not proof that these configurations fit.
 
 ## Requirements and cost
 
-Apple M3 or newer, macOS 26.4 or newer, and an effective Metal memory budget of
-at least 27 GiB are required. Field Kit checks physical RAM, the chip, OS, budget
-and free disk before consent. It does not change system memory settings.
+Field Kit checks your chip, macOS version, memory and free disk before asking
+you to run. It also requires at least **27 GiB available to Metal**, Apple's GPU
+interface. Enough physical RAM does not always mean macOS allows that much GPU
+memory; see [the memory check](#adjust-the-wired-memory-limit) if it fails.
 
-| Limit | 36 GiB route | 48 GiB+ route |
+| Limit | 36 GiB Mac | Mac with 48 GiB or more |
 |---|---:|---:|
 | Download ceiling | 86.1 GiB | 188.4 GiB |
 | Free disk required | 129.3 GiB | 233.7 GiB |
-| Retained evidence ceiling | 3 GiB | 3 GiB |
-| Coding cells | 3 | 8 |
-| Filled-context points | Up to 6 | — |
+| Saved results ceiling | 3 GiB | 3 GiB |
+| Coding configurations, with two tasks each | 3 | 8 |
+| Long-input sizes tested | Up to 6 | — |
 
-These conservative bounds do not assume cross-preset download reuse or shared
-file storage. A coding cell permits six hours of preparation, two four-hour
-requests, two thirty-minute startups and grading/cleanup: at most 920 minutes.
-Each context point permits 440 minutes; final cleanup permits 90 minutes.
-Initial preparation has its own six-hour limit. The shared measurement ceiling
-is 7,450 minutes. These are hard bounds, not expected completion times. A
-particular route can finish much earlier, including after failed admission.
+**Allow for a long run.** The shared measurement limit is 124 hours 10 minutes
+(7,450 minutes), with a separate six-hour initial preparation limit. These are
+hard ceilings, not expected completion times. A run may finish much earlier,
+including when a configuration cannot fit.
 
-Use [the run guide](../START.md) to preview and start. Connect power, prevent
-sleep and close demanding applications. One confirmation covers the selected
-finite matrix. No failed model request is retried or repaired automatically.
+Each coding configuration allows up to 15 hours 20 minutes: six hours to
+prepare, two four-hour requests, two thirty-minute startups, and time for
+grading and cleanup. Each long-input size allows 7 hours 20 minutes. Final
+cleanup allows 90 minutes. Download and disk estimates do not assume that files
+can be reused between configurations.
 
-## Frozen compositions
+Follow the [run guide](../START.md) to preview and start. Keep the Mac on power
+and awake, and close demanding applications. One confirmation covers the
+displayed tests. Failed requests are kept as results and are not retried or
+repaired automatically.
 
-| Component | Exact selection |
+## What runs on your Mac
+
+| Memory | Tests |
 |---|---|
-| Splash | 1.1.0; GGUF UD-Q4/Q5/Q6, Frog v22.5, external DFlash2 draft |
+| 36 GiB | Splash with Q4 weights for coding and progressively longer inputs, then Q5 and Q6 weights for coding. |
+| 48 GiB or more | Splash with Q4, Q5 and Q6; Rapid MLX and vLLM Metal with the same 4-bit MLX weights; llama.cpp with Q5, Q6 and, if it meets the memory check, Q8. |
+
+Q4, Q5, Q6 and Q8 are compressed model builds. Larger numbers generally retain
+more precision and need more memory. The study asks whether that extra memory
+helps with completed work. The Q8 test is admitted only if its weights leave
+at least 4 GiB within the engine's memory budget; actual runtime fit still needs
+measurement. Other RAM sizes below 48 GiB are outside this study.
+
+Each coding configuration attempts the same two Flask tasks once. These are
+comparisons of complete setups: the model format, template and acceleration
+method can differ along with the engine.
+
+## How the results are checked
+
+The two tasks ask for an asynchronous streaming change and a template-decorator
+change. Each model receives the same frozen Flask source and submits a patch.
+The original tests, independent tests and tests written by the model run
+separately in a local macOS sandbox. Review of a returned result does not execute
+the generated Python again.
+
+Passing tests still needs code review. One task's tests do not catch a known
+cleanup-error weakness; passing them does not establish that the patch is
+ready to use or that the model is reliable at coding generally.
+
+The report separates preparation, startup, first output, first answer, total
+request time, test results, memory use and swap growth. It uses engine-reported
+token counts and timing where available. Streaming rate is labeled separately
+because it includes transport overhead and batches of generated tokens.
+Incorrect answers keep their timings but do not count as successful work.
+
+### Long inputs on 36 GiB
+
+Splash with Q4 weights tests total windows of **32,768, 65,536, 98,304, 131,072,
+196,608 and 262,144 tokens**. A token is a piece of text; the window must hold
+the input, conversation and answer together.
+
+Each initial input uses the window minus 5,120 tokens, leaving 4,096 for the
+answer and 1,024 for continuation. The engine's own template and tokenizer
+prepare the input, and its reported count must agree.
+
+Five facts are spread through the input. The first answer must recover three;
+a follow-up must recover the other two with 4,096 tokens of output room still
+available. Each request has a thirty-minute limit. The first unsuccessful size
+stops larger sizes; the other coding tests may continue if the machine and
+shutdown checks permit.
+
+The result identifies the largest successful size, the next unsuccessful one,
+and their waiting times and memory use. It tests retrieval at sampled sizes,
+not general reasoning over long documents or a universal context limit.
+
+### How this helps Temper
+
+These measurements can improve the wizard's memory estimates and tested
+context choices. They keep configured limits separate from measured memory
+use. A short coding prompt in a large configured window does not establish
+that the model can use the whole window.
+
+Results are reviewed before changing a preset. Different software, templates,
+memory limits or machines may change what a measurement supports.
+
+## Failures, stopping and cleanup
+
+Startup failures, memory errors, incompatible formats, truncated answers and
+invalid patches remain separate results. Stopped requests retain partial
+answers. A safe engine failure permits the next test; resource-limit stops,
+thermal or CPU throttling, excessive swap, missing counters or uncertain
+process ownership end further measurement.
+
+The engine's memory cap is the lowest of 75% of RAM, the effective Metal budget
+and 96 GiB. Separate limits are 2 GiB for the router, 2 GiB for Splash's
+frontend, 4 GiB for vLLM's frontend and 256 MiB for its Python resource tracker.
+Additional swap is limited to 512 MiB. Process peaks are reported separately;
+adding them would not establish total physical memory use.
+
+Field Kit removes its model and engine installation after Temper confirms
+shutdown. Failed cleanup leaves the installation for recovery. Reports stay
+local. See [interruption and recovery](../START.md#stop-or-continue).
+
+## Exact test configuration
+
+This guide describes `qwen-machine-study@4`, using signed Temper
+`0.1.0-alpha.11`. The software and tasks are fixed so returned runs can be
+compared.
+
+| Component | Selection |
+|---|---|
+| Splash | 1.1.0; GGUF UD-Q4/Q5/Q6, Frog v22.5 template, external DFlash2 draft |
 | Rapid MLX | 0.15.2; native MLX 4-bit weights and template; no draft |
-| vLLM Metal | 0.30.0 with vLLM 0.30.0+cpu; the same MLX weights/template; no draft |
+| vLLM Metal | 0.30.0 with vLLM 0.30.0+cpu; the same MLX weights and template; no draft |
 | llama.cpp | b11205; GGUF UD-Q5/Q6/Q8, Frog v22.5, embedded MTP |
 | Router | llama-swap v260 |
 | Coding request | 118,000-token total window; medium reasoning; seed 17; temperature 1; top-p 0.95; top-k 20 |
 
 The [execution locks](../../catalog/packages/qwen-machine-study@4/executions/)
-retain artifact revisions, software dependencies and all engine settings.
-The output allowance is the total window minus the engine's native prompt
-count, matching the completed Splash comparison. Token counts must agree with
-the delivered response. A fresh engine starts for each coding task, with no
-warm-up generation. Verification may warm filesystem caches; storage-cold
-startup is not claimed.
+record exact files, software and settings; the
+[workload](../../catalog/packages/qwen-machine-study@4/workloads.json) defines
+the tasks and checks.
 
-Different formats, templates and draft mechanisms make these comparisons of
-usable compositions. They do not isolate engine implementation as the cause of
-a performance or quality difference. The previous Q4 Splash/llama decision is
-already established; this matrix does not repeat that contest.
+For coding, the output allowance is the total window minus the engine's prompt
+count. Counts must agree with the delivered response. A fresh engine starts
+for each task without warm-up generation. File verification may warm disk
+caches, so these runs do not measure startup from a cold disk cache.
 
-## Coding correctness and performance
-
-The [frozen workload](../../catalog/packages/qwen-machine-study@4/workloads.json)
-reuses `async-stream` and `template-decorators`, the original Flask source
-packet, restricted `submit_patch` tool contract and independent oracles. Each
-first submission is retained. Original tests, independent tests and the model's
-new tests run separately in a local macOS sandbox using a locked evaluator.
-Returned-result review never executes generated Python.
-
-Passing tests is a candidate for source review. The retained async task's
-cleanup-error caveat remains outside the frozen oracle; this revision does not
-silently strengthen the old task or claim broad coding qualification.
-
-The report separates preparation, model startup, first output, first answer,
-request time, test outcomes, engine RAM and swap growth. Prompt processing
-(prefill) and generation rates use native counters when available; missing
-counters remain unmeasured. Observed streaming output rate is labeled separately
-and includes transport overhead and speculative batches. Incorrect answers
-retain their timing but do not count as successful completed work.
-
-## Filled context on 36 GiB
-
-Splash UD-Q4 tests total windows of **32,768, 65,536, 98,304, 131,072, 196,608 and
-262,144 tokens**. Each point fills the initial prompt to window minus 5,120,
-reserving 4,096 output tokens and 1,024 for continuation. The native template and
-tokenizer construct the prompt, and the response must confirm the count.
-
-Five ledger facts are distributed across the input. The initial answer must
-recover three correctly; a follow-up must recover the other two while retaining
-4,096 output tokens of room. Each request has a thirty-minute limit. The first
-unsuccessful point stops larger context points; the larger-quant coding cells
-can still run if shutdown and machine conditions permit.
-
-The result gives the largest successful input and total window, the next
-unsuccessful point, and latency/memory observations. Untested sizes stay unknown.
-This is a sampled bracket under declared limits, not a universal context ceiling
-or a claim about long-document reasoning.
-
-## Evidence for Temper's preset cards
-
-The study also supplies the evidence needed to improve the wizard's memory
-guidance and tested-context choices. Each configured cell retains Temper's
-context identity, total window, output allowance and explicit memory limit.
-The result includes the Mac's chip, RAM and effective Metal budget, per-role
-peak RSS and footprint, swap growth, first-output/answer latency and failures.
-Configured limits stay separate from measured peaks; process peaks are not
-summed into an alleged physical-memory total.
-
-The wizard currently estimates from weight sizes and declared caps. These runs
-can expose missing KV-cache or runtime overhead in that estimate. A reviewed
-successful filled-context point can support a catalog `context_findings` entry
-for the exact tested composition and machine. A coding pass at 118,000 configured
-tokens does not establish filled-context capacity at that size.
-
-Field Kit does not change the catalog or automatically recommend a preset.
-Review returned evidence before updating Temper's authored cards and estimates.
-Different software, templates, memory caps or machines need an explicit
-assessment; a preset's name alone is not a match.
-
-## Failures, stopping and cleanup
-
-Startup failures, out-of-memory errors, incompatible formats, truncated answers
-and invalid submissions remain distinct observations. A stopped request keeps
-its partial response. A safe engine failure permits the next matrix cell;
-resource watcher stops, thermal/CPU throttling, excessive swap, missing counters
-or uncertain process ownership end further measurement.
-
-The engine limit is the minimum of 75% of RAM, the effective Metal budget and
-96 GiB. The router has a separate 2 GiB limit; Splash's frontend has 2 GiB,
-vLLM's frontend 4 GiB and its Python resource tracker 256 MiB. Additional swap
-is limited to 512 MiB. Per-process RAM is retained separately, not summed into
-a claimed physical-memory total.
-
-Temper verifies exact process identities, loopback listeners and shutdown.
-Field Kit removes its installation only after shutdown is confirmed. Failed
-cleanup retains the installation for recovery. Reports and evidence stay local.
-See [interruption and recovery](../START.md#stop-or-continue).
-
-### Adjust the wired-memory limit
+## Adjust the wired-memory limit
 
 A Mac with enough physical RAM can still fail the GPU memory check:
 
@@ -158,11 +155,9 @@ A Mac with enough physical RAM can still fail the GPU memory check:
 requires at least 27648 MiB wired limit, found 24576
 ```
 
-The current Temper host reads Metal's recommended working set directly. Its
-`wired_limit_mib` field is the effective budget; `wired_limit_override_mib`
-records the raw sysctl setting separately when available. A zero override means
-macOS chooses the budget. Earlier hosts estimated a default from physical RAM;
-their historical observations retain that label and value.
+Temper reads the memory budget reported by Metal. A system setting can override
+macOS's default; an override of zero leaves the choice to macOS. Field Kit
+reports both values and does not change them.
 
 For this study, use **75% of physical RAM, capped at 96 GiB**. That is the
 highest engine memory budget the study permits; a higher wired limit does not
@@ -199,7 +194,7 @@ before starting a new study; keep the limit unchanged during an unfinished run.
 
    **Save the printed rollback command** so it remains available if you close
    Terminal. A current value of `0` means macOS chooses the limit automatically;
-   preserve that raw value rather than Field Kit's estimate. If either `sysctl`
+   preserve that raw value rather than Metal's reported budget. If either `sysctl`
    read fails, stop and send the error to the maintainer.
 
 2. Only if the effective Metal budget fails the study's 27 GiB requirement,

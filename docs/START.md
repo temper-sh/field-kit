@@ -14,13 +14,12 @@ cd field-kit
 ./setup.sh
 ```
 
-Setup installs signed Temper 0.1.0-alpha.11 and Python under `.local/`.
+Setup installs the experiment's signed Temper release and Python under `.local/`.
 It downloads about 31 MB, verifies the Temper release's checksum and
 signature, and needs no administrator access. Rerunning setup checks and reuses
 the installation. Keep unfinished earlier runs in their original checkout.
 
-The installed host supports revision 4 directly. Setup opens the machine check
-and consent flow after verifying the tools.
+Setup opens the machine check and confirmation flow after verifying the tools.
 
 To install the tools and inspect the experiment before deciding to run it:
 
@@ -49,9 +48,9 @@ To start after inspecting the preview:
 ./field-kit contribute
 ```
 
-The selected RAM bucket fixes the matrix; there is no tuning submenu. The full
-48 GiB+ route downloads several model compositions. Read the displayed costs
-before accepting.
+The experiment chooses its tests from your machine's available memory. You do
+not need to tune the model or engine settings. Read the displayed costs before
+accepting.
 
 ## Stop or continue
 

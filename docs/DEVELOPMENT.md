@@ -1,31 +1,33 @@
-# Developing Field Kit and reviewing dispatched runs
+# Develop Field Kit and review returned runs
 
-The current package is `qwen-machine-study@4`. It targets the current preset
-machinery: `catalog compile --preset` for authoring, and `execution configure`
-for bounded changes to an opaque frozen lock. It also requires `execution
-inspect/prepare/paths/serve/remove`, exact Python supplies and supervised
-Splash/Rapid/vLLM processes. The contributor preview checks the configuration
-command before consent or downloads. There is no legacy fallback.
+Use this guide when changing Field Kit or reviewing a report from an older
+study. To contribute a measurement, use the [run guide](START.md).
 
-The host changes and legacy removal are integrated in Temper `24df332`.
-The package's eight execution locks have been regenerated as v3 with the
-0.1.0-alpha.11 build. Setup pins the verified signed/notarized
-[alpha.11 release](https://github.com/temper-sh/temper/releases/tag/v0.1.0-alpha.11)
-and its exact archive checksum. Contributors use the default host; no compiler
-or development checkout is required.
+## Check a change
 
-Fresh software-only setup and unchanged replay pass with the published archive
-and private Python 3.14.7. The default setup command reaches machine admission
-without creating a study session on the ineligible development Mac.
+Field Kit uses the Python standard library and supports Python 3.9 or newer.
+CI checks Python 3.9 and 3.14. From the repository root:
 
-Preparation passes package verification and 97 tests on Python 3.9 and 3.14.
-The alpha.11 host accepts both contributor previews with synthetic
-machine facts without creating a session or output. All 17 route cells pass
-configuration, inspection and replay through that host. Preview uses the
-existing local directory to satisfy Temper's output-parent check even during a
-dry run. These are integration checks, not machine-fit observations.
+```sh
+./field-kit verify
+python3 -m unittest discover -v
+```
 
-For host development, build the Temper checkout without loading a model:
+These checks use synthetic responses and temporary processes. They do not run
+a model or establish that a configuration fits a contributor's Mac.
+
+Qwen-specific code lives in `fieldkit_runtime/experiments/qwen/`. Shared code
+handles confirmation plans, limits, sessions, measurements and reports. Temper
+handles model and software installation, rendering, process identity and
+shutdown. Keep those responsibilities separate.
+
+## Use a development Temper build
+
+The current `qwen-machine-study@4` package needs Temper `0.1.0-alpha.11`.
+Normal setup installs the signed release and verifies its checksum.
+Contributors need no compiler or Temper checkout.
+
+For host development, build an existing Temper checkout and preview the study:
 
 ```sh
 temper_source=/absolute/path/to/temper-checkout
@@ -34,53 +36,37 @@ temper_source=/absolute/path/to/temper-checkout
 ./field-kit contribute --temper "$temper_source/build/temper" --preview
 ```
 
-A preview is read-only. Omit `--preview` to review and consent to the exact
-machine route before any model download or inference. Pass the same `--temper`
-path when resuming. Development binaries are accepted locally; their exact
-bytes remain bound by consent. Future host updates require verification of the
-signed release and a matching bootstrap pin before contributor delivery.
+Preview checks the machine and required host commands without downloading
+models or creating a study session. Omit `--preview` only when ready to review
+and accept the displayed run. Pass the same `--temper` path when resuming;
+the exact executable, runtime and experiment inputs are part of the accepted
+plan.
 
-The [study guide](experiments/qwen-machine-study.md) owns the matrix, costs and
-method. [Authoring instructions](../scripts/README.md) describe regeneration.
-All eight configurations compile and render offline. Both exact Python engine
-environments installed on the development Mac, passed `pip check`, and accepted
-the selected CLI options. The extracted evaluator reproduced the retained
-Splash patches' original/independent test outcomes and rejected unchanged Flask
-baselines. These checks establish preparation and grading behavior. No new
-model inference or weight download was used for this preparation; eligible
-36 GiB and 48 GiB+ study runs remain pending.
+The package uses compiled execution locks. It derives bounded context, output
+and memory settings through `temper execution configure`, then uses the
+inspection, preparation, serving and removal commands. Field Kit does not
+interpret or rewrite the locks' internal fields.
 
-Revision 3 at `3400df0` is the receipt-cleanup checkpoint, retaining its
-llama-only workload. Revisions 1–3 keep their original frozen packages. Revision
-4 uses a separate contributor pointer and never resumes or rewrites an older
-study. Use `--new` deliberately for a separate run after keeping old evidence.
+The [study guide](experiments/qwen-machine-study.md) owns requirements, costs and
+method. [Authoring instructions](../scripts/README.md) explain how to prepare a
+new frozen package from reviewed inputs. Updating the normal host also requires
+verifying the signed release and updating the bootstrap pin.
 
-## Dispatched revision 1
+## Preserve unfinished and older runs
 
-Do not update a checkout with an unfinished run. Its exact runtime, Python and
-Temper bytes are part of the approved plan. Revision 4 refuses old sessions and
-leaves their contributor pointers and package files untouched.
-The preserved local producer source is commit
-`f1fc7e0dcb268858dcbe67910a054b99731e6539`.
+Keep an unfinished run in its original checkout. Changing its code, Python,
+Temper binary or package can prevent resumption. Revision 4 uses separate
+sessions and does not migrate earlier runs.
 
-For read-only review, create a separate checkout from that commit:
+To inspect an older report, use a separate checkout of the source that produced
+it. These are the known dispatched sources:
 
-```sh
-git worktree add --detach ../field-kit-dispatched f1fc7e0dcb268858dcbe67910a054b99731e6539
-../field-kit-dispatched/field-kit witness --input /absolute/path/to/result.json \
-  --package ../field-kit-dispatched/catalog/packages/qwen-machine-study@1/package.json
-```
+| Study | Producer source |
+|---|---|
+| Revision 1 | `f1fc7e0dcb268858dcbe67910a054b99731e6539` |
+| Revision 2, returned M3 Pro report | `9a060f1` |
 
-This preserves current development edits. To resume a dispatched run, use its
-unchanged original checkout, interpreter and Temper executable. If that checkout
-was updated, retain its `.local/`, session and evidence and arrange recovery with
-the maintainer; never migrate the session to revision 4 or replay its first
-measurements automatically.
-
-## Dispatched revision 2
-
-The returned September 2026 M3 Pro report was produced by `9a060f1`. Review it
-with that source and the unchanged revision 2 package:
+For example, review the revision 2 report without changing this checkout:
 
 ```sh
 git worktree add --detach ../field-kit-dispatched-2 9a060f1
@@ -88,29 +74,26 @@ git worktree add --detach ../field-kit-dispatched-2 9a060f1
   --package ../field-kit-dispatched-2/catalog/packages/qwen-machine-study@2/package.json
 ```
 
-Other returned runs use the source that produced them. Revision 4 does not
-reinterpret historical exports. Start a separate revision 4 run explicitly
-with `--new`; it does not replace old evidence.
+For other reports, use their recorded producer source and package revision.
+The witness command checks the record; it does not rerun generated code or
+attest the machine.
 
-## Ownership and verification
+Resume using the unchanged original checkout, interpreter and Temper
+executable. If that checkout was updated, retain its `.local/`, session and
+results and arrange recovery with the maintainer. Do not replay first attempts
+automatically. Use `--new` explicitly to start a separate current study.
 
-Each action has one bounded invocation and one retained result, referenced by
-session ID and action attempt. Sessions own those results; the export contains
-the plan and structured session. Logs and the Markdown report are useful views,
-not hashed identities or required inputs to export. Failed or interrupted invocations remain attempts; a later
-action cannot authorize cleanup using an earlier action's shutdown result.
+## Keep measurements and cleanup attributable
 
-File checksums still freeze package inputs and verify downloaded bytes. One plan
-checksum binds consent and rejects changed code, executable or experiment
-inputs on resume. Software receipts compare installed units, target and
-installation directly; source provenance and model settings do not invalidate
-unchanged installed software. Transaction and dependency identities remain
-inside Temper where they support recovery and shared installation ownership.
+Each action has a bounded invocation and a result tied to its session and
+attempt. Failed or interrupted invocations remain attempts. Cleanup must use
+the shutdown result for the processes it is removing.
 
-Qwen-specific code lives in `fieldkit_runtime/experiments/qwen/`. Shared code
-records consent, budgets, sessions and evidence. Temper consumes execution locks
-directly and supplies process identities, listener validation and shutdown
-results. Field Kit retains macOS measurements and experiment stop thresholds.
+Package checksums freeze inputs and verify downloads. The accepted plan binds
+the code, executable and inputs used by a run. Logs and the Markdown report are
+readable views; the export carries the structured plan and session.
 
-Run `./field-kit verify` and `python3 -m unittest discover -v`. Tests use synthetic
-responses and temporary processes; they do not run a model or make public claims.
+Temper owns installation receipts and shared dependency accounting. Field Kit
+records machine observations, resource limits and stop reasons. Keep configured
+memory limits distinct from measured peaks, and leave missing or invalid
+measurements explicit.
