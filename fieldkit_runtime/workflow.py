@@ -88,9 +88,12 @@ def _run_process(
     destinations: tuple[Any | None, Any | None],
     *, protocol_interrupt: bool = False,
 ) -> CommandResult:
+    # Temper needs the caller's HOME, HF cache settings and PATH to locate its
+    # download client. Preserve them through the protocol's nested host calls.
+    # Temper and the candidate evaluator own their runtime isolation.
     process = subprocess.Popen(
         list(arguments), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"}, start_new_session=True,
+        start_new_session=True,
     )
     assert process.stdout is not None and process.stderr is not None
     stdout = bytearray()
@@ -163,7 +166,6 @@ def capture_process(arguments: Sequence[str], timeout_seconds: float = 0) -> Com
             list(arguments),
             capture_output=True,
             check=False,
-            env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"},
             timeout=timeout_seconds if timeout_seconds > 0 else None,
         )
     except subprocess.TimeoutExpired as error:
