@@ -140,6 +140,21 @@ that the model can use the whole window.
 Results are reviewed before changing a preset. Different software, templates,
 memory limits or machines may change what a measurement supports.
 
+### Tune a profile after the smoke test
+
+After this preset completes a valid request on your Mac, you can use the
+[AI tuning prompt](../prompts/tune-machine-profiles.md) to prepare a separate,
+bounded comparison and a local Temper catalog. A profile can vary context,
+KV cache precision, batch settings and memory limits supported by its engine.
+The choice uses correctness, latency and measured memory together.
+
+This follow-up needs Temper's authoring catalog and a matching executable with
+profile support; the study's pinned alpha.11 host predates that schema. The
+prompt guides an AI assistant through the required inputs and exact run plan.
+Finish or recover an unfinished study before tuning, keeping its first attempts
+and settings intact. You choose the additional work and its limits separately.
+The regular contributor command does not start tuning or export profiles.
+
 ### Memory measurements
 
 Splash runs record native Metal allocations after model readiness, every five

@@ -52,6 +52,23 @@ method. [Authoring instructions](../scripts/README.md) explain how to prepare a
 new frozen package from reviewed inputs. Updating the normal host also requires
 verifying the signed release and updating the bootstrap pin.
 
+## AI-guided profile tuning
+
+The [post-smoke prompt](prompts/tune-machine-profiles.md) defines the optional
+route from a working preset to a measured profile in a local Temper catalog.
+It consumes Temper's current profile schema and compiler rather than freezing
+a second catalog representation in Field Kit. Each candidate includes the
+complete engine configuration, so KV/batch changes require catalog compilation
+and measurements of that resolved execution.
+
+This is a prompt for an assistant with repository and terminal access, not an
+automatic contributor stage. It directs the assistant to prepare a separate
+bounded question/driver from existing Field Kit primitives when needed. The
+dispatched revision 6 package, host and CLI remain the comparison route. A
+profile-capable Temper build and matching authoring catalog are prerequisites
+for tuning/export; no future schema version or profile-selection flag is
+assumed here. Model work still needs the machine owner's exact-plan consent.
+
 ## Preserve unfinished and older runs
 
 Keep an unfinished run in its original checkout. Changing its code, Python,
