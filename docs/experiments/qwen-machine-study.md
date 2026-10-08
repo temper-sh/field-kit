@@ -110,6 +110,19 @@ token counts and timing where available. Streaming rate is labeled separately
 because it includes transport overhead and batches of generated tokens.
 Incorrect answers keep their timings but do not count as successful work.
 
+### Compare the submitted solutions
+
+Give an AI coding assistant the [quality comparison prompt](../prompts/compare-qwen-solutions.md)
+and the two runs' `result.json` files. It reviews each delivered patch against
+the frozen task and tests, then compares correctness, latency and memory.
+The review does not run generated Python or repair the measured submissions.
+
+A revision 6 Q4 repeat can be compared with an earlier Q5 run for solution
+quality. For loaded/peak native memory on both sides, explicitly repeat Q5
+under revision 6 as well; its revision 5 report did not collect those counters.
+Keep each original and repeat as its own result. The
+[run guide](../START.md#stop-or-continue) gives both repeat commands.
+
 ### Long inputs on 36 GiB
 
 Splash with Q4 weights tests total windows of **32,768, 65,536, 98,304, 131,072,

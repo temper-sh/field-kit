@@ -143,6 +143,17 @@ repeat. Revision 6 adds native Splash memory measurements with the same model,
 tasks and inference settings. Completed revision 5 chunks still count for
 `--next`. Finish an unfinished run in its original checkout before updating.
 
+An earlier Q5 result remains useful for comparing solutions. To collect native
+memory for Q5 as well, finish Q4 first, then explicitly repeat Q5:
+
+```sh
+./field-kit contribute --configuration splash-q5 --new --preview
+caffeinate -i ./field-kit contribute --configuration splash-q5 --new
+```
+
+Each command runs only its selected configuration. Keep both runs' result and
+report paths; the experiment guide links the AI quality comparison prompt.
+
 Keep unfinished revision 4 studies in their original checkout. They cannot
 be resumed as configuration runs; use a separate checkout for the new study.
 
