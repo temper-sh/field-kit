@@ -13,6 +13,10 @@ from .method import finite, grade, record_value
 RESPONSE_LIMIT = 4 * 1024**2
 
 
+class HTTPResponseError(ProbeError):
+    """The HTTP endpoint rejected a request or exceeded its response bound."""
+
+
 def read_stream(response, started, *, clock=time.monotonic) -> dict:
     content, reasoning = [], []
     first_token = first_answer = None
@@ -68,7 +72,7 @@ def read_stream(response, started, *, clock=time.monotonic) -> dict:
             "stream_complete": done and finish is not None and first_token is not None}
 
 
-def monitored_call(probe, path: str, payload: dict, timeout: float, *, streaming=False, stream_reader=read_stream, method="POST"):
+def monitored_call(probe, path: str, payload: dict, timeout: float, *, streaming=False, stream_reader=read_stream, method="POST", observer=None):
     if timeout <= 0:
         raise TimeoutError("study time budget exhausted")
     connection = http.client.HTTPConnection(probe.host, probe.port, timeout=timeout)
@@ -83,13 +87,13 @@ def monitored_call(probe, path: str, payload: dict, timeout: float, *, streaming
                 sockets.append(connection.sock)
             response = connection.getresponse()
             if response.status != 200:
-                raise ProbeError(f"model HTTP status {response.status}: {response.read(512)!r}")
+                raise HTTPResponseError(f"model HTTP status {response.status}: {response.read(512)!r}")
             if streaming:
                 result = stream_reader(response, started)
             else:
                 raw = response.read(RESPONSE_LIMIT + 1)
                 if len(raw) > RESPONSE_LIMIT:
-                    raise ProbeError("response exceeded 4 MiB")
+                    raise HTTPResponseError("response exceeded 4 MiB")
                 result = json.loads(raw) if raw else {}
             results.append(result)
         except Exception as error:
@@ -106,6 +110,8 @@ def monitored_call(probe, path: str, payload: dict, timeout: float, *, streaming
             probe.observe_engine()
             if time.monotonic() - started > timeout:
                 raise TimeoutError("request reached the approved time limit")
+            if observer is not None:
+                observer()
         probe.ensure_healthy()
         if not probe.observe_engine():
             raise ProbeError("response has no observed bound engine")

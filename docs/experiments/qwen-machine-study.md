@@ -140,12 +140,31 @@ that the model can use the whole window.
 Results are reviewed before changing a preset. Different software, templates,
 memory limits or machines may change what a measurement supports.
 
+### Memory measurements
+
+Splash runs record native Metal allocations after model readiness, every five
+seconds during requests, and before shutdown. The report shows the loaded
+allocation and the engine's lifetime peak, which includes loading and both
+requests at a context point. The native peak captures transients between polls.
+
+These counters overlap process RSS and physical footprint; keep them separate.
+The report also retains per-process observations and swap growth. Configured
+memory limits are allowances, and none of these measurements alone establishes
+minimum machine RAM. Other engines currently retain process counters only.
+
+Unavailable native observations stay unmeasured; partial peaks are lower
+bounds. An instance change or counter reset invalidates the native memory
+comparison. A failed native status read does not erase a completed task or its
+timing; the ordinary process, swap, thermal and ownership guards still apply.
+Revision 5 reports did not capture native Splash allocations and cannot recover
+them after shutdown.
+
 ## Failures, stopping and cleanup
 
 Startup failures, memory errors, incompatible formats, truncated answers and
 invalid patches remain separate results. Stopped requests retain partial
 answers. A safe engine failure permits the next test; resource-limit stops,
-thermal or CPU throttling, excessive swap, missing counters or uncertain
+thermal or CPU throttling, excessive swap, missing process counters or uncertain
 process ownership end further measurement.
 
 The engine's memory cap is the lowest of 75% of RAM, the effective Metal budget
@@ -162,7 +181,7 @@ another configuration. Reports stay local. See
 
 ## Exact test configuration
 
-This guide describes `qwen-machine-study@5`, using signed Temper
+This guide describes `qwen-machine-study@6`, using signed Temper
 `0.1.0-alpha.11`. The software and tasks are fixed so returned runs can be
 compared.
 
@@ -175,9 +194,9 @@ compared.
 | Router | llama-swap v260 |
 | Coding request | 118,000-token total window; medium reasoning; seed 17; temperature 1; top-p 0.95; top-k 20 |
 
-The [execution locks](../../catalog/packages/qwen-machine-study@5/executions/)
+The [execution locks](../../catalog/packages/qwen-machine-study@6/executions/)
 record exact files, software and settings; the
-[workload](../../catalog/packages/qwen-machine-study@5/workloads.json) defines
+[workload](../../catalog/packages/qwen-machine-study@6/workloads.json) defines
 the tasks and checks.
 
 For coding, the output allowance is the total window minus the engine's prompt
@@ -287,7 +306,7 @@ Use the source that produced it:
 
 ```sh
 ./field-kit witness --input /absolute/path/to/result.json \
-  --package catalog/packages/qwen-machine-study@4/package.json
+  --package catalog/packages/qwen-machine-study@6/package.json
 ```
 
 The reader checks frozen inputs, session/attempt references, matrix order,

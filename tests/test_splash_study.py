@@ -46,7 +46,7 @@ class SyntheticStudy(SplashStudy):
         return SimpleNamespace(start=lambda: None, finish=lambda: {"safe_to_cleanup": not self.unsafe,
             "samples": 2, "issues": [], "roles": {"engine": {"rss_bytes_max": 10*1024**3}}, "swap_growth_bytes": 0})
 
-    def coding_case(self, probe, cell, material, case, directory):
+    def coding_case(self, probe, cell, material, case, directory, *, memory=None):
         self.requests.append((cell["id"],case["id"]))
         response = {"id":case["id"], "message":{"content":"", "tool_calls":[]}, "failure":None,
             "finish_reason":"length", "status":"context-window-exhausted", "stream_complete":True,
@@ -56,7 +56,7 @@ class SyntheticStudy(SplashStudy):
         response.update(performance(response,100))
         return response
 
-    def context_cases(self, probe, cell, material, directory):
+    def context_cases(self, probe, cell, material, directory, *, memory=None):
         from fieldkit_runtime.experiments.qwen.method import record_value
         rows=[]
         for identity,keys in (("distributed-ledger",(1,3,5)),("ledger-followup",(2,4))):
@@ -177,7 +177,7 @@ class SplashStudyTest(unittest.TestCase):
                 study.safe_to_cleanup=True;study.stopped=False;study.package_root=PACKAGE
                 delivered={"failure":None,"measurement_valid":True,"finish_reason":"tool_calls",
                            "message":{"tool_calls":[{"function":{"name":"submit_patch","arguments":"retained"}}]}}
-                study.chat=lambda *args:copy.deepcopy(delivered)
+                study.chat=lambda *args, **kwargs:copy.deepcopy(delivered)
                 module="fieldkit_runtime.experiments.qwen.splash_study."
                 with patch(module+"submission",return_value={}), patch(module+"unpack",return_value=self.root), \
                      patch(module+"apply",return_value={"changed_files":["src/flask/helpers.py"],"diff":"retained patch"}), \

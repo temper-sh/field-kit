@@ -18,6 +18,7 @@ from .evaluation import evaluate, unpack
 from .measurement import construct_context, monitored_call
 from .method import grade
 from .patches import InvalidPatch, apply, submission
+from .splash_memory import SplashMemory
 
 SCHEMA = "field-kit-qwen-splash-study/v1"
 SELECTOR = "qwen-machine-study@4"
@@ -171,7 +172,7 @@ class SplashStudy:
             return json.loads(result.stdout.splitlines()[-1])["count"]
         return native_count(probe, cell["preset"], cell["family"], body, self.remaining(1800), rapid)
 
-    def chat(self, probe, cell, material, case, directory, *, reserve=None):
+    def chat(self, probe, cell, material, case, directory, *, reserve=None, memory=None):
         body = request_body(case, cell["preset"], cell["window"], 1, cell["family"])
         count = self.count(probe, cell, material, body, directory)
         body = request_body(case, cell["preset"], cell["window"], count, cell["family"])
@@ -187,7 +188,7 @@ class SplashStudy:
         try:
             response = monitored_call(probe, "/v1/chat/completions", body,
                 self.remaining(self.protocol["context_request_seconds"] if reserve else self.protocol["request_seconds"]),
-                streaming=True, stream_reader=stream)
+                streaming=True, stream_reader=stream, observer=memory.poll if memory else None)
         except (Exception, KeyboardInterrupt) as error:
             failure = {"kind": classify_failure(error), "message": str(error)}
             response = stream.snapshot()
@@ -201,8 +202,8 @@ class SplashStudy:
             response["measurement_valid"] = False
         return response
 
-    def coding_case(self, probe, cell, material, case, directory):
-        response = self.chat(probe, cell, material, case, directory)
+    def coding_case(self, probe, cell, material, case, directory, *, memory=None):
+        response = self.chat(probe, cell, material, case, directory, memory=memory)
         response["status"] = "incomplete"
         if response["failure"] or not response["measurement_valid"]:
             return response
@@ -231,7 +232,7 @@ class SplashStudy:
             response.update(status="invalid-evaluation", evaluation_error=str(error))
         return response
 
-    def context_cases(self, probe, cell, material, directory):
+    def context_cases(self, probe, cell, material, directory, *, memory=None):
         target = cell["window"] - 4096 - 1024
         def count(messages):
             body = request_body({"request": {"messages": messages}}, cell["preset"], cell["window"], 1)
@@ -241,7 +242,7 @@ class SplashStudy:
         for identity, oracle in (("distributed-ledger", expected), ("ledger-followup", followup_expected)):
             stage = directory / identity
             stage.mkdir()
-            row = self.chat(probe, cell, material, {"id": identity, "request": {"messages": messages}}, stage, reserve=4096)
+            row = self.chat(probe, cell, material, {"id": identity, "request": {"messages": messages}}, stage, reserve=4096, memory=memory)
             row.update(expected=oracle, correct=grade(row["message"]["content"], oracle)["correct"]
                        and row["finish_reason"] == "stop" and row["measurement_valid"])
             if identity == "distributed-ledger" and row["native_input_tokens"] != target:
@@ -281,6 +282,7 @@ class SplashStudy:
                 stage = directory / case["id"]
                 stage.mkdir()
                 probe = self.probe(cell, material, stage)
+                memory = None
                 started = time.monotonic()
                 try:
                     probe.start()
@@ -289,14 +291,28 @@ class SplashStudy:
                     endpoint = "/health/ready" if cell["family"] == "rapid-mlx" else "/health"
                     monitored_call(probe, "/upstream/" + cell["preset"] + endpoint, {}, self.remaining(1800), method="GET")
                     startup = time.monotonic() - started
-                    result = (self.coding_case(probe, cell, material, case, stage) if cell["kind"] == "coding"
-                              else self.context_cases(probe, cell, material, stage))
+                    spec = self.protocol.get("native_memory")
+                    if cell["family"] == "splash" and spec:
+                        source = "/upstream/" + cell["preset"] + "/status"
+                        memory = SplashMemory(lambda: monitored_call(probe, source, {},
+                            self.remaining(spec["timeout_seconds"]), method="GET"), source, spec["interval_seconds"])
+                        memory.capture("loaded")
+                    result = (self.coding_case(probe, cell, material, case, stage, memory=memory) if cell["kind"] == "coding"
+                              else self.context_cases(probe, cell, material, stage, memory=memory))
                     returned = [result] if isinstance(result, dict) else result
                     for item in returned:
                         item["startup_seconds"] = startup
                     row["cases"].extend(returned)
                 finally:
-                    resources = probe.finish()
+                    try:
+                        if memory:
+                            memory.capture("final")
+                    except (KeyboardInterrupt, ProbeError):
+                        self.stopped = True
+                    finally:
+                        resources = probe.finish()
+                    if memory:
+                        resources["native_memory"] = memory.result()
                     row["resources"].append(resources)
                     self.safe_to_cleanup = self.safe_to_cleanup and resources.get("safe_to_cleanup", False)
                     if not self.safe_to_cleanup:

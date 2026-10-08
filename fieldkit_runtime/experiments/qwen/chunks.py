@@ -9,8 +9,9 @@ from pathlib import Path
 from ...catalog import Refusal, canonical_json, digest
 from .splash_study import SplashStudy, bucket
 
-SELECTOR = "qwen-machine-study@5"
-SCHEMA = "field-kit-qwen-chunk-study/v1"
+SELECTOR = "qwen-machine-study@6"
+SUPPORTED_SELECTORS = {"qwen-machine-study@5", SELECTOR}
+SCHEMA = "field-kit-qwen-chunk-study/v2"
 
 
 def configuration(protocol, identity):
@@ -32,9 +33,10 @@ def available_configurations(protocol, facts):
 
 
 def configuration_from_selector(selector):
-    prefix, suffix = "qwen-chunk-", "@5"
-    if not isinstance(selector, str) or not selector.startswith(prefix) or not selector.endswith(suffix):
-        raise Refusal("session is not a revision 5 configuration run")
+    prefix = "qwen-chunk-"
+    if not isinstance(selector, str) or not selector.startswith(prefix) or selector[-2:] not in ("@5", "@6"):
+        raise Refusal("session is not a supported configuration run")
+    suffix = selector[-2:]
     return selector[len(prefix):-len(suffix)]
 
 
@@ -45,8 +47,8 @@ def select_package(source, identity):
     bundle hash, and ordinary plans bind its complete bytes before any effects.
     Review uses this same pure selection against the supplied source bundle.
     """
-    if source.selector != SELECTOR:
-        raise Refusal("configuration selection requires qwen-machine-study@5")
+    if source.selector not in SUPPORTED_SELECTORS:
+        raise Refusal("configuration selection requires a frozen Qwen chunk bundle")
     protocol = json.loads(source.files["protocol.json"])
     selected = configuration(protocol, identity)
     cells = selected_cells(protocol, identity)

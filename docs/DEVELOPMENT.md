@@ -23,7 +23,7 @@ shutdown. Keep those responsibilities separate.
 
 ## Use a development Temper build
 
-The current `qwen-machine-study@5` bundle needs Temper `0.1.0-alpha.11`.
+The current `qwen-machine-study@6` bundle needs Temper `0.1.0-alpha.11`.
 Normal setup installs the signed release and verifies its checksum.
 Contributors need no compiler or Temper checkout.
 
@@ -68,6 +68,7 @@ it. These are the known dispatched sources:
 | Revision 1 | `f1fc7e0dcb268858dcbe67910a054b99731e6539` |
 | Revision 2, returned M3 Pro report | `9a060f1` |
 | Revision 4, before configuration chunks | `aae99f8` |
+| Revision 5, process memory only | `29ea9cf` |
 
 For example, review the revision 2 report without changing this checkout:
 
@@ -88,11 +89,25 @@ automatically. Use `--new` explicitly to start a separate current study.
 
 ## Keep measurements and cleanup attributable
 
-Revision 5 derives one exact `qwen-chunk-CONFIGURATION@5` package from the
+Revision 6 derives one exact `qwen-chunk-CONFIGURATION@6` package from the
 frozen bundle and the contributor's selected configuration. Its origin records
 the source bundle hash; the accepted plan binds the selected package, lock,
 task actions and costs. The witness reader repeats that pure selection before
 validating the result. It accepts the bundle's `package.json` as its input.
+
+Revision 6 preserves revision 5 tasks, settings, costs and locks. Its protocol
+adds bounded Splash `/status` observations of `memory_actual.current_bytes`
+and `peak_bytes` after readiness, during requests and before shutdown. Evidence
+retains load and last native snapshots, sample count, endpoint, instance identity
+and observation issues. The native lifetime peak covers intervals between polls;
+reset or changed-instance readings never combine. Missing memory stays distinct
+from valid task/timing evidence. Process counters remain separate and overlap
+these allocations.
+
+Completed revision 5 choices remain visible to `--next`, and `--new` creates a
+separate revision 6 attempt. Unfinished older chunks require their producing
+checkout. The current witness can inspect revision 5 chunks using its unchanged
+bundle, without inventing the missing native memory counters.
 
 Each coding task is one action. The session commits its report and next action
 before another task can begin. `--pause-after-task` returns at that boundary;

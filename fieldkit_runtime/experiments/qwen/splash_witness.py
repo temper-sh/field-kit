@@ -10,6 +10,7 @@ from .evaluation import unpack
 from .method import grade, record_value
 from .patches import InvalidPatch, staged_texts, submission
 from .splash_study import context_summary, execution_settings, matrix, next_cell
+from .splash_memory import review as review_memory
 
 
 def review(package, completed, facts, *, cells=None):
@@ -37,6 +38,14 @@ def review(package, completed, facts, *, cells=None):
             row = rows[-1]
             if any(row[key] != cell[key] for key in ("id", "preset", "kind", "window")):
                 raise Refusal("witness matrix identity differs")
+            if protocol.get("native_memory") and cell["family"] == "splash":
+                if row["cases"] and not row["resources"]:
+                    raise Refusal("Splash task has no native memory observation state")
+                for resources in row["resources"]:
+                    if "native_memory" in resources:
+                        review_memory(resources["native_memory"], cell["preset"])
+                    elif row["cases"]:
+                        raise Refusal("Splash task omitted native memory observation state")
             material = row.get("material")
             if material:
                 expected = execution_settings(cell, min(facts["physical_memory_bytes"] * 3 // 4, facts["wired_limit_mib"]*1024**2, 96*1024**3))

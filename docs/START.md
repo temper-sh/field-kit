@@ -130,6 +130,19 @@ Each run has its own report and result file. Completed runs remove their private
 model downloads; separate runs can download the same weights again. Existing
 shared Hugging Face caches are never pruned.
 
+To repeat Q4 explicitly while preserving earlier Q4 and Q5 attempts:
+
+```sh
+./field-kit contribute --configuration splash-q4 --new --preview
+caffeinate -i ./field-kit contribute --configuration splash-q4 --new
+```
+
+Keep the lid open and the Mac connected to power. Share the new run's
+`result.json` and `report.md`; their separate run directory identifies the
+repeat. Revision 6 adds native Splash memory measurements with the same model,
+tasks and inference settings. Completed revision 5 chunks still count for
+`--next`. Finish an unfinished run in its original checkout before updating.
+
 Keep unfinished revision 4 studies in their original checkout. They cannot
 be resumed as configuration runs; use a separate checkout for the new study.
 

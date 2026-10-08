@@ -2,9 +2,9 @@
 
 Contributors run the frozen package; they do not run these scripts. Runtime
 code remains compatible with Python 3.9. The current scheduling revision is
-derived offline from the dispatched revision 4 inputs.
+derived offline from the dispatched revision 5 inputs.
 
-`catalog/packages/qwen-machine-study@5/` owns the current tasks, fixtures and
+`catalog/packages/qwen-machine-study@6/` owns the current tasks, fixtures and
 configuration choices. Temper's `catalog/experiments/qwen-study.json` owns exact software and
 model compositions in `temper-catalog/v3` presets. Execution locks are opaque,
 compiled snapshots for the dispatched study. No dependency resolver runs on a
@@ -15,16 +15,17 @@ participant's machine.
 From this repository:
 
 ```sh
-python3 -B scripts/prepare_qwen_chunks.py
+python3 -B scripts/prepare_qwen_memory.py
 ./field-kit verify
 python3 -m unittest discover -v
 ```
 
-The script validates revision 4, copies its exact execution locks and workload
-bytes, and writes the revision 5 configuration choices, cost allowances and task
-actions. It does not recompile against a moving catalog, download weights or
-run inference. Revision 4 remains unchanged. Cost authoring reads the frozen
-lock's file sizes; participant code treats execution locks as opaque.
+The script validates revision 5, copies its exact execution locks, workload,
+configuration choices, costs and task actions, and adds the native Splash
+memory observation protocol. It does not recompile against a moving catalog,
+download weights or run inference. Dispatched revisions remain unchanged.
+The earlier `prepare_qwen_chunks.py` reproduces revision 5 scheduling and cost
+authoring; participant code treats execution locks as opaque.
 
 The experiment derives bounded context/output/memory settings through
 `execution configure`. Configuration selection is a pure derivation from the

@@ -1,0 +1,317 @@
+{
+  "schema": "temper-execution-lock/v3",
+  "source_snapshot_sha256": "e001366c0603c3aab9e62eae1764c66de7587e82c3acc3ef1c35e68a93fe1c18",
+  "preset": "splash-q6",
+  "target": {
+    "os": "darwin",
+    "arch": "arm64"
+  },
+  "records": {
+    "schema": "temper-catalog/v3",
+    "date": "2026-09-27",
+    "runtime": {
+      "router": {
+        "package": "llama-swap",
+        "target": {
+          "os": "darwin",
+          "arch": "arm64"
+        },
+        "source": {
+          "repository": "mostlygeek/llama-swap",
+          "asset": "llama-swap_{number}_darwin_arm64.tar.gz",
+          "archive_root": "."
+        },
+        "release": {
+          "version": "v260",
+          "revision": "fcefa7b7bebc326790937bbebc32ae87a958747c",
+          "artifact": {
+            "locator": "https://github.com/mostlygeek/llama-swap/releases/download/v260/llama-swap_260_darwin_arm64.tar.gz",
+            "sha256": "b1aa832f205aad809f8bc4d417c1fc92165e46e3519216e19d5251db265941ce",
+            "size": 21997875,
+            "unpacked_size": 40723068,
+            "installed_entries": 4,
+            "format": "tar.gz",
+            "archive_root": "."
+          }
+        }
+      },
+      "python_environments": [
+        {
+          "python": {
+            "root": "pytest",
+            "runtime": {
+              "name": "cpython",
+              "version": "3.12.13",
+              "revision": "python-build-standalone:20260807",
+              "artifact": {
+                "locator": "https://github.com/astral-sh/python-build-standalone/releases/download/20260807/cpython-3.12.13%2B20260807-aarch64-apple-darwin-install_only_stripped.tar.gz",
+                "sha256": "25baa97c65b3f0aa90e21131b4f9e80aef8899e8144006db8a9d2c1ab9e807e3"
+              }
+            },
+            "packages": [
+              {
+                "name": "asgiref",
+                "version": "3.9.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/7c/3c/0464dcada90d5da0e71018c04a140ad6349558afb30b3051b4264cc5b965/asgiref-3.9.1-py3-none-any.whl",
+                  "sha256": "f3bba7092a48005b5f5bacd747d36ee4a5a61f4a269a6df590b43144355ebd2c",
+                  "size": 23790
+                }
+              },
+              {
+                "name": "blinker",
+                "version": "1.9.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/10/cb/f2ad4230dc2eb1a74edf38f1a38b9b52277f75bef262d8908e60d957e13c/blinker-1.9.0-py3-none-any.whl",
+                  "sha256": "ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc",
+                  "size": 8458
+                }
+              },
+              {
+                "name": "click",
+                "version": "8.2.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/85/32/10bb5764d90a8eee674e9dc6f4db6a0ab47c8c4d0d83c27f7c39ac415a4d/click-8.2.1-py3-none-any.whl",
+                  "sha256": "61a3265b914e850b85317d0b3109c7f8cd35a670f963866005d6ef1d5175a12b",
+                  "size": 102215
+                }
+              },
+              {
+                "name": "iniconfig",
+                "version": "2.1.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/2c/e1/e6716421ea10d38022b952c159d5161ca1193197fb744506875fbb87ea7b/iniconfig-2.1.0-py3-none-any.whl",
+                  "sha256": "9deba5723312380e77435581c6bf4935c94cbfab9b1ed33ef8d238ea168eb760",
+                  "size": 6050
+                }
+              },
+              {
+                "name": "itsdangerous",
+                "version": "2.2.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/04/96/92447566d16df59b2a776c0fb82dbc4d9e07cd95062562af01e408583fc4/itsdangerous-2.2.0-py3-none-any.whl",
+                  "sha256": "c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef",
+                  "size": 16234
+                }
+              },
+              {
+                "name": "jinja2",
+                "version": "3.1.6",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl",
+                  "sha256": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67",
+                  "size": 134899
+                }
+              },
+              {
+                "name": "markupsafe",
+                "version": "3.0.2",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/6b/b0/18f76bba336fa5aecf79d45dcd6c806c280ec44538b3c13671d49099fdd0/MarkupSafe-3.0.2-cp312-cp312-macosx_11_0_arm64.whl",
+                  "sha256": "846ade7b71e3536c4e56b386c2a47adf5741d2d8b94ec9dc3e92e5e1ee1e2225",
+                  "size": 12348
+                }
+              },
+              {
+                "name": "packaging",
+                "version": "25.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl",
+                  "sha256": "29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484",
+                  "size": 66469
+                }
+              },
+              {
+                "name": "pluggy",
+                "version": "1.6.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl",
+                  "sha256": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+                  "size": 20538
+                }
+              },
+              {
+                "name": "pygments",
+                "version": "2.19.2",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/c7/21/705964c7812476f378728bdf590ca4b771ec72385c533964653c68e86bdc/pygments-2.19.2-py3-none-any.whl",
+                  "sha256": "86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b",
+                  "size": 1225217
+                }
+              },
+              {
+                "name": "pytest",
+                "version": "8.4.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/29/16/c8a903f4c4dffe7a12843191437d7cd8e32751d5de349d45d3fe69544e87/pytest-8.4.1-py3-none-any.whl",
+                  "sha256": "539c70ba6fcead8e78eebbf1115e8b589e7565830d7d006a8723f19ac8a0afb7",
+                  "size": 365474
+                }
+              },
+              {
+                "name": "python-dotenv",
+                "version": "1.1.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/5f/ed/539768cf28c661b5b068d66d96a2f155c4971a5d55684a514c1a0e0dec2f/python_dotenv-1.1.1-py3-none-any.whl",
+                  "sha256": "31f23644fe2602f88ff55e1f5c79ba497e01224ee7737937930c448e4d0e24dc",
+                  "size": 20556
+                }
+              },
+              {
+                "name": "werkzeug",
+                "version": "3.1.3",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/52/24/ab44c871b0f07f491e5d2ad12c9bd7358e527510618cb1b803a88e986db1/werkzeug-3.1.3-py3-none-any.whl",
+                  "sha256": "54b78bf3716d19a65be4fceccc0d1d7b89e608834989dfae50ea87564639213e",
+                  "size": 224498
+                }
+              }
+            ]
+          },
+          "package": "coding-evaluator",
+          "target": {
+            "os": "darwin",
+            "arch": "arm64"
+          }
+        }
+      ]
+    },
+    "artifacts": {
+      "qwen-q6": {
+        "repo": "unsloth/Qwen3.8-27B-GGUF",
+        "revision": "4ca720788d1e01f1bff70c033e0d0028fd02e502",
+        "format": "gguf",
+        "files": [
+          {
+            "path": "Qwen3.8-27B-UD-Q6_K_XL.gguf",
+            "bytes": 25299061664,
+            "sha256": "701d8fa9ed214ab21bfc130cd2a7df19ca89bbef7713e2dfb19f3c63696aa917"
+          }
+        ],
+        "license": "Apache-2.0"
+      },
+      "qwen3.8-27b-dflash2": {
+        "model_name": "Qwen3.8 27B DFlash2",
+        "weights_name": "BF16 draft",
+        "repo": "incoai/Qwen3.8-27B-DFlash2",
+        "revision": "015e795645c74b1a0eeef3b570031fb62e769bc5",
+        "format": "safetensors",
+        "files": [
+          {
+            "path": "config.json",
+            "bytes": 1239,
+            "sha256": "873e3556509b0da06e29654ba00d4944888d4b5e8a33afde25f7eb27d321e980"
+          },
+          {
+            "path": "model.safetensors",
+            "bytes": 3848817896,
+            "sha256": "67fc76d68dc5a9415511a4f394ef744d67510cd20e93b37cc2cc7d28e4bab65c"
+          }
+        ],
+        "license": "Apache-2.0"
+      }
+    },
+    "patches": {
+      "froggeric-qwen38-v22.5": {
+        "repo": "froggeric/Qwen-Fixed-Chat-Templates",
+        "revision": "855bffc49448e299789730ff92c9b8d834d6cc14",
+        "files": [
+          {
+            "path": "chat_template.jinja",
+            "bytes": 28234,
+            "sha256": "e57684bae4156211a55473c5a63be976a405a37ab5be5ae0e5abf1df5349c4b2"
+          }
+        ],
+        "compatible_artifacts": [
+          "qwen-q5",
+          "qwen-q6",
+          "qwen-q8",
+          "qwen3.8-27b-q4xl"
+        ],
+        "license": "Apache-2.0"
+      }
+    },
+    "engines": {
+      "splash-darwin-arm64": {
+        "display_name": "Splash 1.1.0 / DFlash2",
+        "family": "splash",
+        "adapter": "splash/v1",
+        "supply": {
+          "package": "splash",
+          "target": {
+            "os": "darwin",
+            "arch": "arm64"
+          },
+          "source": {
+            "repository": "incoai/splash",
+            "asset": "splash-{version}-arm64-macos26.tar.gz",
+            "archive_root": "splash-{version}-arm64-macos26"
+          },
+          "release": {
+            "version": "1.1.0",
+            "revision": "3e1f9ece3e2528f3eb46b82a05911591f34a4317",
+            "artifact": {
+              "locator": "https://github.com/incoai/splash/releases/download/1.1.0/splash-1.1.0-arm64-macos26.tar.gz",
+              "sha256": "255be83f404b1e31e4d98a863ccce05004d348fb6662c68afced4ff992402437",
+              "size": 70643150,
+              "unpacked_size": 230045665,
+              "installed_entries": 8118,
+              "format": "tar.gz",
+              "archive_root": "splash-1.1.0-arm64-macos26"
+            }
+          }
+        },
+        "interfaces": [
+          "chat-completions"
+        ],
+        "modalities": [
+          "text"
+        ]
+      }
+    },
+    "presets": {
+      "splash-q6": {
+        "display_name": "splash-q6",
+        "memory_tier": "S",
+        "artifact": "qwen-q6",
+        "patches": [
+          "froggeric-qwen38-v22.5"
+        ],
+        "engine": "splash-darwin-arm64",
+        "interface": "chat-completions",
+        "modalities": [
+          "text"
+        ],
+        "context_window_tokens": 118000,
+        "context_limit_tokens": 262144,
+        "request_defaults": {
+          "max_output_tokens": 100000,
+          "reasoning": "on",
+          "sampling": {
+            "temperature": 1,
+            "top_k": 20,
+            "top_p": 0.95,
+            "min_p": 0,
+            "repeat_penalty": 1,
+            "presence_penalty": 0,
+            "seed": 17
+          }
+        },
+        "speculation": {
+          "draft_artifact": "qwen3.8-27b-dflash2",
+          "method": "dflash2",
+          "source": "artifact",
+          "max_draft_tokens": 0
+        },
+        "engine_config": {
+          "kind": "splash/v1",
+          "kv_cache": "int8",
+          "max_memory_bytes": 28991029248,
+          "reasoning_effort": "medium",
+          "request_timeout_seconds": 14400
+        }
+      }
+    }
+  },
+  "execution_digest": "d26c44d7b0017bc5df4ab0420727b76596f237d3ca6bae66ac891bbc866e9b0b"
+}

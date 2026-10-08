@@ -124,7 +124,7 @@ def inspect_bytes(data: bytes, package_path: Path) -> dict:
         if packet["schema"] != "field-kit-evidence-export/v4":
             raise Refusal("use the producing Field Kit revision to review this historical export")
         session, plan = packet["session"], packet["plan"]
-        if package.selector == "qwen-machine-study@5":
+        if package.selector in ("qwen-machine-study@5", "qwen-machine-study@6"):
             from .chunks import configuration_from_selector, select_package
             package = select_package(package, configuration_from_selector(session["package"]["selector"]))
         if session["schema"] != "field-kit-session/v4" or session["state"] != "complete":
@@ -151,7 +151,7 @@ def inspect_bytes(data: bytes, package_path: Path) -> dict:
         completed = [row["report"] for row in evidence if row["state"] == "complete"]
         if not completed or completed[-1]["action"]["id"] != package.package["investigation"]["final_validation_action"]:
             raise Refusal("witness has no completed final validation")
-        if package.package["mechanics"]["runtime_protocol"]["schema"] == "field-kit-qwen-chunk-study/v1":
+        if package.package["mechanics"]["runtime_protocol"]["schema"] in ("field-kit-qwen-chunk-study/v1", "field-kit-qwen-chunk-study/v2"):
             from .chunks import available_configurations, selected_cells
             from .splash_witness import review
             protocol = json.loads(package.files["protocol.json"])

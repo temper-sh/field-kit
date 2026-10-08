@@ -1,0 +1,961 @@
+{
+  "schema": "temper-execution-lock/v3",
+  "source_snapshot_sha256": "e001366c0603c3aab9e62eae1764c66de7587e82c3acc3ef1c35e68a93fe1c18",
+  "preset": "rapid-mlx",
+  "target": {
+    "os": "darwin",
+    "arch": "arm64"
+  },
+  "records": {
+    "schema": "temper-catalog/v3",
+    "date": "2026-09-27",
+    "runtime": {
+      "router": {
+        "package": "llama-swap",
+        "target": {
+          "os": "darwin",
+          "arch": "arm64"
+        },
+        "source": {
+          "repository": "mostlygeek/llama-swap",
+          "asset": "llama-swap_{number}_darwin_arm64.tar.gz",
+          "archive_root": "."
+        },
+        "release": {
+          "version": "v260",
+          "revision": "fcefa7b7bebc326790937bbebc32ae87a958747c",
+          "artifact": {
+            "locator": "https://github.com/mostlygeek/llama-swap/releases/download/v260/llama-swap_260_darwin_arm64.tar.gz",
+            "sha256": "b1aa832f205aad809f8bc4d417c1fc92165e46e3519216e19d5251db265941ce",
+            "size": 21997875,
+            "unpacked_size": 40723068,
+            "installed_entries": 4,
+            "format": "tar.gz",
+            "archive_root": "."
+          }
+        }
+      },
+      "python_environments": [
+        {
+          "python": {
+            "root": "pytest",
+            "runtime": {
+              "name": "cpython",
+              "version": "3.12.13",
+              "revision": "python-build-standalone:20260807",
+              "artifact": {
+                "locator": "https://github.com/astral-sh/python-build-standalone/releases/download/20260807/cpython-3.12.13%2B20260807-aarch64-apple-darwin-install_only_stripped.tar.gz",
+                "sha256": "25baa97c65b3f0aa90e21131b4f9e80aef8899e8144006db8a9d2c1ab9e807e3"
+              }
+            },
+            "packages": [
+              {
+                "name": "asgiref",
+                "version": "3.9.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/7c/3c/0464dcada90d5da0e71018c04a140ad6349558afb30b3051b4264cc5b965/asgiref-3.9.1-py3-none-any.whl",
+                  "sha256": "f3bba7092a48005b5f5bacd747d36ee4a5a61f4a269a6df590b43144355ebd2c",
+                  "size": 23790
+                }
+              },
+              {
+                "name": "blinker",
+                "version": "1.9.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/10/cb/f2ad4230dc2eb1a74edf38f1a38b9b52277f75bef262d8908e60d957e13c/blinker-1.9.0-py3-none-any.whl",
+                  "sha256": "ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc",
+                  "size": 8458
+                }
+              },
+              {
+                "name": "click",
+                "version": "8.2.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/85/32/10bb5764d90a8eee674e9dc6f4db6a0ab47c8c4d0d83c27f7c39ac415a4d/click-8.2.1-py3-none-any.whl",
+                  "sha256": "61a3265b914e850b85317d0b3109c7f8cd35a670f963866005d6ef1d5175a12b",
+                  "size": 102215
+                }
+              },
+              {
+                "name": "iniconfig",
+                "version": "2.1.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/2c/e1/e6716421ea10d38022b952c159d5161ca1193197fb744506875fbb87ea7b/iniconfig-2.1.0-py3-none-any.whl",
+                  "sha256": "9deba5723312380e77435581c6bf4935c94cbfab9b1ed33ef8d238ea168eb760",
+                  "size": 6050
+                }
+              },
+              {
+                "name": "itsdangerous",
+                "version": "2.2.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/04/96/92447566d16df59b2a776c0fb82dbc4d9e07cd95062562af01e408583fc4/itsdangerous-2.2.0-py3-none-any.whl",
+                  "sha256": "c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef",
+                  "size": 16234
+                }
+              },
+              {
+                "name": "jinja2",
+                "version": "3.1.6",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl",
+                  "sha256": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67",
+                  "size": 134899
+                }
+              },
+              {
+                "name": "markupsafe",
+                "version": "3.0.2",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/6b/b0/18f76bba336fa5aecf79d45dcd6c806c280ec44538b3c13671d49099fdd0/MarkupSafe-3.0.2-cp312-cp312-macosx_11_0_arm64.whl",
+                  "sha256": "846ade7b71e3536c4e56b386c2a47adf5741d2d8b94ec9dc3e92e5e1ee1e2225",
+                  "size": 12348
+                }
+              },
+              {
+                "name": "packaging",
+                "version": "25.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl",
+                  "sha256": "29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484",
+                  "size": 66469
+                }
+              },
+              {
+                "name": "pluggy",
+                "version": "1.6.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl",
+                  "sha256": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+                  "size": 20538
+                }
+              },
+              {
+                "name": "pygments",
+                "version": "2.19.2",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/c7/21/705964c7812476f378728bdf590ca4b771ec72385c533964653c68e86bdc/pygments-2.19.2-py3-none-any.whl",
+                  "sha256": "86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b",
+                  "size": 1225217
+                }
+              },
+              {
+                "name": "pytest",
+                "version": "8.4.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/29/16/c8a903f4c4dffe7a12843191437d7cd8e32751d5de349d45d3fe69544e87/pytest-8.4.1-py3-none-any.whl",
+                  "sha256": "539c70ba6fcead8e78eebbf1115e8b589e7565830d7d006a8723f19ac8a0afb7",
+                  "size": 365474
+                }
+              },
+              {
+                "name": "python-dotenv",
+                "version": "1.1.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/5f/ed/539768cf28c661b5b068d66d96a2f155c4971a5d55684a514c1a0e0dec2f/python_dotenv-1.1.1-py3-none-any.whl",
+                  "sha256": "31f23644fe2602f88ff55e1f5c79ba497e01224ee7737937930c448e4d0e24dc",
+                  "size": 20556
+                }
+              },
+              {
+                "name": "werkzeug",
+                "version": "3.1.3",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/52/24/ab44c871b0f07f491e5d2ad12c9bd7358e527510618cb1b803a88e986db1/werkzeug-3.1.3-py3-none-any.whl",
+                  "sha256": "54b78bf3716d19a65be4fceccc0d1d7b89e608834989dfae50ea87564639213e",
+                  "size": 224498
+                }
+              }
+            ]
+          },
+          "package": "coding-evaluator",
+          "target": {
+            "os": "darwin",
+            "arch": "arm64"
+          }
+        }
+      ]
+    },
+    "artifacts": {
+      "qwen-mlx": {
+        "repo": "mlx-community/Qwen3.8-27B-4bit",
+        "revision": "10c35caafbb80f7dc6a7a432cdd11af10a6d4818",
+        "format": "mlx-safetensors",
+        "files": [
+          {
+            "path": "chat_template.jinja",
+            "bytes": 8952,
+            "sha256": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041"
+          },
+          {
+            "path": "config.json",
+            "bytes": 4932,
+            "sha256": "14b65a0ee06517060a6bbd979bb1a8ff54e7b304b1a1f01d54344b88b8285e85"
+          },
+          {
+            "path": "generation_config.json",
+            "bytes": 202,
+            "sha256": "e70c136c1b78ddc1fb0905bac8e733a4dc448d4f852a5dd75143fffc70be550e"
+          },
+          {
+            "path": "model-00001-of-00003.safetensors",
+            "bytes": 5343268662,
+            "sha256": "6cc1508e96fb5d0865dfd5753a79f4ec60651bf3e2a82844a7e8ae9c60528c0d"
+          },
+          {
+            "path": "model-00002-of-00003.safetensors",
+            "bytes": 5354185130,
+            "sha256": "83f2a20ca8058f486a3634a27faf99587f4cd3c156a83dee34fb99e6ac178670"
+          },
+          {
+            "path": "model-00003-of-00003.safetensors",
+            "bytes": 5357087557,
+            "sha256": "31b8c91ef899f79efaaa69e3d2c096f6e2ebeb2ff20e29222abbd9ebc79e560a"
+          },
+          {
+            "path": "model.safetensors.index.json",
+            "bytes": 218281,
+            "sha256": "13b840162b4cb35c66fef7df072f7dbb4717908204364f5e5d9f9655a2758fa8"
+          },
+          {
+            "path": "preprocessor_config.json",
+            "bytes": 390,
+            "sha256": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516"
+          },
+          {
+            "path": "processor_config.json",
+            "bytes": 991,
+            "sha256": "222e060084f093738ca7af4c89ef09d844e415876021325fdf7d5c6821b119d4"
+          },
+          {
+            "path": "tokenizer.json",
+            "bytes": 19989325,
+            "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523"
+          },
+          {
+            "path": "tokenizer_config.json",
+            "bytes": 1165,
+            "sha256": "792fa3f0cb88b111e54ef3134c873531008c4df471d108da17903426e308aa7b"
+          },
+          {
+            "path": "video_preprocessor_config.json",
+            "bytes": 385,
+            "sha256": "7768af27c1fafa9cc9011c1dc20067e03f8915e03b63504550e11d5066986d13"
+          },
+          {
+            "path": "vocab.json",
+            "bytes": 6722759,
+            "sha256": "ce99b4cb2983d118806ce0a8b777a35b093e2000a503ebde25853284c9dfa003"
+          }
+        ],
+        "license": "Apache-2.0"
+      }
+    },
+    "patches": {},
+    "engines": {
+      "rapid-mlx": {
+        "family": "rapid-mlx",
+        "adapter": "rapid-mlx/v1",
+        "supply": {
+          "python": {
+            "root": "rapid-mlx",
+            "runtime": {
+              "name": "cpython",
+              "version": "3.12.13",
+              "revision": "python-build-standalone:20260807",
+              "artifact": {
+                "locator": "https://github.com/astral-sh/python-build-standalone/releases/download/20260807/cpython-3.12.13%2B20260807-aarch64-apple-darwin-install_only_stripped.tar.gz",
+                "sha256": "25baa97c65b3f0aa90e21131b4f9e80aef8899e8144006db8a9d2c1ab9e807e3"
+              }
+            },
+            "packages": [
+              {
+                "name": "annotated-doc",
+                "version": "0.0.5",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl",
+                  "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101",
+                  "size": 5302
+                }
+              },
+              {
+                "name": "annotated-types",
+                "version": "0.8.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/99/91/8acff4f5e50511b911bbccb72b8628a49c68ce14148cd9f6431094859a90/annotated_types-0.8.0-py3-none-any.whl",
+                  "sha256": "f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0",
+                  "size": 13427
+                }
+              },
+              {
+                "name": "anyio",
+                "version": "4.15.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/12/b8/4bd346e22b28902df4d651910f5242c28d84e4a5c2435ca5c3f797ed7e2e/anyio-4.15.1-py3-none-any.whl",
+                  "sha256": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101",
+                  "size": 132079
+                }
+              },
+              {
+                "name": "argcomplete",
+                "version": "3.7.2",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/46/bd/551ee6af426af84ca33e02622be722925c196608e9127d731ef17c47f06e/argcomplete-3.7.2-py3-none-any.whl",
+                  "sha256": "6029205678bdd9c1c728a155f5f9ecf5812393f969eef58807641a2bc2aa5b19",
+                  "size": 43294
+                }
+              },
+              {
+                "name": "attrs",
+                "version": "26.1.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl",
+                  "sha256": "c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309",
+                  "size": 67548
+                }
+              },
+              {
+                "name": "certifi",
+                "version": "2026.7.22",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/0b/a7/71ac2cff56fec219ed242bb11b8efb69fcc4bec75db06fb7bfe35de520e6/certifi-2026.7.22-py3-none-any.whl",
+                  "sha256": "62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775",
+                  "size": 136983
+                }
+              },
+              {
+                "name": "cffi",
+                "version": "2.1.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/54/7d/16e5a096677b5e313ca80cd5e5170efa3ea44624a82bb111925522da64b1/cffi-2.1.1-cp312-cp312-macosx_11_0_arm64.whl",
+                  "sha256": "f81b3b8f3d4e343550fa4baa0e479bba9f2d29ce9c2e9b51d1ce1718d7442fcf",
+                  "size": 184719
+                }
+              },
+              {
+                "name": "charset-normalizer",
+                "version": "3.5.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/30/27/78873dc8b6a56357517b74b6bb9568b80450e7bb4f6ef7e3fa9d22aa0bd7/charset_normalizer-3.5.1-cp312-cp312-macosx_10_13_universal2.whl",
+                  "sha256": "5b6d1386bf0096d26d3a863dc0a487a5b4eb9aa93cf5ba69683d29dde6b9d60f",
+                  "size": 344456
+                }
+              },
+              {
+                "name": "click",
+                "version": "8.5.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/58/50/6c0d534c5f134586a8e1ba4e330569e32f057e33372ae556463212fb4cd3/click-8.5.0-py3-none-any.whl",
+                  "sha256": "255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360",
+                  "size": 125251
+                }
+              },
+              {
+                "name": "cryptography",
+                "version": "50.0.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/84/a9/ee16a903f13755e914d1eecc482fe64d1f10761c3960e5d8fa6837377aff/cryptography-50.0.1-cp39-abi3-macosx_11_0_arm64.whl",
+                  "sha256": "ca83d00d9e69cd5eb63f2e69c3a5a59e0cecae5ae14c6ae0b35830fe3b37bad0",
+                  "size": 4035307
+                }
+              },
+              {
+                "name": "fastapi",
+                "version": "0.141.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/cb/03/10388a42375ee7e4ac9b94eb2c5c569c8b5795e377e701c9ac3ad63de890/fastapi-0.141.1-py3-none-any.whl",
+                  "sha256": "bfb91aa2d334c61cb35ba9a116fc123b3d3df31640b801cf57a7a78ec3f603b3",
+                  "size": 131954
+                }
+              },
+              {
+                "name": "filelock",
+                "version": "4.0.4",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/bc/ac/8b9c6dc2aa7e9cf5582e20a337006c3428c3d752c2255dbaca2c78a8be45/filelock-4.0.4-py3-none-any.whl",
+                  "sha256": "0df72be195ca7892216d16f2edce8d9b93a571f02402972020a8cff84c594c7b",
+                  "size": 108629
+                }
+              },
+              {
+                "name": "fsspec",
+                "version": "2026.9.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/6c/c0/a98505f18594f1bce828bb159cec0fcf9860562f1a2c85913409fc8f3d9e/fsspec-2026.9.0-py3-none-any.whl",
+                  "sha256": "8dd6e646e99ea382bd85f97a45e6b526a442d79423a7dc673f1e2756d05fcb5f",
+                  "size": 221738
+                }
+              },
+              {
+                "name": "h11",
+                "version": "0.16.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl",
+                  "sha256": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86",
+                  "size": 37515
+                }
+              },
+              {
+                "name": "hf-xet",
+                "version": "1.6.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/4b/69/55b8dcf636142ae660fec1869fcac14c4da2e8412e14d6eee1523be77e9f/hf_xet-1.6.0-cp38-abi3-macosx_11_0_arm64.whl",
+                  "sha256": "f0906082d9932ae0c0057fa194041c22b4e2cdb46b2592ef3b91f020d62a081a",
+                  "size": 3876287
+                }
+              },
+              {
+                "name": "httpcore",
+                "version": "1.0.9",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/7e/f5/f66802a942d491edb555dd61e3a9961140fd64c90bce1eafd741609d334d/httpcore-1.0.9-py3-none-any.whl",
+                  "sha256": "2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55",
+                  "size": 78784
+                }
+              },
+              {
+                "name": "httpcore2",
+                "version": "2.13.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/09/ba/a4568248771ce81957bfb7cc600264a40fbcda092391ee1c415c50be4bea/httpcore2-2.13.1-py3-none-any.whl",
+                  "sha256": "e1e05d4f25f7d7d496bfb96748f6f4b67657b03da069b3a68c36069f3db73d0a",
+                  "size": 83423
+                }
+              },
+              {
+                "name": "httpx",
+                "version": "0.28.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/2a/39/e50c7c3a983047577ee07d2a9e53faf5a69493943ec3f6a384bdc792deb2/httpx-0.28.1-py3-none-any.whl",
+                  "sha256": "d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad",
+                  "size": 73517
+                }
+              },
+              {
+                "name": "httpx2",
+                "version": "2.13.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/d8/9c/6fe8931fd9f381042a9e4c7d5a7b4cbf7016b252bec0c99a49fce42c3326/httpx2-2.13.1-py3-none-any.whl",
+                  "sha256": "6dff50fabc270ee5fd25d845d0b078ed20564579744d6d962850975996d2f9a4",
+                  "size": 95597
+                }
+              },
+              {
+                "name": "huggingface-hub",
+                "version": "1.33.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/fc/16/963096d224b80909432dc16561a615fd33d2d13beef3ce4c63fa25e40867/huggingface_hub-1.33.0-py3-none-any.whl",
+                  "sha256": "04e434b06e100eddbce9a6e817d72693a7884b10a79bd67ab48080d5c07eb899",
+                  "size": 846435
+                }
+              },
+              {
+                "name": "idna",
+                "version": "3.20",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl",
+                  "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+                  "size": 69583
+                }
+              },
+              {
+                "name": "jinja2",
+                "version": "3.1.6",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl",
+                  "sha256": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67",
+                  "size": 134899
+                }
+              },
+              {
+                "name": "jsonschema",
+                "version": "4.26.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/69/90/f63fb5873511e014207a475e2bb4e8b2e570d655b00ac19a9a0ca0a385ee/jsonschema-4.26.0-py3-none-any.whl",
+                  "sha256": "d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce",
+                  "size": 90630
+                }
+              },
+              {
+                "name": "jsonschema-specifications",
+                "version": "2025.9.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/41/45/1a4ed80516f02155c51f51e8cedb3c1902296743db0bbc66608a0db2814f/jsonschema_specifications-2025.9.1-py3-none-any.whl",
+                  "sha256": "98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe",
+                  "size": 18437
+                }
+              },
+              {
+                "name": "llguidance",
+                "version": "1.8.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/78/98/568132150d3f6f09200f389191f4f863b405f1c46429dd8d27a120c1518d/llguidance-1.8.0-cp39-abi3-macosx_11_0_arm64.whl",
+                  "sha256": "bb9a89e8cdd7c8b5cf4f84e45b04177e79acdcc4d5116fbc775e511f7314df44",
+                  "size": 3168313
+                }
+              },
+              {
+                "name": "markdown-it-py",
+                "version": "4.2.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/b3/81/4da04ced5a082363ecfa159c010d200ecbd959ae410c10c0264a38cac0f5/markdown_it_py-4.2.0-py3-none-any.whl",
+                  "sha256": "9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a",
+                  "size": 91687
+                }
+              },
+              {
+                "name": "markupsafe",
+                "version": "3.0.3",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/9a/81/7e4e08678a1f98521201c3079f77db69fb552acd56067661f8c2f534a718/markupsafe-3.0.3-cp312-cp312-macosx_11_0_arm64.whl",
+                  "sha256": "1872df69a4de6aead3491198eaf13810b565bdbeec3ae2dc8780f14458ec73ce",
+                  "size": 12020
+                }
+              },
+              {
+                "name": "mcp",
+                "version": "2.2.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/1b/ff/8e7eade68b8a28f7da0ed1085544341b51f9c935dbf6b95c76b7edfea6a0/mcp-2.2.0-py3-none-any.whl",
+                  "sha256": "bde982589473a060ae145e3406e9a5333fe538c97229ba841f5a7f92be004f81",
+                  "size": 365656
+                }
+              },
+              {
+                "name": "mcp-types",
+                "version": "2.2.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/8f/d7/6ffba5d8cd5dd9b8a19478875c50e04945314ba5074e84d749283f27f62d/mcp_types-2.2.0-py3-none-any.whl",
+                  "sha256": "ea476b73ee86709ab5abc9452385ed36cc05907e582355622e294595c9a04f13",
+                  "size": 69106
+                }
+              },
+              {
+                "name": "mdurl",
+                "version": "0.1.2",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl",
+                  "sha256": "84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8",
+                  "size": 9979
+                }
+              },
+              {
+                "name": "mlx",
+                "version": "0.32.2",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/0b/eb/af6b1a8b45f24d22e4735c52e0696c66233bd477e1b9e9dbbef225bdf88b/mlx-0.32.2-cp312-cp312-macosx_26_0_arm64.whl",
+                  "sha256": "68560fd648c5bb900aa6f6765cd74c5a8abaf092d97d73584a57b7545966c227",
+                  "size": 619488
+                }
+              },
+              {
+                "name": "mlx-lm",
+                "version": "0.31.3",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/90/02/9a67b8e4f87e3e2e5cd7b1ad79304b93c09a0db6af34bee75e6551c06c60/mlx_lm-0.31.3-py3-none-any.whl",
+                  "sha256": "758cfddf1180053b7613db76fad3d246a331a2a905808e1164a275621fc983b8",
+                  "size": 408890
+                }
+              },
+              {
+                "name": "mlx-metal",
+                "version": "0.32.2",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/dd/cd/4e50bf325100e7165e13d025f264362bf0009196269f9eaf87f2c6e738a2/mlx_metal-0.32.2-py3-none-macosx_26_0_arm64.whl",
+                  "sha256": "e6abeac9ac5265830c9c1541b6f96e9be37a85c2446763a46ad466c63a3837ab",
+                  "size": 64367860
+                }
+              },
+              {
+                "name": "numpy",
+                "version": "2.5.3",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/9c/59/a312e95696e5f601914dd8b6dd844692ba61670807417e24b68e337b5c70/numpy-2.5.3-cp312-cp312-macosx_14_0_arm64.whl",
+                  "sha256": "a72f874bc9e10e4b8f80426fb49716d5141f64442a0c8418065093ec8017fbb0",
+                  "size": 5445405
+                }
+              },
+              {
+                "name": "openai-harmony",
+                "version": "0.0.8",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/45/c6/2502f416d46be3ec08bb66d696cccffb57781a499e3ff2e4d7c174af4e8f/openai_harmony-0.0.8-cp38-abi3-macosx_11_0_arm64.whl",
+                  "sha256": "029ec25ca74abe48fdb58eb9fdd2a8c1618581fc33ce8e5653f8a1ffbfbd9326",
+                  "size": 2627806
+                }
+              },
+              {
+                "name": "opentelemetry-api",
+                "version": "1.45.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/44/b9/040d1a1c7836922828e6480cd2366bb8fe0ebf75b413d2bb51a9b0e7f78f/opentelemetry_api-1.45.0-py3-none-any.whl",
+                  "sha256": "80e068aba7cd56c8b58512d6a36f8d25cb1dfaa0c0a4cc1c938ccf9f362d9cb3",
+                  "size": 60020
+                }
+              },
+              {
+                "name": "packaging",
+                "version": "26.3",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl",
+                  "sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+                  "size": 129956
+                }
+              },
+              {
+                "name": "protobuf",
+                "version": "7.36.2",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/32/72/98342feb672507c8f3a69e34b4fa8961f608edba5c1a48a6f47156d92cb5/protobuf-7.36.2-cp310-abi3-macosx_10_9_universal2.whl",
+                  "sha256": "cbc70b17ee27e28894c7fee8bb04be1abead49e936bc70eb60052531eee2079e",
+                  "size": 456039
+                }
+              },
+              {
+                "name": "psutil",
+                "version": "7.2.2",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/80/c4/f5af4c1ca8c1eeb2e92ccca14ce8effdeec651d5ab6053c589b074eda6e1/psutil-7.2.2-cp36-abi3-macosx_11_0_arm64.whl",
+                  "sha256": "1a7b04c10f32cc88ab39cbf606e117fd74721c831c98a27dc04578deb0c16979",
+                  "size": 129859
+                }
+              },
+              {
+                "name": "pycparser",
+                "version": "3.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/0c/c3/44f3fbbfa403ea2a7c779186dc20772604442dde72947e7d01069cbe98e3/pycparser-3.0-py3-none-any.whl",
+                  "sha256": "b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992",
+                  "size": 48172
+                }
+              },
+              {
+                "name": "pydantic",
+                "version": "2.13.5",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/eb/47/c95ffc2009878c7aac0c5e08528022dcb885933252a88b5f170058014464/pydantic-2.13.5-py3-none-any.whl",
+                  "sha256": "346a034f080da3755d8e9cb5e00e8b07de1d39e4f6e2c87d8ab7cafa0b269a73",
+                  "size": 472589
+                }
+              },
+              {
+                "name": "pydantic-core",
+                "version": "2.46.5",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/db/50/26b091836076ce4cb2fac264186936acc069e0595772cfd02a563bc4761a/pydantic_core-2.46.5-cp312-cp312-macosx_11_0_arm64.whl",
+                  "sha256": "a39ac25a9a2fa4072efdb429833c4a4c8009a51ff9eea3eeae131713cd27991e",
+                  "size": 1922874
+                }
+              },
+              {
+                "name": "pygments",
+                "version": "2.21.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/71/46/17f022dd3e953bf20a04a028a21ec746d942f8d2af30fa0f124fa0e6a684/pygments-2.21.0-py3-none-any.whl",
+                  "sha256": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9",
+                  "size": 1250147
+                }
+              },
+              {
+                "name": "pyjwt",
+                "version": "2.15.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/e8/55/40e45bf052ee8ee12a4dfd785519660f8effa7b065442b91646ec6828619/pyjwt-2.15.0-py3-none-any.whl",
+                  "sha256": "7a3742debf6b879e912dbb9819ceec1594be812452b78c5f2e2dfc56564954f8",
+                  "size": 33680
+                }
+              },
+              {
+                "name": "python-multipart",
+                "version": "0.0.32",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/e1/04/e8135ebd1ad02c56ec633277529b2602ff99ff634be76cdba5744cf554fd/python_multipart-0.0.32-py3-none-any.whl",
+                  "sha256": "ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23",
+                  "size": 30042
+                }
+              },
+              {
+                "name": "pyyaml",
+                "version": "6.0.3",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/89/a0/6cf41a19a1f2f3feab0e9c0b74134aa2ce6849093d5517a0c550fe37a648/pyyaml-6.0.3-cp312-cp312-macosx_11_0_arm64.whl",
+                  "sha256": "fc09d0aa354569bc501d4e787133afc08552722d3ab34836a80547331bb5d4a0",
+                  "size": 173973
+                }
+              },
+              {
+                "name": "rapid-mlx",
+                "version": "0.15.2",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/3e/85/26f4c7a4e1406040c3bd8f6b7dab050d40898a6e9ff45623876cb9406262/rapid_mlx-0.15.2-py3-none-any.whl",
+                  "sha256": "cfa11d6936db522f4c79aab5c01b6f3ff780d5cb2b2b81d2672fd622e2fbe421",
+                  "size": 4233274
+                }
+              },
+              {
+                "name": "referencing",
+                "version": "0.37.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/2c/58/ca301544e1fa93ed4f80d724bf5b194f6e4b945841c5bfd555878eea9fcb/referencing-0.37.0-py3-none-any.whl",
+                  "sha256": "381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231",
+                  "size": 26766
+                }
+              },
+              {
+                "name": "regex",
+                "version": "2026.9.10",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/60/4b/0f2d5f6bbb791cc10f22f0ed16c487e630dde8fa8fa0bd92a2bfe21a4b20/regex-2026.9.10-cp312-cp312-macosx_11_0_arm64.whl",
+                  "sha256": "866de9f98df0611d7b62b3a8729d3284a64c0cc6edd90bb95a533e443a4939cb",
+                  "size": 291905
+                }
+              },
+              {
+                "name": "requests",
+                "version": "2.34.2",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl",
+                  "sha256": "2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0",
+                  "size": 73075
+                }
+              },
+              {
+                "name": "rich",
+                "version": "15.0.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/82/3b/64d4899d73f91ba49a8c18a8ff3f0ea8f1c1d75481760df8c68ef5235bf5/rich-15.0.0-py3-none-any.whl",
+                  "sha256": "33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb",
+                  "size": 310654
+                }
+              },
+              {
+                "name": "rpds-py",
+                "version": "2026.6.3",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/a4/73/319dfa745dd668efe89309141ded489126461fcecd2b8f3a3cda185129b6/rpds_py-2026.6.3-cp312-cp312-macosx_11_0_arm64.whl",
+                  "sha256": "538949e262e46caa31ac01bdb3c1e8f642622922cacbabbae6a8445d9dc33eaf",
+                  "size": 338542
+                }
+              },
+              {
+                "name": "safetensors",
+                "version": "0.8.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/f5/b1/fa7c600e7dceae12e9606c7578cbc9ff1e1ed55844883ee5c92205e86226/safetensors-0.8.0-cp310-abi3-macosx_11_0_arm64.whl",
+                  "sha256": "c80201d22cbf405b80647a60ada77bba06c8fba2da2743ba1e89cdcc39a81f25",
+                  "size": 484562
+                }
+              },
+              {
+                "name": "sentencepiece",
+                "version": "0.2.2",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/bd/44/caa9cab5f261a019e2808bc5046152775dc57352ba9cbae7525e9e7a1ed4/sentencepiece-0.2.2-cp312-cp312-macosx_11_0_arm64.whl",
+                  "sha256": "38111ed1f79268f399c505028023d5eaaf0ab4e5eafceb709468b0d3323e7838",
+                  "size": 1347176
+                }
+              },
+              {
+                "name": "shellingham",
+                "version": "1.5.4",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/e0/f9/0595336914c5619e5f28a1fb793285925a8cd4b432c9da0a987836c7f822/shellingham-1.5.4-py2.py3-none-any.whl",
+                  "sha256": "7ecfff8f2fd72616f7481040475a65b2bf8af90a56c89140852d1120324e8686",
+                  "size": 9755
+                }
+              },
+              {
+                "name": "sse-starlette",
+                "version": "3.4.11",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/98/6a/2ba3ed4a69babf3afdddf7d8314a48d87562c0a442206bbc2a1b50d5efc0/sse_starlette-3.4.11-py3-none-any.whl",
+                  "sha256": "c7b2244bdff016fe7f64e10075e89a3e6bbf899649cc89b0fe884b5545042453",
+                  "size": 17122
+                }
+              },
+              {
+                "name": "starlette",
+                "version": "1.7.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/4e/d6/1ec1b290f9e0fb067899b61e1d37a30c923068bad260b216dbe37a7d2967/starlette-1.7.0-py3-none-any.whl",
+                  "sha256": "67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e",
+                  "size": 78980
+                }
+              },
+              {
+                "name": "tabulate",
+                "version": "0.10.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/99/55/db07de81b5c630da5cbf5c7df646580ca26dfaefa593667fc6f2fe016d2e/tabulate-0.10.0-py3-none-any.whl",
+                  "sha256": "f0b0622e567335c8fabaaa659f1b33bcb6ddfe2e496071b743aa113f8774f2d3",
+                  "size": 39814
+                }
+              },
+              {
+                "name": "tokenizers",
+                "version": "0.22.2",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/2e/47/174dca0502ef88b28f1c9e06b73ce33500eedfac7a7692108aec220464e7/tokenizers-0.22.2-cp39-abi3-macosx_11_0_arm64.whl",
+                  "sha256": "1e418a55456beedca4621dbab65a318981467a2b188e982a23e117f115ce5001",
+                  "size": 2981472
+                }
+              },
+              {
+                "name": "tomli-w",
+                "version": "1.2.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/c7/18/c86eb8e0202e32dd3df50d43d7ff9854f8e0603945ff398974c1d91ac1ef/tomli_w-1.2.0-py3-none-any.whl",
+                  "sha256": "188306098d013b691fcadc011abd66727d3c414c571bb01b1a174ba8c983cf90",
+                  "size": 6675
+                }
+              },
+              {
+                "name": "tqdm",
+                "version": "4.70.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/a7/03/921a3d3c75785aca9ebfbfcabfbc3a1be12e2ab5265deb026d55a5a3f83e/tqdm-4.70.1-py3-none-any.whl",
+                  "sha256": "c293e525e6fef9c20e8728fd4612df02a0aa31bb5fe91ecd93e123b1b7bffa73",
+                  "size": 80199
+                }
+              },
+              {
+                "name": "transformers",
+                "version": "5.15.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/41/c4/a12e1d9b387fb0c40a57116db82b457e8c771cb419163cda29204d74a595/transformers-5.15.1-py3-none-any.whl",
+                  "sha256": "b7cdf238ff583e3a58dbc7fa34da1aaf091ce063141f65a30538160bd5afe93f",
+                  "size": 11749582
+                }
+              },
+              {
+                "name": "truststore",
+                "version": "0.10.4",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/19/97/56608b2249fe206a67cd573bc93cd9896e1efb9e98bce9c163bcdc704b88/truststore-0.10.4-py3-none-any.whl",
+                  "sha256": "adaeaecf1cbb5f4de3b1959b42d41f6fab57b2b1666adb59e89cb0b53361d981",
+                  "size": 18660
+                }
+              },
+              {
+                "name": "typer",
+                "version": "0.27.2",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/dc/bf/205d0004930ede8f542fb58f601526fccf4ae7626075ca1e6c4de5d3d652/typer-0.27.2-py3-none-any.whl",
+                  "sha256": "b3a5fc4342d5fc8fda8fc3010b1cf117e9249aab7fae800c2eff62fd3842d97d",
+                  "size": 123130
+                }
+              },
+              {
+                "name": "typing-extensions",
+                "version": "4.16.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
+                  "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+                  "size": 45571
+                }
+              },
+              {
+                "name": "typing-inspection",
+                "version": "0.4.4",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/67/81/4add07e5172b7ac40d8ed5ff580409a7801a4fe26d529bdd915401dabfbe/typing_inspection-0.4.4-py3-none-any.whl",
+                  "sha256": "65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147",
+                  "size": 14750
+                }
+              },
+              {
+                "name": "urllib3",
+                "version": "2.8.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl",
+                  "sha256": "0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3",
+                  "size": 135717
+                }
+              },
+              {
+                "name": "uvicorn",
+                "version": "0.54.0",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/38/0c/b54a4fdd7f90a3af8b02ebc9ce6712c2c208b7926a2f7bad95c33ebbe943/uvicorn-0.54.0-py3-none-any.whl",
+                  "sha256": "505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf",
+                  "size": 87427
+                }
+              },
+              {
+                "name": "websockets",
+                "version": "17.1",
+                "artifact": {
+                  "locator": "https://files.pythonhosted.org/packages/8f/e7/df821761772beaa48c211ee0e234930b35c1473778470773823f56d3911b/websockets-17.1-cp312-cp312-macosx_11_0_arm64.whl",
+                  "sha256": "87f0d5e77548b0c40c8464cdb6108792e7e53f487c6400028a4ec28a8afbe5ab",
+                  "size": 214959
+                }
+              }
+            ]
+          },
+          "package": "rapid-mlx",
+          "target": {
+            "os": "darwin",
+            "arch": "arm64"
+          }
+        },
+        "interfaces": [
+          "chat-completions"
+        ],
+        "modalities": [
+          "text"
+        ]
+      }
+    },
+    "presets": {
+      "rapid-mlx": {
+        "display_name": "rapid-mlx",
+        "memory_tier": "S",
+        "artifact": "qwen-mlx",
+        "patches": [],
+        "engine": "rapid-mlx",
+        "interface": "chat-completions",
+        "modalities": [
+          "text"
+        ],
+        "context_window_tokens": 118000,
+        "context_limit_tokens": 262144,
+        "request_defaults": {
+          "max_output_tokens": 100000,
+          "reasoning": "on",
+          "sampling": {
+            "temperature": 1,
+            "top_k": 20,
+            "top_p": 0.95,
+            "min_p": 0,
+            "repeat_penalty": 1,
+            "presence_penalty": 0,
+            "seed": 17
+          }
+        },
+        "speculation": {
+          "method": "none",
+          "source": "none",
+          "max_draft_tokens": 0
+        },
+        "engine_config": {
+          "kind": "rapid-mlx/v1",
+          "rapid_mlx": {
+            "completion_batch_size": 1,
+            "gpu_memory_utilization": 0.75,
+            "kv_cache_dtype": "bf16",
+            "max_concurrent_requests": 1,
+            "max_num_seqs": 1,
+            "pflash": "off",
+            "prefill_batch_size": 1,
+            "prefill_step_size": 1024,
+            "prefix_cache": "off",
+            "reasoning_parser": "qwen3",
+            "request_timeout_seconds": 14400,
+            "tool_call_parser": "qwen3_coder_xml"
+          }
+        }
+      }
+    }
+  },
+  "execution_digest": "287cd507eabdd7125f534ad1e8710e7f085cac6dd6899904f822f8f7213b934d"
+}

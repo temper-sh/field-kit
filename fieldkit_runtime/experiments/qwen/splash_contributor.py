@@ -40,6 +40,10 @@ def format_report(session):
             lines.append("| " + " | ".join([row["id"], case["id"], outcome] + [number(case.get(key)) for key in
                 ("startup_seconds", "service_seconds", "first_token_seconds", "first_answer_seconds", "prefill_tokens_per_second",
                  "generation_tokens_per_second", "observed_output_tokens_per_second")]) + " |")
+    if session.get("package", {}).get("protocol", {}).get("schema") == "field-kit-qwen-chunk-study/v2":
+        from .splash_memory import report_lines
+        lines += report_lines(rows)
+        lines += ["", "Process accounting below does not include all native Metal/model allocations. Memory coverage for other engines remains limited to these counters."]
     lines += ["", "| Configuration | Preparation s | Peak engine RSS GiB | Swap growth GiB | Failure |", "|---|---:|---:|---:|---|"]
     for row in rows:
         resources = row["resources"]

@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import shutil
 
-from ...catalog import QuestionCatalog, Refusal
+from ...catalog import QuestionCatalog, Refusal, load_question_material
 from ...execution import configure_execution
 from ...planner import load_plan
 from ...workflow import Workflow, _atomic_write, _exclusive_session_lock, load_session, run_contributor_process
@@ -21,10 +21,13 @@ from .splash_study import execution_settings
 def retained_runs(local, source):
     """Derive progress from the actual sessions; no second progress registry."""
     runs = []
-    for path in sorted(local.glob("qwen-5-*.session.json")):
+    for path in sorted(local.glob("qwen-[56]-*.session.json")):
         session = load_session(path)
         identity = configuration_from_selector(session["package"]["selector"])
-        selected = select_package(source, identity)
+        revision = session["package"]["selector"].rsplit("@", 1)[1]
+        original = source if source.selector.endswith("@" + revision) else load_question_material(
+            source.package_root.parent / ("qwen-machine-study@" + revision) / "package.json")
+        selected = select_package(original, identity)
         plan = load_plan(Path(session["plan"]["path"]))
         if (session["package"]["sha256"] != selected.package_sha256
                 or plan.sha256 != session["plan"]["sha256"]
@@ -33,7 +36,7 @@ def retained_runs(local, source):
                 or Path(session["paths"]["root"]).parent != local):
             raise Refusal(f"retained configuration does not match its consented inputs: {path}")
         runs.append((path, session, identity))
-    return runs
+    return sorted(runs, key=lambda row: row[1]["started_at"])
 
 
 def show_next(protocol, facts, runs):
@@ -109,6 +112,8 @@ def _run(arguments, repository, input_fn, facts_reader, runner):
     requested = arguments.configuration
     if unfinished:
         path, session, identity = unfinished[0]
+        if session["package"]["selector"].rsplit("@", 1)[1] != str(source.package["revision"]):
+            raise Refusal(f"resume the unfinished configuration using its original Field Kit checkout; do not replay it: {path}")
         if arguments.new or arguments.next or requested not in (None, identity):
             raise Refusal(f"resume and clean up the unfinished {identity} run before selecting another: {path}")
         if arguments.preview:
@@ -150,7 +155,7 @@ def _run(arguments, repository, input_fn, facts_reader, runner):
         if identity not in {item["id"] for item in choices}:
             raise Refusal("configuration is unavailable on this machine; choose " + ", ".join(item["id"] for item in choices))
         timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-        root = local / ("qwen-5-" + timestamp + "-" + identity)
+        root = local / (f"qwen-{source.package['revision']}-" + timestamp + "-" + identity)
     else:
         root = Path(session["paths"]["root"])
     entry = select_package(source, identity)

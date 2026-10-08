@@ -15,6 +15,7 @@ from fieldkit_runtime.catalog import QuestionCatalog, Refusal, canonical_json, d
 from fieldkit_runtime.experiments.qwen.chunk_contributor import contribute
 from fieldkit_runtime.experiments.qwen.chunks import ChunkStudy, SELECTOR, select_package, selected_cells
 from fieldkit_runtime.experiments.qwen.splash_study import SplashStudy
+from fieldkit_runtime.experiments.qwen.splash_memory import SplashMemory
 from fieldkit_runtime.experiments.qwen.witness import inspect as review, inspect_bytes as review_bytes
 from fieldkit_runtime.workflow import CommandFailure, CommandResult, load_session
 from tests.test_catalog import ROOT
@@ -31,6 +32,9 @@ class ChunkRunner(MatrixRunner):
         self.cache_roots = []
         self.prepared = []
         self.fail_prepare = False
+        self.native_status = {"ready": True, "instance": {"id": "fixture", "pid": 1234},
+                              "transport": {"ready": True, "recovering": False, "status_stale": False, "restarts": 0},
+                              "memory_actual": {"current_bytes": 20 * 1024**3, "peak_bytes": 24 * 1024**3}}
 
     def execution(self, lock):
         preset = json.loads(lock.read_bytes())["preset"]
@@ -59,7 +63,7 @@ class ChunkRunner(MatrixRunner):
             for key, value in self.settings.items():
                 setattr(study, key, value)
             self.actions.append(study.action["id"])
-            with patch("fieldkit_runtime.experiments.qwen.splash_study.monitored_call", return_value={}):
+            with patch("fieldkit_runtime.experiments.qwen.splash_study.monitored_call", return_value=self.native_status):
                 result = study.run()
             Path(args.report).write_bytes(canonical_json(result))
             return CommandResult(b"", b"", 0)
@@ -94,7 +98,7 @@ class ChunkTest(unittest.TestCase):
                 facts_reader=lambda _: (parse_machine_facts(self.raw), self.raw), runner=self.runner)
 
     def sessions(self):
-        return sorted((self.root / ".local").glob("qwen-5-*.session.json"))
+        return sorted((self.root / ".local").glob("qwen-[56]-*.session.json"))
 
     def test_default_run_measures_only_q4_exports_and_reclaims_its_downloads(self):
         self.run_chunk()
@@ -109,8 +113,16 @@ class ChunkTest(unittest.TestCase):
         self.assertTrue(all(not cache.exists() for cache in self.runner.cache_roots))
         self.assertEqual((self.shared / "existing-model").read_bytes(), b"pre-existing user data")
         export = next((self.root / "runs").glob("*/result.json"))
-        result = review(export, self.root / "catalog/packages/qwen-machine-study@5/package.json")
+        result = review(export, self.root / "catalog/packages/qwen-machine-study@6/package.json")
         self.assertEqual(len(result["answers"]["completed-work"]["value"]["rows"]), 2)
+        for row in result["answers"]["completed-work"]["value"]["rows"]:
+            memory = row["resources"][0]["native_memory"]
+            self.assertEqual(memory["state"], "observed")
+            self.assertEqual(memory["loaded"]["current_bytes"], 20 * 1024**3)
+            self.assertEqual(memory["last"]["peak_bytes"], 24 * 1024**3)
+        report = export.with_name("report.md").read_text()
+        self.assertIn("| 20.00 | 24.00 | observed |", report)
+        self.assertIn("do not add them", report)
         plan = json.loads(Path(session["plan"]["path"]).read_bytes())
         self.assertEqual(len(plan["investigation"]["actions"]), 3)
         self.assertLess(plan["cost_ceiling"]["temporary_disk_bytes_max"], 100 * 1024**3)
@@ -134,6 +146,97 @@ class ChunkTest(unittest.TestCase):
         self.assertEqual(len(self.runner.requests), 2)
         self.assertEqual(len(self.prompts), 1)
         self.assertEqual(after["cleanup"], "complete")
+
+    def historical_run(self, **options):
+        """Create actual revision 5 inputs/session, then restore the new catalog."""
+        index = self.root / "catalog/questions.json"
+        current = index.read_bytes()
+        old = load_question_material(self.root / "catalog/packages/qwen-machine-study@5/package.json")
+        catalog = json.loads(current)
+        catalog["questions"][0].update(revision=5, package_path="packages/qwen-machine-study@5/package.json",
+                                        package_sha256=old.package_sha256)
+        index.write_bytes(canonical_json(catalog))
+        try:
+            with patch("fieldkit_runtime.experiments.qwen.chunk_contributor.SELECTOR", "qwen-machine-study@5"):
+                self.run_chunk(**options)
+        finally:
+            index.write_bytes(current)
+
+    def test_new_revision_keeps_completed_choices_and_explicit_q4_repeat_separate(self):
+        self.historical_run()
+        self.historical_run(configuration="splash-q5")
+        originals = {path: path.read_bytes() for path in self.sessions()}
+
+        self.run_chunk(next=True)
+
+        self.assertEqual(self.runner.prepared, ["splash-q4", "splash-q5", "llama-q5"])
+        self.run_chunk(configuration="splash-q4", new=True)
+        self.assertEqual(self.runner.prepared[-1], "splash-q4")
+        self.assertEqual(len(self.runner.requests), 8)
+        for path, content in originals.items():
+            self.assertEqual(path.read_bytes(), content)
+        self.assertEqual(len(list((self.root / ".local").glob("qwen-6-*.session.json"))), 2)
+
+    def test_new_revision_refuses_to_resume_or_replay_unfinished_old_chunk(self):
+        self.historical_run(pause_after_task=True)
+        path = self.sessions()[0]
+        original = path.read_bytes()
+
+        with self.assertRaisesRegex(Refusal, "original Field Kit checkout"):
+            self.run_chunk()
+
+        self.assertEqual(path.read_bytes(), original)
+        self.assertEqual(len(self.runner.requests), 1)
+
+    def test_missing_native_counters_preserve_task_and_timing_evidence(self):
+        self.runner.native_status = {}
+
+        self.run_chunk()
+
+        export = next((self.root / "runs").glob("*/result.json"))
+        reviewed = review(export, self.root / "catalog/packages/qwen-machine-study@6/package.json")
+        for row in reviewed["answers"]["completed-work"]["value"]["rows"]:
+            self.assertTrue(row["cases"][0]["measurement_valid"])
+            self.assertEqual(row["resources"][0]["native_memory"]["state"], "unmeasured")
+        self.assertIn("| unmeasured | unmeasured | unmeasured |", export.with_name("report.md").read_text())
+
+    def test_witness_requires_explicit_native_memory_state_even_when_unmeasured(self):
+        self.run_chunk()
+        export = next((self.root / "runs").glob("*/result.json"))
+        packet = json.loads(export.read_bytes())
+        def omit_memory(value):
+            if isinstance(value, dict):
+                value.pop("native_memory", None)
+                for nested in value.values():
+                    omit_memory(nested)
+            elif isinstance(value, list):
+                for nested in value:
+                    omit_memory(nested)
+        omit_memory(packet)
+
+        with self.assertRaisesRegex(Refusal, "omitted native memory"):
+            review_bytes(canonical_json(packet), self.root / "catalog/packages/qwen-machine-study@6/package.json")
+
+    def test_interrupted_final_memory_read_still_preserves_shutdown_authority(self):
+        self.runner = ChunkRunner(unsafe=True)
+        capture = SplashMemory.capture
+        def interrupted(memory, phase):
+            if phase == "final":
+                def read():
+                    raise KeyboardInterrupt("interrupted native status read")
+                memory.read_status = read
+            capture(memory, phase)
+
+        with patch.object(SplashMemory, "capture", interrupted), self.assertRaisesRegex(Refusal, "shutdown"):
+            self.run_chunk()
+
+        session = load_session(self.sessions()[0])
+        self.assertTrue(Path(session["paths"]["root"]).exists())
+        self.assertIsNot(session["protocol_evidence"]["safe_to_cleanup"], True)
+        self.assertEqual(len(self.runner.requests), 1)
+        resources = session["answers"]["completed-work"]["value"]["rows"][0]["resources"][0]
+        self.assertFalse(resources["safe_to_cleanup"])
+        self.assertEqual(resources["native_memory"]["state"], "partial")
 
     def test_completed_configuration_requires_an_explicit_next_selection(self):
         self.run_chunk()
@@ -160,7 +263,7 @@ class ChunkTest(unittest.TestCase):
         initial = session["attempts"][0]["arguments"]
         self.assertEqual(installations, {initial[initial.index("--installation") + 1]})
         for export in (self.root / "runs").glob("*/result.json"):
-            review(export, self.root / "catalog/packages/qwen-machine-study@5/package.json")
+            review(export, self.root / "catalog/packages/qwen-machine-study@6/package.json")
 
     def test_task_preparation_reuses_the_selected_initial_installation(self):
         source = QuestionCatalog.load(ROOT / "catalog/questions.json").find(SELECTOR)
@@ -191,9 +294,9 @@ class ChunkTest(unittest.TestCase):
         self.run_chunk(configuration="llama-q6")
         export = next((self.root / "runs").glob("*/result.json"))
         original = json.loads(export.read_bytes())
-        package = self.root / "catalog/packages/qwen-machine-study@5/package.json"
+        package = self.root / "catalog/packages/qwen-machine-study@6/package.json"
         changed = copy.deepcopy(original)
-        changed["session"]["package"]["selector"] = "qwen-chunk-splash-q4@5"
+        changed["session"]["package"]["selector"] = "qwen-chunk-splash-q4@6"
         with self.assertRaisesRegex(Refusal, "bind the supplied package"):
             review_bytes(canonical_json(changed), package)
         changed = copy.deepcopy(original)
@@ -217,7 +320,7 @@ class ChunkTest(unittest.TestCase):
         self.run_chunk()
         self.assertEqual(len(self.runner.requests), 1)
         export = next((self.root / "runs").glob("*/result.json"))
-        review(export, self.root / "catalog/packages/qwen-machine-study@5/package.json")
+        review(export, self.root / "catalog/packages/qwen-machine-study@6/package.json")
 
     def test_pending_task_prevents_another_configuration_or_new_allocation(self):
         self.run_chunk(pause_after_task=True)
@@ -277,7 +380,7 @@ class ChunkTest(unittest.TestCase):
         self.assertEqual(self.runner.actions, ["context-32768", "finish-study"])
         self.assertEqual(self.runner.prepared, ["splash-q4"])
         export = next((self.root / "runs").glob("*/result.json"))
-        review(export, self.root / "catalog/packages/qwen-machine-study@5/package.json")
+        review(export, self.root / "catalog/packages/qwen-machine-study@6/package.json")
 
     def test_each_selection_is_a_valid_frozen_package_and_names_its_source(self):
         source = QuestionCatalog.load(ROOT / "catalog/questions.json").find(SELECTOR)
