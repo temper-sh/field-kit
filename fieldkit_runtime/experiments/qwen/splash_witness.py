@@ -12,11 +12,11 @@ from .patches import InvalidPatch, staged_texts, submission
 from .splash_study import context_summary, execution_settings, matrix, next_cell
 
 
-def review(package, completed, facts):
+def review(package, completed, facts, *, cells=None):
     protocol = json.loads(package.files["protocol.json"])
     workloads = json.loads(package.files["workloads.json"])
     cases = {case["id"]: case for case in workloads["cases"]}
-    cells = matrix(protocol, facts)
+    cells = matrix(protocol, facts) if cells is None else cells
     prior = []
     with tempfile.TemporaryDirectory(prefix="field-kit-review-") as temporary:
         archive = Path(temporary) / "fixture.tar.gz"
@@ -45,7 +45,7 @@ def review(package, completed, facts):
                 identity = material.get("context_execution_sha256")
                 if not isinstance(identity, str) or not SHA256.fullmatch(identity):
                     raise Refusal("witness has no exact preset context identity")
-            expected_ids = list(cases) if cell["kind"] == "coding" else ["distributed-ledger", "ledger-followup"]
+            expected_ids = cell.get("task_ids", list(cases)) if cell["kind"] == "coding" else ["distributed-ledger", "ledger-followup"]
             if [item["id"] for item in row["cases"]] != expected_ids[:len(row["cases"])]:
                 raise Refusal("witness omitted, reordered or repeated a task")
             for item in row["cases"]:

@@ -11,7 +11,7 @@ unfinished runs matter too.
 
 | Experiment | What it helps answer | Requirements | Status |
 |---|---|---|---|
-| [Qwen machine study](docs/experiments/qwen-machine-study.md) | How much text Qwen can handle on a 36 GiB Mac, and whether other engines or larger model files improve coding on larger Macs. | Apple M3 or newer, macOS 26.4+; 36 GiB or at least 48 GiB RAM. Allow about 130 or 234 GiB free disk; see the guide for full limits. | Open for contributions; measurements on these machines pending. |
+| [Qwen machine study](docs/experiments/qwen-machine-study.md) | Run one configuration to help compare coding results, memory use and useful context. | Apple M3 or newer, macOS 26.4+; 36 GiB or at least 48 GiB RAM. Allow about 72 GiB free disk for the default run; see the guide for other choices. | Open for contributions; measurements on these machines pending. |
 
 Read the experiment guide before starting. Runs can take a long time and
 download many gigabytes; Field Kit checks your machine and shows the full
@@ -41,8 +41,12 @@ Previewing downloads no models and starts no experiment.
 
 ## What to expect
 
-- **A separate installation.** The current study installs its own models and
-  engines, then removes them after the run. It preserves your existing AI setup.
+- **One configuration at a time.** The default runs Splash Q4 on two coding
+  tasks, saves a report and stops. Each task has a saved checkpoint. You choose
+  whether to run another configuration.
+- **A separate installation.** Models download into a private study cache.
+  After verified shutdown, the run removes its installation and model cache.
+  It preserves your existing AI setup and shared caches.
 - **A readable report.** `report.md` summarizes the run; `result.json` contains
   the measurements and details needed for review.
 - **You choose what to share.** Results stay under `runs/`. Nothing is uploaded.

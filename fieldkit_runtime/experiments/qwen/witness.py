@@ -124,6 +124,9 @@ def inspect_bytes(data: bytes, package_path: Path) -> dict:
         if packet["schema"] != "field-kit-evidence-export/v4":
             raise Refusal("use the producing Field Kit revision to review this historical export")
         session, plan = packet["session"], packet["plan"]
+        if package.selector == "qwen-machine-study@5":
+            from .chunks import configuration_from_selector, select_package
+            package = select_package(package, configuration_from_selector(session["package"]["selector"]))
         if session["schema"] != "field-kit-session/v4" or session["state"] != "complete":
             raise Refusal("witness session is incomplete or unsupported")
         if session["package"] != {"selector": package.selector, "sha256": package.package_sha256,
@@ -148,7 +151,16 @@ def inspect_bytes(data: bytes, package_path: Path) -> dict:
         completed = [row["report"] for row in evidence if row["state"] == "complete"]
         if not completed or completed[-1]["action"]["id"] != package.package["investigation"]["final_validation_action"]:
             raise Refusal("witness has no completed final validation")
-        if package.package["mechanics"]["runtime_protocol"]["schema"] == "field-kit-qwen-splash-study/v1":
+        if package.package["mechanics"]["runtime_protocol"]["schema"] == "field-kit-qwen-chunk-study/v1":
+            from .chunks import available_configurations, selected_cells
+            from .splash_witness import review
+            protocol = json.loads(package.files["protocol.json"])
+            identity = package.package["origin"]["configuration"]
+            if identity not in {item["id"] for item in available_configurations(protocol, session["machine_facts"])}:
+                raise Refusal("witness configuration is not applicable to this machine")
+            cells = selected_cells(protocol, identity)
+            workload_schema = review(package, completed, session["machine_facts"], cells=cells)
+        elif package.package["mechanics"]["runtime_protocol"]["schema"] == "field-kit-qwen-splash-study/v1":
             from .splash_witness import review
             workload_schema = review(package, completed, session["machine_facts"])
         else:

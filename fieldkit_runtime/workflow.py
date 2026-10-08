@@ -86,14 +86,14 @@ def _run_process(
     arguments: Sequence[str],
     timeout_seconds: float,
     destinations: tuple[Any | None, Any | None],
-    *, protocol_interrupt: bool = False,
+    *, protocol_interrupt: bool = False, environment: dict[str, str] | None = None,
 ) -> CommandResult:
     # Temper needs the caller's HOME, HF cache settings and PATH to locate its
     # download client. Preserve them through the protocol's nested host calls.
     # Temper and the candidate evaluator own their runtime isolation.
     process = subprocess.Popen(
         list(arguments), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        start_new_session=True,
+        start_new_session=True, env=environment,
     )
     assert process.stdout is not None and process.stderr is not None
     stdout = bytearray()
@@ -144,16 +144,16 @@ def run_process(arguments: Sequence[str], timeout_seconds: float = 0) -> Command
     return _run_process(arguments, timeout_seconds, (sys.stdout, sys.stderr))
 
 
-def run_process_silent(arguments: Sequence[str], timeout_seconds: float = 0) -> CommandResult:
+def run_process_silent(arguments: Sequence[str], timeout_seconds: float = 0, *, environment=None) -> CommandResult:
     """Run one exact argv while reserving stdout for a canonical CLI response."""
-    return _run_process(arguments, timeout_seconds, (None, None))
+    return _run_process(arguments, timeout_seconds, (None, None), environment=environment)
 
 
-def run_contributor_process(arguments: Sequence[str], timeout_seconds: float = 0) -> CommandResult:
+def run_contributor_process(arguments: Sequence[str], timeout_seconds: float = 0, *, environment=None) -> CommandResult:
     """Quiet installation commands, live measurement progress, graceful Ctrl-C."""
     if "--action" in arguments and "--field-kit-runtime" in arguments:
-        return _run_process(arguments, timeout_seconds, (sys.stdout, sys.stderr), protocol_interrupt=True)
-    return run_process_silent(arguments, timeout_seconds)
+        return _run_process(arguments, timeout_seconds, (sys.stdout, sys.stderr), protocol_interrupt=True, environment=environment)
+    return run_process_silent(arguments, timeout_seconds, environment=environment)
 
 
 Runner = Callable[[Sequence[str], float], CommandResult]

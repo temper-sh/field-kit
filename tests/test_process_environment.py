@@ -76,3 +76,29 @@ sys.exit(result.returncode)
         observed = json.loads(observation.read_bytes())
         self.assertEqual(observed["environment"], self.environment)
         self.assertEqual(observed["clients"], {"hf": "hf available", "uv": "uv available"})
+
+    def test_private_model_cache_reaches_host_and_nested_protocol_without_mutating_caller(self):
+        scoped = {**self.environment, "HF_HUB_CACHE": str(self.root / "owned hub")}
+        observation = self.root / "scoped-observation.json"
+        protocol = '''import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from fieldkit_runtime.workflow import run_process_silent
+result = run_process_silent([sys.executable, "-B", "-S", sys.argv[2]], 10)
+Path(sys.argv[3]).write_bytes(result.stdout)
+sys.exit(result.returncode)
+'''
+        with patch.dict(os.environ, self.environment, clear=True):
+            direct = run_contributor_process([sys.executable, "-B", "-S", str(self.host)], 10, environment=scoped)
+            nested = run_contributor_process([
+                sys.executable, "-B", "-S", "-c", protocol, str(ROOT), str(self.host), str(observation),
+                "--action", "fixture", "--field-kit-runtime", str(ROOT),
+            ], 20, environment=scoped)
+            self.assertEqual(dict(os.environ), self.environment)
+
+        self.assertEqual(direct.returncode, 0, direct.stderr.decode())
+        self.assertEqual(nested.returncode, 0, nested.stderr.decode())
+        for data in (direct.stdout, observation.read_bytes()):
+            observed = json.loads(data)
+            self.assertEqual(observed["environment"], scoped)
+            self.assertEqual(observed["clients"], {"hf": "hf available", "uv": "uv available"})

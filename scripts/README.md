@@ -1,40 +1,40 @@
 # Author the Qwen study
 
-Contributors run the frozen package; they do not run these scripts. Authoring
-requires the adjacent Temper source and the retained Labs comparison. Runtime
-code remains compatible with Python 3.9; authoring uses Python 3.11 or newer.
+Contributors run the frozen package; they do not run these scripts. Runtime
+code remains compatible with Python 3.9. The current scheduling revision is
+derived offline from the dispatched revision 4 inputs.
 
-`catalog/packages/qwen-machine-study@4/` owns the tasks, fixtures and experiment
-protocol. Temper's `catalog/experiments/qwen-study.json` owns exact software and
+`catalog/packages/qwen-machine-study@5/` owns the current tasks, fixtures and
+configuration choices. Temper's `catalog/experiments/qwen-study.json` owns exact software and
 model compositions in `temper-catalog/v3` presets. Execution locks are opaque,
 compiled snapshots for the dispatched study. No dependency resolver runs on a
 participant's machine.
 
 ## Reproduce the package from reviewed inputs
 
-From this repository, substitute the actual source paths:
+From this repository:
 
 ```sh
-python3 scripts/prepare_qwen_coding.py \
-  --result ../labs/workstreams/model-runtime-optimization/results/qwen27-splash-frog-m5.json \
-  --flask-source /absolute/path/to/coding-quality-fixture/base \
-  --out catalog/packages/qwen-machine-study@4
-python3 scripts/prepare_qwen_study.py \
-  --temper /absolute/path/to/temper/build/temper \
-  --catalog /absolute/path/to/temper/catalog/experiments/qwen-study.json
+python3 -B scripts/prepare_qwen_chunks.py
 ./field-kit verify
 python3 -m unittest discover -v
 ```
 
-The source packet's sibling `manifest.json` must match the retained comparison.
-The first command validates that source and extracts both original requests and
-independent oracles. It removes transport hashes from the runner rather than
-creating a second receipt chain. The second compiles all eight compositions,
-freezes package checksums, costs and action bounds, and updates the question
-index. It uses `catalog compile --preset`, with no legacy Selection file or
-revision 3 seed. The experiment derives bounded context/output/memory settings
-through `execution configure`; it never reads or rewrites the lock's internals.
-Neither command downloads weights or runs inference.
+The script validates revision 4, copies its exact execution locks and workload
+bytes, and writes the revision 5 configuration choices, cost allowances and task
+actions. It does not recompile against a moving catalog, download weights or
+run inference. Revision 4 remains unchanged. Cost authoring reads the frozen
+lock's file sizes; participant code treats execution locks as opaque.
+
+The experiment derives bounded context/output/memory settings through
+`execution configure`. Configuration selection is a pure derivation from the
+frozen bundle, used both before consent and during returned-result review.
+It narrows the lock, task actions and costs without changing tasks or oracles.
+
+The earlier `prepare_qwen_coding.py` and `prepare_qwen_study.py` scripts retain
+the original Labs extraction and Temper compilation method. Use their producing
+checkout for historical reproduction. New model, engine, workload or protocol
+inputs require a separately reviewed new package revision.
 
 The package requires Temper `0.1.0-alpha.11`; setup pins the verified signed
 release. See the [development guide](../docs/DEVELOPMENT.md) for the host
@@ -47,9 +47,11 @@ development guide.
 
 ## Validation boundary
 
-Synthetic runs exercise both routes, OOM continuation, context stopping,
-stream fragments, native token accounting, edit scope, uncertain shutdown,
-consent/export/review and completed-run replay. They do not qualify model fit.
+Synthetic runs exercise one-configuration consent, per-task checkpoints,
+resumption without replay, private-cache cleanup, retained shared files,
+configuration selection, context stopping and witness review. Historical
+matrix tests continue to cover the earlier protocol. These checks do not
+qualify model fit.
 The frozen original and independent Flask tests are reused without adding an
 oracle after observing a candidate. Generated tests remain a separate group;
 passing all groups still needs source review.

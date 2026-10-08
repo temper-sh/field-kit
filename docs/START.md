@@ -1,8 +1,30 @@
 # Run an experiment
 
-Field Kit runs a defined set of tasks on your machine and produces a report you
-can share. See [current experiments](../README.md#current-experiments) for what's
+Field Kit runs one selected configuration on your machine and produces a report
+you can share. See [current experiments](../README.md#current-experiments) for what's
 available, then read the linked guide before starting.
+
+## Download client
+
+Model downloads need either `hf` or `uv` on your `PATH`. Check in the same
+Terminal window you will use for the experiment:
+
+```sh
+command -v hf || command -v uv
+```
+
+If neither command is found, install uv with its
+[official installer](https://docs.astral.sh/uv/getting-started/installation/):
+
+```sh
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+uv --version
+```
+
+Temper uses an existing `hf`, or obtains the official Hugging Face client
+through uv when needed. Field Kit setup installs Temper and private Python;
+it does not install these download clients.
 
 ## Set up
 
@@ -33,8 +55,9 @@ and runs no inference.
 
 ## Start a run
 
-Follow the choices in the terminal. Field Kit shows what it will download,
-how much disk space it needs, how long it may run and what it will remove.
+Follow the choices in the terminal. Field Kit shows what the selected
+configuration will download, how much disk space it needs, how long it may run
+and what it will remove.
 Answer `yes` to proceed, or `no` to leave without starting the experiment.
 
 Keep the machine connected to power and awake. Close other demanding
@@ -48,11 +71,33 @@ To start after inspecting the preview:
 ./field-kit contribute
 ```
 
-The experiment chooses its tests from your machine's available memory. You do
-not need to tune the model or engine settings. Read the displayed costs before
-accepting.
+The first run uses the experiment's default configuration. It completes that
+configuration and stops. Model and engine settings are frozen; read the
+displayed costs before accepting.
+
+To preview a named configuration, or the next unattempted one:
+
+```sh
+./field-kit contribute --configuration splash-q5 --preview
+./field-kit contribute --next --preview
+```
+
+Omit `--preview` to review and approve the run. Reopening a completed
+configuration shows its existing result. Nothing advances to another
+configuration automatically. The experiment guide lists available choices.
 
 ## Stop or continue
+
+To run only to the next task checkpoint:
+
+```sh
+./field-kit contribute --pause-after-task
+```
+
+The engine stops and the completed task remains in the session and readable
+report. The selected configuration's files stay on disk for resumption. Run
+`./field-kit contribute` to continue with the remaining task; it does not repeat
+the first attempt. Finish the pending configuration before selecting another.
 
 During measurement, press **Ctrl-C once**. Allow up to two minutes for the
 experiment to stop its processes and save partial results.
@@ -73,12 +118,20 @@ then retain the experiment installation and refuse to continue. Send the
 maintainer the printed error and session path. Keep those files until recovery
 is resolved; completed and failed measurements are not silently repeated.
 
-Once a run is complete, repeating the command shows its result again. To deliberately
-start another run while keeping earlier results:
+Once a run is complete, repeating the command shows its result again. To
+deliberately repeat that configuration while keeping earlier results:
 
 ```sh
 ./field-kit contribute --new
 ```
+
+Use `--next` or `--configuration NAME` to choose a different configuration.
+Each run has its own report and result file. Completed runs remove their private
+model downloads; separate runs can download the same weights again. Existing
+shared Hugging Face caches are never pruned.
+
+Keep unfinished revision 4 studies in their original checkout. They cannot
+be resumed as configuration runs; use a separate checkout for the new study.
 
 ## Return the result
 

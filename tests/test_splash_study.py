@@ -114,9 +114,20 @@ class SplashStudyTest(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory(prefix="qwen matrix ");self.addCleanup(self.temp.cleanup)
         self.root=Path(self.temp.name).resolve()
 
+    def copy_catalog(self):
+        # Revision 4 remains a historical producer; the current index selects 5.
+        shutil.copytree(ROOT / "catalog", self.root / "catalog")
+        package = self.root / "catalog/packages/qwen-machine-study@4/package.json"
+        index = {"schema": "field-kit-question-catalog/v3", "revision": 4,
+                 "compiled_at": "2026-10-08T00:00:00Z", "questions": [{
+                     "id": "qwen-machine-study", "revision": 4, "availability": "qualifying",
+                     "package_path": "packages/qwen-machine-study@4/package.json",
+                     "package_sha256": digest(package.read_bytes()), "reason": "Historical matrix under test."}]}
+        (self.root / "catalog/questions.json").write_bytes(canonical_json(index))
+
     def test_configuration_uses_opaque_lock_and_explicit_limits(self):
         study = object.__new__(SplashStudy)
-        study.args = SimpleNamespace(temper="temper", root=str(self.root / "install"), installation="study")
+        study.args = SimpleNamespace(temper="temper", root=str(self.root / "install"), installation="study", model="splash-q4")
         study.package_root = self.root
         study.protocol = {"prepare_seconds": 600}
         study.limit = 27 * 1024**3
@@ -231,7 +242,7 @@ class SplashStudyTest(unittest.TestCase):
         with self.assertRaises(InvalidPatch): submission({"message":{"tool_calls":[{"function":{"name":"submit_patch","arguments":'{"edits":[],"edits":[]}'}}]}})
 
     def test_preview_checks_current_host_without_creating_session_or_lock(self):
-        shutil.copytree(ROOT / "catalog", self.root / "catalog")
+        self.copy_catalog()
         local = self.root / ".local"
         local.mkdir()
         (local / "temper").write_bytes(b"fixture")
@@ -248,7 +259,7 @@ class SplashStudyTest(unittest.TestCase):
             self.assertFalse(runner.actions)
 
     def run_study(self,memory=48,**settings):
-        shutil.copytree(ROOT/"catalog",self.root/"catalog")
+        self.copy_catalog()
         (self.root/".local").mkdir();(self.root/".local/temper").write_bytes(b"fixture")
         args=argparse.Namespace(temper=None,preview=False,new=False)
         raw=machine(memory);runner=MatrixRunner(**settings);prompts=[]

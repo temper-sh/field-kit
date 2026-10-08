@@ -22,9 +22,13 @@ def _parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     contributor = subparsers.add_parser("contribute", help="run or resume the included experiment")
-    contributor.add_argument("--temper", type=Path, help="matching Temper executable; required for this development revision")
+    contributor.add_argument("--temper", type=Path, help="Temper executable; defaults to .local/temper")
     contributor.add_argument("--preview", action="store_true", help="read-only machine and cost preview")
-    contributor.add_argument("--new", action="store_true", help="start a new allocation, retaining earlier results")
+    contributor.add_argument("--new", action="store_true", help="explicitly repeat a configuration, retaining earlier runs")
+    selection = contributor.add_mutually_exclusive_group()
+    selection.add_argument("--configuration", help="run one named configuration; default: splash-q4")
+    selection.add_argument("--next", action="store_true", help="select the next unattempted configuration and review its plan")
+    contributor.add_argument("--pause-after-task", action="store_true", help="pause at the next task checkpoint, keeping this configuration for resume")
     subparsers.add_parser("version", help="print the Field Kit runtime version")
     witness = subparsers.add_parser("witness", help="verify and regrade a returned study result")
     witness.add_argument("--input", type=Path, required=True)
@@ -49,7 +53,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = parser.parse_args(arguments_list)
     try:
         if arguments.command == "contribute":
-            from .experiments.qwen.splash_contributor import contribute
+            from .experiments.qwen.chunk_contributor import contribute
             return contribute(arguments, REPOSITORY)
         if arguments.command == "witness":
             from .experiments.qwen.witness import inspect as inspect_witness

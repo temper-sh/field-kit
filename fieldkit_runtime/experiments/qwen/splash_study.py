@@ -128,7 +128,7 @@ class SplashStudy:
             runner=lambda argv, timeout: run_process_silent(argv, self.remaining(timeout)))
         if execution["layouts"] != [model] or execution["profile"] != model:
             raise ProbeError("Temper configured a different preset")
-        installation = self.args.installation if model == "splash-q4" else "qwen-study-" + model
+        installation = self.args.installation if model == self.args.model else "qwen-study-" + model
         common = ["--lock", lock, "--root", self.args.root, "--installation", installation]
         started = time.monotonic()
         material = validate_material(self.command(["execution", "prepare", *common], self.protocol["prepare_seconds"]), execution)
@@ -259,7 +259,7 @@ class SplashStudy:
         directory.mkdir()
         row = {"id": cell["id"], "preset": cell["preset"], "kind": cell["kind"], "window": cell["window"],
                "status": "unmeasured", "cases": [], "failure": None, "resources": [], "material": None}
-        row["installation"] = self.args.installation if cell["preset"] == "splash-q4" else "qwen-study-" + cell["preset"]
+        row["installation"] = self.args.installation if cell["preset"] == self.args.model else "qwen-study-" + cell["preset"]
         row["execution_lock"] = str(directory / "execution.lock.json")
         if cell["kind"] == "context":
             row["target_input_tokens"] = cell["window"] - 5120
@@ -274,7 +274,9 @@ class SplashStudy:
                     return row
             material = self.configure(cell, directory)
             row["material"] = {key: value for key, value in material.items() if key != "paths"}
-            cases = self.workloads["cases"] if cell["kind"] == "coding" else [{"id": "context"}]
+            cases = ([case for case in self.workloads["cases"]
+                      if "task_ids" not in cell or case["id"] in cell["task_ids"]]
+                     if cell["kind"] == "coding" else [{"id": "context"}])
             for case in cases:
                 stage = directory / case["id"]
                 stage.mkdir()
@@ -315,7 +317,7 @@ class SplashStudy:
             if cell["kind"] == "context":
                 row["status"] = "passed" if len(row["cases"]) == 2 and all(item["correct"] for item in row["cases"]) else "unsuccessful"
             else:
-                row["status"] = "measured" if len(row["cases"]) == 2 and all(item["measurement_valid"] for item in row["cases"]) else "incomplete"
+                row["status"] = "measured" if len(row["cases"]) == len(cases) and all(item["measurement_valid"] for item in row["cases"]) else "incomplete"
         except (Exception, KeyboardInterrupt) as error:
             row.update(status="failed", failure={"kind": classify_failure(error), "message": str(error)})
             if isinstance(error, KeyboardInterrupt):
@@ -362,11 +364,11 @@ class SplashStudy:
                 next_actions = [{"id": following["id"] if following and not self.stopped else "finish-study", "parameters": {}}]
         return {"schema": "field-kit-action-result/v3", "status": "complete", "session_id": self.session["id"],
                 "action": {"id": identity, "attempt": self.action["attempt"]}, "answers": self.answers(), "next_actions": next_actions,
-                "protocol": {"schema": SCHEMA, "status": "complete", "model": self.args.model, "generation": self.args.generation,
+                "protocol": {"schema": self.protocol["schema"], "status": "complete", "model": self.args.model, "generation": self.args.generation,
                              "safe_to_cleanup": self.safe_to_cleanup}}
 
 
-def main(package_root):
+def main(package_root, *, study_type=SplashStudy):
     def interrupted(_signal, _frame):
         raise KeyboardInterrupt("study interrupted")
     signal.signal(signal.SIGTERM, interrupted)
@@ -374,6 +376,6 @@ def main(package_root):
     for name in ("action", "temper", "root", "execution-lock", "generation", "installation", "model", "listen", "report", "log-dir", "field-kit-runtime", "session", "outcome"):
         parser.add_argument("--" + name, required=True)
     args = parser.parse_args()
-    result = SplashStudy(args, package_root).run()
+    result = study_type(args, package_root).run()
     _atomic_write(Path(args.report), canonical_json(result))
     return 0

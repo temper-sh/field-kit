@@ -8,6 +8,30 @@ This study needs **Apple M3 or newer, macOS 26.4+, and either 36 GiB or at least
 48 GiB RAM**. Measurements on these machines are still pending. The existing
 32 GiB results are a reference, not proof that these configurations fit.
 
+## Choose one configuration
+
+The default run uses **Splash Q4 on two coding tasks**, then saves a report,
+removes its installation and private model downloads, and stops. Each task has
+its own saved checkpoint. Other configurations are separate, explicit choices.
+
+```sh
+./field-kit contribute --preview
+./field-kit contribute
+```
+
+After that run, choose the next unattempted configuration with `--next`, or name
+one with `--configuration`, for example:
+
+```sh
+./field-kit contribute --configuration splash-q5 --preview
+./field-kit contribute --configuration splash-q5
+```
+
+On larger Macs, the suggested order keeps Splash/llama Q5, Splash/llama Q6 and
+Rapid/vLLM comparisons adjacent. Q8 is optional and must pass its memory check
+before any download. On a 36 GiB Mac, `splash-q4-context` runs the optional
+filled-context ladder separately from coding.
+
 ## Requirements and cost
 
 Field Kit checks your chip, macOS version, memory and free disk before asking
@@ -15,36 +39,48 @@ you to run. It also requires at least **27 GiB available to Metal**, Apple's GPU
 interface. Enough physical RAM does not always mean macOS allows that much GPU
 memory; see [the memory check](#adjust-the-wired-memory-limit) if it fails.
 
-| Limit | 36 GiB Mac | Mac with 48 GiB or more |
-|---|---:|---:|
-| Download ceiling | 86.1 GiB | 188.4 GiB |
-| Free disk required | 129.3 GiB | 233.7 GiB |
-| Saved results ceiling | 3 GiB | 3 GiB |
-| Coding configurations, with two tasks each | 3 | 8 |
-| Long-input sizes tested | Up to 6 | — |
+| Configuration | Machine RAM | Download allowance | Free disk allowance |
+|---|---|---:|---:|
+| `splash-q4` (default) | 36 GiB or 48 GiB+ | 35.9 GiB | 71.9 GiB |
+| `splash-q4-context` | 36 GiB | 35.9 GiB | 71.9 GiB |
+| `splash-q5` | 36 GiB or 48 GiB+ | 39.0 GiB | 78.1 GiB |
+| `llama-q5` | 48 GiB+ | 35.4 GiB | 70.9 GiB |
+| `splash-q6` | 36 GiB or 48 GiB+ | 43.1 GiB | 86.3 GiB |
+| `llama-q6` | 48 GiB+ | 39.6 GiB | 79.1 GiB |
+| `rapid-mlx` | 48 GiB+ | 31.0 GiB | 62.0 GiB |
+| `vllm-metal` | 48 GiB+ | 31.0 GiB | 62.0 GiB |
+| `llama-q8` (conditional) | 48 GiB+ | 45.3 GiB | 90.6 GiB |
 
-**Allow for a long run.** The shared measurement limit is 124 hours 10 minutes
-(7,450 minutes), with a separate six-hour initial preparation limit. These are
-hard ceilings, not expected completion times. A run may finish much earlier,
-including when a configuration cannot fit.
+These are conservative allowances for one selected configuration, not measured
+disk peaks. Download allowance includes its exact weights plus 16 GiB for
+support software. Disk allowance includes two weight-sized sets plus 32 GiB
+for installed software, preparation files and evidence. Retained evidence is
+limited to 1 GiB per run. Existing shared caches are preserved and excluded
+from cleanup; new study models download into the run's private cache. Separate
+runs may download the same weights again.
 
-Each coding configuration allows up to 15 hours 20 minutes: six hours to
-prepare, two four-hour requests, two thirty-minute startups, and time for
-grading and cleanup. Each long-input size allows 7 hours 20 minutes. Final
-cleanup allows 90 minutes. Download and disk estimates do not assume that files
-can be reused between configurations.
+**Requests can still be long.** A coding run permits two four-hour requests.
+Its hard limit is 12 hours 10 minutes, plus up to six hours of initial setup.
+Each task allows thirty minutes for preparation verification, thirty minutes
+for startup, four hours for its request and twenty minutes for grading and
+shutdown. Final cleanup allows ninety minutes. These are ceilings, not expected
+durations, and chunking does not make the same inference work faster.
 
-Follow the [run guide](../START.md) to preview and start. Keep the Mac on power
-and awake, and close demanding applications. One confirmation covers the
-displayed tests. Failed requests are kept as results and are not retried or
-repaired automatically.
+The optional context ladder allows up to 15 hours 30 minutes plus initial
+setup, stopping at its first unsuccessful point. Its six points each allow
+two thirty-minute requests, preparation verification, startup and shutdown.
+
+Follow the [run guide](../START.md) to pause at a task boundary or resume.
+Keep the Mac on power and awake, and close demanding applications. One
+confirmation covers only the displayed configuration. Failed requests remain
+results and are not retried or repaired automatically.
 
 ## What runs on your Mac
 
 | Memory | Tests |
 |---|---|
-| 36 GiB | Splash with Q4 weights for coding and progressively longer inputs, then Q5 and Q6 weights for coding. |
-| 48 GiB or more | Splash with Q4, Q5 and Q6; Rapid MLX and vLLM Metal with the same 4-bit MLX weights; llama.cpp with Q5, Q6 and, if it meets the memory check, Q8. |
+| 36 GiB | Choose Splash Q4, Q5 or Q6 coding, or the separate Q4 context ladder. |
+| 48 GiB or more | Choose Splash Q4, Q5 or Q6; Rapid MLX or vLLM Metal with the same 4-bit MLX weights; or llama.cpp Q5, Q6 or memory-admitted Q8. |
 
 Q4, Q5, Q6 and Q8 are compressed model builds. Larger numbers generally retain
 more precision and need more memory. The study asks whether that extra memory
@@ -118,13 +154,15 @@ frontend, 4 GiB for vLLM's frontend and 256 MiB for its Python resource tracker.
 Additional swap is limited to 512 MiB. Process peaks are reported separately;
 adding them would not establish total physical memory use.
 
-Field Kit removes its model and engine installation after Temper confirms
-shutdown. Failed cleanup leaves the installation for recovery. Reports stay
-local. See [interruption and recovery](../START.md#stop-or-continue).
+Field Kit removes this run's model cache and engine installation after Temper
+confirms shutdown. Pausing between tasks keeps only that configuration's files
+for resumption. Failed cleanup leaves the installation for recovery and blocks
+another configuration. Reports stay local. See
+[interruption and recovery](../START.md#stop-or-continue).
 
 ## Exact test configuration
 
-This guide describes `qwen-machine-study@4`, using signed Temper
+This guide describes `qwen-machine-study@5`, using signed Temper
 `0.1.0-alpha.11`. The software and tasks are fixed so returned runs can be
 compared.
 
@@ -137,9 +175,9 @@ compared.
 | Router | llama-swap v260 |
 | Coding request | 118,000-token total window; medium reasoning; seed 17; temperature 1; top-p 0.95; top-k 20 |
 
-The [execution locks](../../catalog/packages/qwen-machine-study@4/executions/)
+The [execution locks](../../catalog/packages/qwen-machine-study@5/executions/)
 record exact files, software and settings; the
-[workload](../../catalog/packages/qwen-machine-study@4/workloads.json) defines
+[workload](../../catalog/packages/qwen-machine-study@5/workloads.json) defines
 the tasks and checks.
 
 For coding, the output allowance is the total window minus the engine's prompt
