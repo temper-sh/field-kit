@@ -55,6 +55,13 @@ fi
 # The private parent already protects this tree. Temper checks archive modes;
 # preserve their group/other bits during extraction instead of masking them.
 umask 022
+# Field Kit before 0.6 installed this Python with an alpha Temper, and Temper
+# 0.2.0 refuses that folder. Setup owns it, so replace it.
+if [ -d "$field_kit_local/python" ] && [ ! -L "$field_kit_local/python" ] && [ ! -f "$field_kit_local/python/temper-root.json" ]; then
+    printf '%s\n' 'Replacing the Python of an earlier Field Kit setup.'
+    rm -f "$field_kit_local/python-path"
+    mv "$field_kit_local/python" "$field_kit_stage/earlier-python"
+fi
 field_kit_waits=0
 while ! "$field_kit_local/temper" software install --root "$field_kit_local/python" --installation field-kit-python \
     --lock "$field_kit_directory/runtime/python-macos-arm64.lock.yaml" > "$field_kit_stage/python-install" 2>&1; do
