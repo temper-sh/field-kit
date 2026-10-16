@@ -1,13 +1,16 @@
 """Memory evidence retains native peaks, bounded failures and engine identity."""
 import http.server
 import json
+from pathlib import Path
+import tempfile
 import threading
 import unittest
 from types import SimpleNamespace
 
-from fieldkit_runtime.catalog import Refusal
-from fieldkit_runtime.experiments.qwen.measurement import HTTPResponseError, monitored_call
-from fieldkit_runtime.experiments.qwen.splash_memory import SplashMemory, report_lines, review
+from fieldkit_runtime.common import Refusal
+from fieldkit_runtime.serving import HTTPResponseError, monitored_call
+from fieldkit_runtime.splash_memory import SplashMemory, review
+from fieldkit_runtime.stream import CodingStream
 from fieldkit_runtime.probe import ProbeError
 
 GIB = 1024**3
@@ -39,8 +42,6 @@ class SplashMemoryTest(unittest.TestCase):
         self.assertEqual(record["last"]["peak_bytes"], 29 * GIB)
         self.assertEqual(record["state"], "observed")
         review(record, "splash-q4")
-        row = {"id": "q4", "kind": "coding", "cases": [{"id": "async-stream"}], "resources": [{"native_memory": record}]}
-        self.assertIn("| q4 | async-stream | 20.00 | 29.00 | observed |", report_lines([row]))
 
     def test_missing_or_malformed_counters_never_become_zero_usage(self):
         malformed = [{}, {"ready": False}, {**status(), "memory_actual": {}}]
@@ -77,8 +78,6 @@ class SplashMemoryTest(unittest.TestCase):
         self.assertEqual(record["state"], "partial")
         self.assertFalse(record["finished"])
         self.assertEqual(record["loaded"]["current_bytes"], 20 * GIB)
-        row = {"id": "q4", "kind": "coding", "cases": [], "resources": [{"native_memory": record}]}
-        self.assertIn("| q4 | coding | 20.00 | ≥22.00 | partial |", report_lines([row]))
         review(record, "splash-q4")
 
     def test_changed_instance_or_reset_cannot_combine_two_engines_peaks(self):
@@ -162,7 +161,11 @@ class SplashMemoryTest(unittest.TestCase):
         memory = SplashMemory(lambda: monitored_call(probe, SOURCE, {}, 1, method="GET"), SOURCE, 0.01)
         memory.capture("loaded")
 
-        response = monitored_call(probe, "/v1/chat/completions", {}, 3, streaming=True, observer=memory.poll)
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        reader = CodingStream(Path(temporary.name) / "response.sse")
+        response = monitored_call(probe, "/v1/chat/completions", {}, 3, streaming=True,
+                                  stream_reader=reader, observer=memory.poll)
         memory.capture("final")
 
         self.assertTrue(response["stream_complete"])

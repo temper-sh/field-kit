@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from threading import Event
 
-from fieldkit_runtime.catalog import Refusal
+from fieldkit_runtime.common import Refusal
 from fieldkit_runtime.watcher import (
     BINDING_SCHEMA,
     WATCH_SCHEMA,

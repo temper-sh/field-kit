@@ -9,9 +9,8 @@ unfinished runs matter too.
 
 ## Current experiments
 
-| Experiment | What it helps answer | Requirements | Status |
-|---|---|---|---|
-| [Qwen machine study](docs/experiments/qwen-machine-study.md) | Run one configuration to help compare coding results, memory use and useful context. | Apple M3 or newer, macOS 26.4+; 36 GiB or at least 48 GiB RAM. Allow about 72 GiB free disk for the default run; see the guide for other choices. | Open for contributions; measurements on these machines pending. |
+No experiment is open right now. The Qwen machine study closed on
+16 October 2026; a basic check on Temper 0.2.0 replaces it.
 
 Read the experiment guide before starting. Runs can take a long time and
 download many gigabytes; Field Kit checks your machine and shows the full

@@ -1,4 +1,4 @@
-"""Temper can find the user's cache and download client through study processes."""
+"""Temper can find the user's cache and download client through Field Kit."""
 import json
 import os
 from pathlib import Path
@@ -7,11 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from fieldkit_runtime.workflow import (
-    capture_process,
-    run_contributor_process,
-    run_process_silent,
-)
+from fieldkit_runtime.process import capture_process, run_process_silent
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,7 +43,7 @@ print(json.dumps({
 ''')
 
     def test_host_commands_retain_cache_settings_and_find_user_installed_clients(self):
-        for runner in (capture_process, run_process_silent, run_contributor_process):
+        for runner in (capture_process, run_process_silent):
             with self.subTest(runner=runner.__name__), patch.dict(os.environ, self.environment, clear=True):
                 result = runner([sys.executable, "-B", "-S", str(self.host)], 10)
 
@@ -56,49 +52,13 @@ print(json.dumps({
                 self.assertEqual(observed["environment"], self.environment)
                 self.assertEqual(observed["clients"], {"hf": "hf available", "uv": "uv available"})
 
-    def test_protocol_preserves_environment_for_later_temper_preparations(self):
-        observation = self.root / "observation.json"
-        protocol = '''import sys
-from pathlib import Path
-sys.path.insert(0, sys.argv[1])
-from fieldkit_runtime.workflow import run_process_silent
-result = run_process_silent([sys.executable, "-B", "-S", sys.argv[2]], 10)
-Path(sys.argv[3]).write_bytes(result.stdout)
-sys.exit(result.returncode)
-'''
-        with patch.dict(os.environ, self.environment, clear=True):
-            result = run_contributor_process([
-                sys.executable, "-B", "-S", "-c", protocol, str(ROOT), str(self.host), str(observation),
-                "--action", "fixture", "--field-kit-runtime", str(ROOT),
-            ], 20)
-
-        self.assertEqual(result.returncode, 0, result.stderr.decode())
-        observed = json.loads(observation.read_bytes())
-        self.assertEqual(observed["environment"], self.environment)
-        self.assertEqual(observed["clients"], {"hf": "hf available", "uv": "uv available"})
-
-    def test_private_model_cache_reaches_host_and_nested_protocol_without_mutating_caller(self):
+    def test_private_model_cache_reaches_host_without_mutating_caller(self):
         scoped = {**self.environment, "HF_HUB_CACHE": str(self.root / "owned hub")}
-        observation = self.root / "scoped-observation.json"
-        protocol = '''import sys
-from pathlib import Path
-sys.path.insert(0, sys.argv[1])
-from fieldkit_runtime.workflow import run_process_silent
-result = run_process_silent([sys.executable, "-B", "-S", sys.argv[2]], 10)
-Path(sys.argv[3]).write_bytes(result.stdout)
-sys.exit(result.returncode)
-'''
         with patch.dict(os.environ, self.environment, clear=True):
-            direct = run_contributor_process([sys.executable, "-B", "-S", str(self.host)], 10, environment=scoped)
-            nested = run_contributor_process([
-                sys.executable, "-B", "-S", "-c", protocol, str(ROOT), str(self.host), str(observation),
-                "--action", "fixture", "--field-kit-runtime", str(ROOT),
-            ], 20, environment=scoped)
+            result = run_process_silent([sys.executable, "-B", "-S", str(self.host)], 10, environment=scoped)
             self.assertEqual(dict(os.environ), self.environment)
 
-        self.assertEqual(direct.returncode, 0, direct.stderr.decode())
-        self.assertEqual(nested.returncode, 0, nested.stderr.decode())
-        for data in (direct.stdout, observation.read_bytes()):
-            observed = json.loads(data)
-            self.assertEqual(observed["environment"], scoped)
-            self.assertEqual(observed["clients"], {"hf": "hf available", "uv": "uv available"})
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        observed = json.loads(result.stdout)
+        self.assertEqual(observed["environment"], scoped)
+        self.assertEqual(observed["clients"], {"hf": "hf available", "uv": "uv available"})

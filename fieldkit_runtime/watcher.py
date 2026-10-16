@@ -11,7 +11,7 @@ from pathlib import Path
 from threading import Event
 from typing import Any, Callable, Sequence
 
-from .catalog import IDENTITY, Refusal
+from .common import IDENTITY, Refusal
 
 
 WATCH_SCHEMA = "field-kit-process-watch/v1"
