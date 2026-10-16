@@ -1,72 +1,67 @@
 # Field Kit
 
-Help improve Temper's presets by running a defined experiment on your Mac.
-Field Kit handles the setup, runs the tasks and creates a report you can share.
+Measure how a Temper preset runs on your Mac: whether it fits, how fast it
+reads and writes, and how long a real coding task takes.
 
-Different Macs can give very different results. Your run helps establish which
-models fit, how long useful work takes and which settings help. Failed and
-unfinished runs matter too.
+Status: one experiment, the basic check, for Apple Silicon Macs with 32 GB of
+memory or more. A run can take hours on a slower Mac and can download 15–20 GB
+when the model is not on your Mac yet.
+
+## Why this is useful
+
+[Temper](https://github.com/temper-sh/temper) recommends presets, but they are
+measured on few machines. Different Macs give very different results. One run
+on your Mac adds a measured point for that preset: how fast it reads the
+prompt, how fast it writes, how much memory it uses and how long it needs for a
+fixed coding task. Failed and unfinished runs are useful too.
 
 ## Current experiments
 
-No experiment is open right now. The Qwen machine study closed on
-16 October 2026; a basic check on Temper 0.2.0 replaces it.
+| Experiment | What it helps answer | Requirements | Status |
+|---|---|---|---|
+| [Basic check](docs/experiments/basic-check.md) | Does a preset fit this Mac, and how fast is it on a fixed coding task? | Apple Silicon Mac with 32 GB or more; the Hugging Face tool `hf`; free disk for the model unless it is already downloaded. Splash presets need Apple M3 or newer and macOS 26.4+. | Open for contributions. |
 
-Read the experiment guide before starting. Runs can take a long time and
-download many gigabytes; Field Kit checks your machine and shows the full
-plan before asking you to proceed.
-
-## Get started
+## Try it
 
 ```sh
 git clone https://github.com/temper-sh/field-kit.git
 cd field-kit
-./setup.sh
-```
-
-Setup downloads a signed [Temper](https://github.com/temper-sh/temper) release
-and a private Python runtime into this folder, then opens the machine check
-and confirmation flow. Setup supports Apple Silicon macOS and needs no
-Homebrew or administrator access.
-
-To install the tools and preview the plan first:
-
-```sh
 ./setup.sh --install-only
-./field-kit contribute --preview
+./field-kit check --preview
+./field-kit check
 ```
 
-Previewing downloads no models and starts no experiment.
+Setup downloads a signed Temper 0.2.0 release and a private Python into this
+folder (about 31 MB) and needs no Homebrew or administrator access. Install
+`hf` yourself first, for example with `brew install hf`. The preview lists the
+presets that can run on your Mac and downloads no models. `check` shows the
+full plan and asks before it downloads anything.
 
 ## What to expect
 
-- **One configuration at a time.** The default runs Splash Q4 on two coding
-  tasks, saves a report and stops. Each task has a saved checkpoint. You choose
-  whether to run another configuration.
-- **A separate installation.** Models download into a private study cache.
-  After verified shutdown, the run removes its installation and model cache.
-  It preserves your existing AI setup and shared caches.
-- **A readable report.** `report.md` summarizes the run; `result.json` contains
-  the measurements and details needed for review.
-- **You choose what to share.** Results stay under `runs/`. Nothing is uploaded.
-  Review the JSON before sharing: it contains generated answers, machine details
-  and local paths.
+- **One preset per run.** The default is the first preset of the check that
+  fits your Mac. Choose another with `--preset ID`.
+- **Two coding requests.** Each one asks the model to change a Flask
+  repository and starts on a freshly loaded engine. One request can take from
+  a few minutes to a few hours.
+- **Downloads only when needed.** If the model is already in your Hugging Face
+  cache, for example because you use Temper, the run reuses it. Otherwise the
+  model goes into a private cache inside the run, removed at the end.
+- **Your Mac comes first.** The run stops early when the Mac starts to swap,
+  gets hot or slows its CPU.
+- **You choose what to share.** Results stay under `runs/`. `report.md` is a
+  summary; `result.json` is the file to send. It contains the model's answers,
+  details of your Mac and local paths. Nothing is uploaded.
 
-Run `./field-kit contribute` to continue an interrupted run or view a completed
-result. During measurement, press **Ctrl-C once** and wait for it to save and
-stop. The [run guide](docs/START.md) covers recovery and sharing results.
+The [run guide](docs/START.md) covers stopping, continuing and sharing.
 
-## Development
+## Learn more
 
-To check changes without running a model:
-
-```sh
-./field-kit verify
-python3 -m unittest discover -v
-```
-
-Field Kit uses the Python standard library. See
-[development and dispatched runs](docs/DEVELOPMENT.md) for its code structure,
-checks and command interface.
+- [Run the basic check](docs/START.md): steps, stopping and continuing, sharing
+  the result
+- [What the basic check measures](docs/experiments/basic-check.md): method,
+  limits and how to read the report
+- [Develop Field Kit](docs/DEVELOPMENT.md): checks, structure and development
+  Temper builds
 
 Licensed under [0BSD](LICENSE).

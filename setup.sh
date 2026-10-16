@@ -5,7 +5,7 @@ umask 077
 field_kit_directory=$(CDPATH='' cd "$(dirname "$0")" && pwd -P)
 case "$#:$*" in
     0:|'1:--install-only') ;;
-    '1:--help') printf '%s\n' 'Usage: ./setup.sh [--install-only]' 'Install signed Temper and local Python, then open the study consent flow. Use --install-only to stop after setup.'; exit 0 ;;
+    '1:--help') printf '%s\n' 'Usage: ./setup.sh [--install-only]' 'Install signed Temper and local Python, then open the basic check. Use --install-only to stop after setup.'; exit 0 ;;
     *) printf '%s\n' 'Usage: ./setup.sh [--install-only]' >&2; exit 2 ;;
 esac
 [ "$(uname -s)" = Darwin ] && [ "$(uname -m)" = arm64 ] || {
@@ -28,14 +28,14 @@ trap cleanup_setup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 field_kit_stage=$(mktemp -d "$field_kit_local/.setup.XXXXXX")
-field_kit_archive=temper_0.1.0-alpha.11_darwin_arm64.zip
-field_kit_sha=a994980150bfb53e86197cd5368f8bc99d84ad0253495a05ae46a91b9610b069
+field_kit_archive=temper_0.2.0_darwin_arm64.zip
+field_kit_sha=e4c2dd5272b94a6f1e886bad697e2d753282d2d1d280173fa64fdc626642f615
 field_kit_zip="$field_kit_local/$field_kit_archive"
 [ ! -L "$field_kit_zip" ] || { printf '%s\n' 'Refusing a symlink at the release cache.' >&2; exit 1; }
-printf '%s\n' 'Installing Temper 0.1.0-alpha.11 and Python locally (about 31 MB of downloads).' 'No administrator access is needed. Model downloads and inference require confirmation next.'
+printf '%s\n' 'Installing Temper 0.2.0 and Python locally (about 31 MB of downloads).' 'No administrator access is needed. Model downloads and inference require confirmation next.'
 if [ ! -f "$field_kit_zip" ]; then
     curl --fail --location --proto '=https' --tlsv1.2 --retry 2 --connect-timeout 20 --max-time 600 \
-        "https://github.com/temper-sh/temper/releases/download/v0.1.0-alpha.11/$field_kit_archive" \
+        "https://github.com/temper-sh/temper/releases/download/v0.2.0/$field_kit_archive" \
         --output "$field_kit_stage/$field_kit_archive"
     [ "$(shasum -a 256 "$field_kit_stage/$field_kit_archive" | cut -d ' ' -f 1)" = "$field_kit_sha" ] || {
         printf '%s\n' 'Temper release checksum mismatch; nothing was installed.' >&2; exit 1;
@@ -43,10 +43,10 @@ if [ ! -f "$field_kit_zip" ]; then
     mv "$field_kit_stage/$field_kit_archive" "$field_kit_zip"
 fi
 [ "$(shasum -a 256 "$field_kit_zip" | cut -d ' ' -f 1)" = "$field_kit_sha" ] || {
-    printf '%s\n' 'Cached Temper checksum mismatch. Remove .local/temper_0.1.0-alpha.11_darwin_arm64.zip and run setup again.' >&2; exit 1;
+    printf '%s\n' "Cached Temper checksum mismatch. Remove .local/$field_kit_archive and run setup again." >&2; exit 1;
 }
 ditto -x -k "$field_kit_zip" "$field_kit_stage"
-field_kit_binary="$field_kit_stage/temper_0.1.0-alpha.11_darwin_arm64/temper"
+field_kit_binary="$field_kit_stage/${field_kit_archive%.zip}/temper"
 codesign --verify --strict -R='anchor apple generic and certificate leaf[subject.OU] = "5VQ2HDTPN4"' "$field_kit_binary"
 [ ! -L "$field_kit_local/temper" ] || { printf '%s\n' 'Refusing a symlink at the Temper destination.' >&2; exit 1; }
 if [ ! -f "$field_kit_local/temper" ] || ! cmp -s "$field_kit_binary" "$field_kit_local/temper"; then
@@ -69,16 +69,21 @@ while ! "$field_kit_local/temper" software install --root "$field_kit_local/pyth
 done
 printf '%s\n' 'Python installation verified.'
 "$field_kit_local/temper" software check --root "$field_kit_local/python" --installation field-kit-python \
-    --lock "$field_kit_directory/runtime/python-macos-arm64.lock.yaml" > "$field_kit_stage/python-check"
-field_kit_python=$(awk '/^UNIT upstream-release:field-kit-python:cpython exact / {sub(/^.* location=/, ""); sub(/ ownership=.*$/, ""); print}' "$field_kit_stage/python-check")/bin/python3
+    --lock "$field_kit_directory/runtime/python-macos-arm64.lock.yaml" --json > "$field_kit_stage/python-check.json"
+# plutil reads JSON on every macOS; Field Kit needs no jq or Python yet.
+[ "$(plutil -extract status raw -o - "$field_kit_stage/python-check.json")" = exact ] || {
+    printf '%s\n' 'Temper could not verify the Python installation.' >&2; exit 1;
+}
+field_kit_python=$(plutil -extract units.0.location raw -o - "$field_kit_stage/python-check.json")/bin/python3
 [ -x "$field_kit_python" ] || { printf '%s\n' 'Temper did not return a verified Python installation.' >&2; exit 1; }
 "$field_kit_python" -B -S -c 'import sys; assert sys.version_info >= (3, 9)'
 printf '%s\n' "$field_kit_python" > "$field_kit_stage/python-path"
 mv "$field_kit_stage/python-path" "$field_kit_local/python-path"
 "$field_kit_directory/field-kit" verify > /dev/null
 printf '%s\n' 'Setup complete. Everything is inside this clone.'
+command -v hf > /dev/null 2>&1 || printf '%s\n' 'Note: Temper downloads models with the Hugging Face tool hf, which is not on your PATH.' 'Install it first, for example with: brew install hf'
 cleanup_setup
 trap - EXIT INT TERM
 if [ "$#" -eq 0 ]; then
-    exec "$field_kit_directory/field-kit" contribute
+    exec "$field_kit_directory/field-kit" check
 fi

@@ -1,175 +1,101 @@
-# Run an experiment
+# Run the basic check
 
-Field Kit runs one selected configuration on your machine and produces a report
-you can share. See [current experiments](../README.md#current-experiments) for what's
-available, then read the linked guide before starting.
+The basic check installs one Temper preset, sends it two fixed coding requests
+and records speed and memory. Read
+[what it measures](experiments/basic-check.md) if you want the details first.
 
-## Download client
+## Before you start
 
-Model downloads need either `hf` or `uv` on your `PATH`. Check in the same
-Terminal window you will use for the experiment:
+- An Apple Silicon Mac with 32 GB of memory or more.
+- The Hugging Face tool `hf` on your `PATH`; Temper downloads models with it:
 
-```sh
-command -v hf || command -v uv
-```
+  ```sh
+  command -v hf || brew install hf
+  ```
 
-If neither command is found, install uv with its
-[official installer](https://docs.astral.sh/uv/getting-started/installation/):
-
-```sh
-curl -LsSf https://astral.sh/uv/install.sh | sh
-export PATH="$HOME/.local/bin:$PATH"
-uv --version
-```
-
-Temper uses an existing `hf`, or obtains the official Hugging Face client
-through uv when needed. Field Kit setup installs Temper and private Python;
-it does not install these download clients.
+- Free disk for the model, unless it is already in your Hugging Face cache.
+  The preview shows the exact amount.
 
 ## Set up
-
-In Terminal:
 
 ```sh
 git clone https://github.com/temper-sh/field-kit.git
 cd field-kit
-./setup.sh
+./setup.sh --install-only
 ```
 
-Setup installs the experiment's signed Temper release and Python under `.local/`.
-It downloads about 31 MB, verifies the Temper release's checksum and
-signature, and needs no administrator access. Rerunning setup checks and reuses
-the installation. Keep unfinished earlier runs in their original checkout.
+Setup installs a signed Temper release and a private Python under `.local/`.
+It downloads about 31 MB, checks the release's checksum and signature, and
+needs no administrator access. Running it again checks and reuses the
+installation.
 
-Setup opens the machine check and confirmation flow after verifying the tools.
+If setup reports `.local/setup.lock` and no setup is running, run
+`rmdir .local/setup.lock`, then `./setup.sh` again.
 
-To install the tools and inspect the experiment before deciding to run it:
+## Look first
 
 ```sh
-./setup.sh --install-only
-./field-kit contribute --preview
+./field-kit check --preview
 ```
 
-The preview checks your machine and shows the limits. It downloads no models
-and runs no inference.
+The preview lists the presets of the check, says which ones can run on this
+Mac and why the others cannot, and names the one a run would use. It downloads
+no models and creates no run.
 
 ## Start a run
 
-Follow the choices in the terminal. Field Kit shows what the selected
-configuration will download, how much disk space it needs, how long it may run
-and what it will remove.
-Answer `yes` to proceed, or `no` to leave without starting the experiment.
-
-Keep the machine connected to power and awake. Close other demanding
-applications so their resource use does not distort the measurements. Keep this
-checkout unchanged until the run finishes: the code and inputs are part of the
-recorded experiment.
-
-To start after inspecting the preview:
-
 ```sh
-./field-kit contribute
+caffeinate -i ./field-kit check
 ```
 
-The first run uses the experiment's default configuration. It completes that
-configuration and stops. Model and engine settings are frozen; read the
-displayed costs before accepting.
+To check another preset, add `--preset ID` with an ID from the preview.
 
-To preview a named configuration, or the next unattempted one:
+Field Kit shows the plan: the preset, the downloads, the disk space, the time
+limits and what it removes afterwards. Type `yes` to start. Anything else
+cancels without downloading.
 
-```sh
-./field-kit contribute --configuration splash-q5 --preview
-./field-kit contribute --next --preview
-```
+During the run:
 
-Omit `--preview` to review and approve the run. Reopening a completed
-configuration shows its existing result. Nothing advances to another
-configuration automatically. The experiment guide lists available choices.
+- Keep the Mac on power and awake. `caffeinate -i` keeps it from sleeping.
+- Close other demanding apps; they change the measurements.
+- Keep this folder unchanged until the run ends. The code and inputs are part
+  of the recorded run.
 
-## Stop or continue
+When the run ends, Field Kit removes the engine, the run's Temper folder and
+any private model cache. The terminal prints the report.
 
-To run only to the next task checkpoint:
+## Stop and continue
 
-```sh
-./field-kit contribute --pause-after-task
-```
+Press **Ctrl-C once** and wait. Field Kit stops the current request, waits for
+Temper to stop its processes and saves what it has. This can take up to two
+minutes.
 
-The engine stops and the completed task remains in the session and readable
-report. The selected configuration's files stay on disk for resumption. Run
-`./field-kit contribute` to continue with the remaining task; it does not repeat
-the first attempt. Finish the pending configuration before selecting another.
-
-During measurement, press **Ctrl-C once**. Allow up to two minutes for the
-experiment to stop its processes and save partial results.
-
-To continue after an interruption, run this from the same folder:
+To continue, run the same command again:
 
 ```sh
-./field-kit contribute
+./field-kit check
 ```
 
-If initial tool installation failed, rerun `./setup.sh`. An interrupted Python
-installation may leave a temporary lock; setup can wait up to 15 minutes for it
-to expire. If setup reports `.local/setup.lock` and no setup process is running,
-run `rmdir .local/setup.lock`, then `./setup.sh` again.
+An unfinished run always comes first. It continues with the next case; an
+interrupted request is kept as it is and is not repeated. If the installation
+was interrupted, the next run continues it.
 
-A forced kill or restart can prevent results from being saved. Field Kit may
-then retain the experiment installation and refuse to continue. Send the
-maintainer the printed error and session path. Keep those files until recovery
-is resolved; completed and failed measurements are not silently repeated.
+If Temper could not confirm that its processes stopped, Field Kit keeps the
+run's files and refuses to continue. Keep the `runs/` folder and send the
+maintainer the run's `report.md` and the printed error.
 
-Once a run is complete, repeating the command shows its result again. To
-deliberately repeat that configuration while keeping earlier results:
+## Share the result
 
-```sh
-./field-kit contribute --new
-```
+Each run has its own folder under `runs/`:
 
-Use `--next` or `--configuration NAME` to choose a different configuration.
-Each run has its own report and result file. Completed runs remove their private
-model downloads; separate runs can download the same weights again. Existing
-shared Hugging Face caches are never pruned.
+- **`report.md`**: a readable summary.
+- **`result.json`**: the measurements, the model's answers, details of your
+  Mac, local paths and the exact versions used.
 
-To repeat Q4 explicitly while preserving earlier Q4 and Q5 attempts:
+Read the report, look over the JSON, then send `result.json` to the person
+coordinating the measurements, through a channel you choose. Mention anything
+unusual, such as other heavy work at the same time. Nothing is uploaded
+automatically. Incorrect answers and stopped runs are still useful.
 
-```sh
-./field-kit contribute --configuration splash-q4 --new --preview
-caffeinate -i ./field-kit contribute --configuration splash-q4 --new
-```
-
-Keep the lid open and the Mac connected to power. Share the new run's
-`result.json` and `report.md`; their separate run directory identifies the
-repeat. Revision 6 adds native Splash memory measurements with the same model,
-tasks and inference settings. Completed revision 5 chunks still count for
-`--next`. Finish an unfinished run in its original checkout before updating.
-
-An earlier Q5 result remains useful for comparing solutions. To collect native
-memory for Q5 as well, finish Q4 first, then explicitly repeat Q5:
-
-```sh
-./field-kit contribute --configuration splash-q5 --new --preview
-caffeinate -i ./field-kit contribute --configuration splash-q5 --new
-```
-
-Each command runs only its selected configuration. Keep both runs' result and
-report paths; the experiment guide links the AI quality comparison prompt.
-
-Keep unfinished revision 4 studies in their original checkout. They cannot
-be resumed as configuration runs; use a separate checkout for the new study.
-
-## Return the result
-
-The terminal prints two paths under `runs/`:
-
-- **`report.md`** — a readable summary of what happened.
-- **`result.json`** — measurements, generated answers, machine details, local
-  paths and the exact experiment configuration.
-
-Read the report and review the JSON, then send **`result.json`** to the person
-coordinating the experiment through your chosen channel. Mention relevant
-conditions, such as other heavy work running at the same time. Nothing is
-uploaded automatically.
-
-Incorrect answers and incomplete runs can still be useful. The coordinator
-reviews the evidence before using it in a model card or recommendation. The
-experiment's guide explains how to check its results.
+To measure another preset, start a new run with `--preset ID`. Each run keeps
+its own folder.

@@ -1,3 +1,3 @@
-"""Field Kit sessions and experiment execution on Temper primitives."""
+"""Field Kit: fixed experiments on Temper presets."""
 
-__version__ = "0.5.0-dev"
+__version__ = "0.6.0-dev"

@@ -8,7 +8,6 @@ requires: []
 target:
   os: darwin
   arch: arm64
-target_mode: compatible
 resolved: 2026-08-25
 selections:
   cpython:

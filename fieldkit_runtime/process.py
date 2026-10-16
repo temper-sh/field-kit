@@ -115,6 +115,11 @@ def run_process_silent(arguments: Sequence[str], timeout_seconds: float = 0, *, 
     return _run_process(arguments, timeout_seconds, (None, None), environment=environment)
 
 
+def run_process_progress(arguments: Sequence[str], timeout_seconds: float = 0, *, environment=None) -> CommandResult:
+    """Show the command's progress on stderr; keep stdout for its JSON document."""
+    return _run_process(arguments, timeout_seconds, (None, sys.stderr), environment=environment)
+
+
 Runner = Callable[[Sequence[str], float], CommandResult]
 
 

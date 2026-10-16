@@ -1,7 +1,7 @@
-# Develop Field Kit and review returned runs
+# Develop Field Kit
 
-Use this guide when changing Field Kit or reviewing a report from an older
-study. To contribute a measurement, use the [run guide](START.md).
+Use this guide when changing Field Kit. To take part in a measurement, use the
+[run guide](START.md).
 
 ## Check a change
 
@@ -13,141 +13,54 @@ CI checks Python 3.9 and 3.14. From the repository root:
 python3 -m unittest discover -v
 ```
 
-These checks use synthetic responses and temporary processes. They do not run
-a model or establish that a configuration fits a contributor's Mac.
+`verify` checks that the runtime loads and that the task files match the
+protocol's hashes. The tests use a fake Temper and synthetic responses. They do
+not run a model or show that a preset fits a Mac.
 
-Qwen-specific code lives in `fieldkit_runtime/experiments/qwen/`. Shared code
-handles confirmation plans, limits, sessions, measurements and reports. Temper
-handles model and software installation, rendering, process identity and
-shutdown. Keep those responsibilities separate.
+## Structure
+
+Field Kit owns the experiment: the fixed method, consent, limits, measurement,
+first attempts, reports and cleanup. Temper owns compilation, installation,
+serving and process identity. Field Kit reads Temper's `--json` documents and
+passes execution locks to Temper unchanged.
+
+| Path | Content |
+|---|---|
+| `protocols/basic-check.json` | The basic check's fixed method, limits and stop rules |
+| `tasks/flask-coding/` | The Flask cases, the Flask source and the hidden tests used at review |
+| `fieldkit_runtime/check.py` | The basic check: plan, consent, install, measure, clean up, report |
+| `fieldkit_runtime/temper.py` | The Temper commands Field Kit uses and the fields it reads |
+| `fieldkit_runtime/probe.py`, `watcher.py` | One supervised `temper execution serve` and its process, memory, swap and heat observation |
+| `fieldkit_runtime/serving.py`, `stream.py` | Bounded HTTP calls and the streamed answer, kept even when it stops early |
+| `fieldkit_runtime/splash_memory.py` | Splash's native Metal memory counters |
+| `fieldkit_runtime/coding/` | The Flask task's patch scope and its sandboxed test grader |
+
+A run folder `runs/<UTC time>/` holds `run.json` (the state, written after each
+step), the execution lock, one folder per case (request, raw stream, answer,
+patch and process observations), `result.json` and `report.md`. While the run
+is active it also holds the run's Temper folder, the unpacked Flask source and,
+when needed, a private model cache.
 
 ## Use a development Temper build
 
-The current `qwen-machine-study@6` bundle needs Temper `0.1.0-alpha.11`.
-Normal setup installs the signed release and verifies its checksum.
-Contributors need no compiler or Temper checkout.
-
-For host development, build an existing Temper checkout and preview the study:
+Field Kit needs Temper 0.2.0 or newer. Setup installs the signed release that
+`setup.sh` pins. To try a Temper checkout instead:
 
 ```sh
 temper_source=/absolute/path/to/temper-checkout
 (cd "$temper_source" && go build -o build/temper ./cmd/temper)
 ./setup.sh --install-only
-./field-kit contribute --temper "$temper_source/build/temper" --preview
+./field-kit check --temper "$temper_source/build/temper" --preview
 ```
 
-Preview checks the machine and required host commands without downloading
-models or creating a study session. Omit `--preview` only when ready to review
-and accept the displayed run. Pass the same `--temper` path when resuming;
-the exact executable, runtime and experiment inputs are part of the accepted
-plan.
+Pass the same `--temper` path when continuing a run: the exact Temper binary
+and this checkout are part of the run, and a changed one is refused.
 
-The bundle uses compiled execution locks. It derives bounded context, output
-and memory settings through `temper execution configure`, then uses the
-inspection, preparation, serving and removal commands. Field Kit does not
-interpret or rewrite the locks' internal fields.
+Moving the pin to a new Temper release is a Field Kit release: update the
+archive name and checksum in `setup.sh`, then run setup and a preview.
 
-The [study guide](experiments/qwen-machine-study.md) owns requirements, costs and
-method. [Authoring instructions](../scripts/README.md) explain how to prepare a
-new frozen package from reviewed inputs. Updating the normal host also requires
-verifying the signed release and updating the bootstrap pin.
+## Change the method
 
-## AI-guided profile tuning
-
-The [post-smoke prompt](prompts/tune-machine-profiles.md) defines the optional
-route from a working preset to a measured profile in a local Temper catalog.
-It consumes Temper's current profile schema and compiler rather than freezing
-a second catalog representation in Field Kit. Each candidate includes the
-complete engine configuration, so KV/batch changes require catalog compilation
-and measurements of that resolved execution.
-
-This is a prompt for an assistant with repository and terminal access, not an
-automatic contributor stage. It directs the assistant to prepare a separate
-bounded question/driver from existing Field Kit primitives when needed. The
-dispatched revision 6 package, host and CLI remain the comparison route. A
-profile-capable Temper build and matching authoring catalog are prerequisites
-for tuning/export; no future schema version or profile-selection flag is
-assumed here. Model work still needs the machine owner's exact-plan consent.
-
-## Preserve unfinished and older runs
-
-Keep an unfinished run in its original checkout. Changing its code, Python,
-Temper binary or package can prevent resumption. Revision 5 uses separate
-sessions and does not migrate earlier runs. Keep an unfinished revision 4 run
-in its original checkout, including its private installation and shared-cache
-references. Use a separate checkout for configuration runs.
-
-To inspect an older report, use a separate checkout of the source that produced
-it. These are the known dispatched sources:
-
-| Study | Producer source |
-|---|---|
-| Revision 1 | `f1fc7e0dcb268858dcbe67910a054b99731e6539` |
-| Revision 2, returned M3 Pro report | `9a060f1` |
-| Revision 4, before configuration chunks | `aae99f8` |
-| Revision 5, process memory only | `29ea9cf` |
-
-For example, review the revision 2 report without changing this checkout:
-
-```sh
-git worktree add --detach ../field-kit-dispatched-2 9a060f1
-../field-kit-dispatched-2/field-kit witness --input /absolute/path/to/result.json \
-  --package ../field-kit-dispatched-2/catalog/packages/qwen-machine-study@2/package.json
-```
-
-For other reports, use their recorded producer source and package revision.
-The witness command checks the record; it does not rerun generated code or
-attest the machine.
-
-Resume using the unchanged original checkout, interpreter and Temper
-executable. If that checkout was updated, retain its `.local/`, session and
-results and arrange recovery with the maintainer. Do not replay first attempts
-automatically. Use `--new` explicitly to start a separate current study.
-
-## Keep measurements and cleanup attributable
-
-Revision 6 derives one exact `qwen-chunk-CONFIGURATION@6` package from the
-frozen bundle and the contributor's selected configuration. Its origin records
-the source bundle hash; the accepted plan binds the selected package, lock,
-task actions and costs. The witness reader repeats that pure selection before
-validating the result. It accepts the bundle's `package.json` as its input.
-
-Revision 6 preserves revision 5 tasks, settings, costs and locks. Its protocol
-adds bounded Splash `/status` observations of `memory_actual.current_bytes`
-and `peak_bytes` after readiness, during requests and before shutdown. Evidence
-retains load and last native snapshots, sample count, endpoint, instance identity
-and observation issues. The native lifetime peak covers intervals between polls;
-reset or changed-instance readings never combine. Missing memory stays distinct
-from valid task/timing evidence. Process counters remain separate and overlap
-these allocations.
-
-Completed revision 5 choices remain visible to `--next`, and `--new` creates a
-separate revision 6 attempt. Unfinished older chunks require their producing
-checkout. The current witness can inspect revision 5 chunks using its unchanged
-bundle, without inventing the missing native memory counters.
-
-Each coding task is one action. The session commits its report and next action
-before another task can begin. `--pause-after-task` returns at that boundary;
-resuming retains the earlier result. A failed or interrupted action without a
-committed result never authorizes replay or cleanup.
-
-Every Temper/protocol invocation for a run receives `HF_HUB_CACHE` pointing
-inside the session-owned root. This overrides the caller's model-cache location
-for that run while preserving client discovery and authentication settings.
-Ordinary verified root cleanup removes these private downloads. It never
-prunes a shared cache. Separate completed runs may download common weights
-again; the bounded disk lifetime is deliberate. HF/uv support-tool caches
-remain owned by those tools.
-
-Each action has a bounded invocation and a result tied to its session and
-attempt. Failed or interrupted invocations remain attempts. Cleanup must use
-the shutdown result for the processes it is removing.
-
-Package checksums freeze inputs and verify downloads. The accepted plan binds
-the code, executable and inputs used by a run. Logs and the Markdown report are
-readable views; the export carries the structured plan and session.
-
-Temper owns installation receipts and shared dependency accounting. Field Kit
-records machine observations, resource limits and stop reasons. Keep configured
-memory limits distinct from measured peaks, and leave missing or invalid
-measurements explicit.
+The protocol, the cases and the Flask source are part of every result. Change
+them only in a new protocol revision, and record the reason. A new revision
+makes earlier results comparable only where the method stayed the same.
