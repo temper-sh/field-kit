@@ -95,7 +95,7 @@ class _WatchHandle:
         return self.result
 
 
-def summarize_watch(path: Path, baseline_swap: int) -> dict[str, Any]:
+def summarize_watch(path: Path, baseline_swap: int, baseline_wired: int | None = None) -> dict[str, Any]:
     summary: dict[str, Any] = {
         "samples": 0,
         "max_gap_milliseconds": 0,
@@ -103,6 +103,9 @@ def summarize_watch(path: Path, baseline_swap: int) -> dict[str, Any]:
         "swap_baseline_bytes": baseline_swap,
         "swap_peak_bytes": baseline_swap,
         "swap_growth_bytes": 0,
+        "wired_baseline_bytes": baseline_wired,
+        "wired_peak_bytes": baseline_wired,
+        "wired_growth_bytes": None if baseline_wired is None else 0,
         "thermal_warning_observed": False,
         "cpu_speed_limit_max": 0,
         "stop_reasons": [],
@@ -135,6 +138,10 @@ def summarize_watch(path: Path, baseline_swap: int) -> dict[str, Any]:
         if isinstance(swap, int):
             summary["swap_peak_bytes"] = max(summary["swap_peak_bytes"], swap)
             summary["swap_growth_bytes"] = max(0, summary["swap_peak_bytes"] - baseline_swap)
+        wired = snapshot.get("wired_bytes")
+        if isinstance(wired, int) and baseline_wired is not None:
+            summary["wired_peak_bytes"] = max(summary["wired_peak_bytes"], wired)
+            summary["wired_growth_bytes"] = max(0, summary["wired_peak_bytes"] - baseline_wired)
         summary["thermal_warning_observed"] = bool(
             summary["thermal_warning_observed"] or snapshot.get("thermal_warning")
         )
@@ -177,6 +184,7 @@ class ManagedProbe:
         self.log_threads = []
         self.log_budget = None
         self.baseline_swap = 0
+        self.baseline_wired = None
 
     def _arguments(self):
         return [str(self.temper), "execution", "serve", "--root", str(self.root),
@@ -230,6 +238,7 @@ class ManagedProbe:
         if self.status_path.exists() or self.status_path.is_symlink():
             raise ProbeError("probe status path already exists")
         self.baseline_swap = watcher.parse_swap_used_bytes(watcher.run_text([watcher.SYSCTL, "-n", "vm.swapusage"], 15))
+        self.baseline_wired = watcher.parse_wired_bytes(watcher.run_text([watcher.VM_STAT], 15))
         self.log_budget = _CaptureBudget(self.log_bytes_max)
         self.process = subprocess.Popen(self._arguments(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, env={"PATH": SYSTEM_PATH})
         for source, name in ((self.process.stdout, "probe.stdout"), (self.process.stderr, "probe.stderr")):
@@ -321,6 +330,6 @@ class ManagedProbe:
             if thread.is_alive():
                 issues.append("process log reader did not stop")
                 safe = False
-        summary = summarize_watch(self.log_dir / "process-watch.jsonl", self.baseline_swap)
+        summary = summarize_watch(self.log_dir / "process-watch.jsonl", self.baseline_swap, self.baseline_wired)
         summary.update(issues=issues, safe_to_cleanup=safe and watchers_stopped)
         return summary

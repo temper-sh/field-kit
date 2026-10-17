@@ -17,6 +17,7 @@ from fieldkit_runtime.watcher import (
     parse_rss_bytes,
     parse_swap_used_bytes,
     parse_thermal,
+    parse_wired_bytes,
     validate_binding,
     validate_watch_spec,
 )
@@ -76,6 +77,7 @@ def snapshot(*, engine_rss: int = 1, router_rss: int = 1) -> dict:
             },
         },
         "swap_used_bytes": 1024,
+        "wired_bytes": 2048,
         "thermal_warning": False,
         "cpu_speed_limit": 0,
     }
@@ -180,8 +182,18 @@ class ProcessWatcherTest(unittest.TestCase):
             ),
             (False, 0),
         )
+        self.assertEqual(
+            parse_wired_bytes(
+                "Mach Virtual Memory Statistics: (page size of 16384 bytes)\n"
+                "Pages free:                                   572352.\n"
+                "Pages wired down:                             194696.\n"
+            ),
+            194696 * 16384,
+        )
         with self.assertRaises(WatchFailure):
             parse_footprint("phys_footprint: 100 B\n")
+        with self.assertRaises(WatchFailure):
+            parse_wired_bytes("Pages wired down: 194696.\n")
 
 
 

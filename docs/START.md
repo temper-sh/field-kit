@@ -89,8 +89,8 @@ maintainer the run's `report.md` and the printed error.
 Each run has its own folder under `runs/`:
 
 - **`report.md`**: a readable summary.
-- **`result.json`**: the measurements, the model's answers, details of your
-  Mac, local paths and the exact versions used.
+- **`result.json`**: the measurements, the patches the model submitted,
+  details of your Mac, local paths and the exact versions used.
 
 Read the report, look over the JSON, then send `result.json` to the person
 coordinating the measurements, through a channel you choose. Mention anything

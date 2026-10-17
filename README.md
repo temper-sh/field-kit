@@ -50,8 +50,8 @@ full plan and asks before it downloads anything.
 - **Your Mac comes first.** The run stops early when the Mac starts to swap,
   gets hot or slows its CPU.
 - **You choose what to share.** Results stay under `runs/`. `report.md` is a
-  summary; `result.json` is the file to send. It contains the model's answers,
-  details of your Mac and local paths. Nothing is uploaded.
+  summary; `result.json` is the file to send. It contains the patches the model
+  submitted, details of your Mac and local paths. Nothing is uploaded.
 
 The [run guide](docs/START.md) covers stopping, continuing and sharing.
 

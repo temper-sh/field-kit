@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock
 
-from fieldkit_runtime.probe import ManagedProbe, ProbeError, split_listen
+from fieldkit_runtime.probe import ManagedProbe, ProbeError, split_listen, summarize_watch
 from tests.test_watcher import watch_spec, binding
 
 
@@ -99,3 +99,15 @@ class ProbeBoundaryTest(unittest.TestCase):
         self.probe.process.terminate.assert_called_once_with()
         self.assertEqual(self.probe._arguments()[1:3], ["execution", "serve"])
         self.assertNotIn("--software-lock", self.probe._arguments())
+
+
+class SummaryTest(unittest.TestCase):
+    def test_wired_growth_is_measured_from_the_baseline_before_the_engine(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "process-watch.jsonl"
+            samples = [{"event": "sample", "snapshot": {"swap_used_bytes": 5, "wired_bytes": wired, "roles": {}}}
+                       for wired in (900, 1300, 1100)]
+            path.write_text("".join(json.dumps(sample) + "\n" for sample in samples))
+            summary = summarize_watch(path, 5, 1000)
+            self.assertEqual((summary["wired_peak_bytes"], summary["wired_growth_bytes"]), (1300, 300))
+            self.assertIsNone(summarize_watch(path, 5)["wired_growth_bytes"])

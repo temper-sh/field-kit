@@ -186,6 +186,17 @@ class DecisionTest(RepositoryTest):
         self.assertFalse(check.keep_going({"status": "patch-submitted", "safe_to_cleanup": False}))
         self.assertFalse(check.keep_going({"status": "memory-failure", "safe_to_cleanup": True}))
 
+    def test_engine_memory_is_the_wired_growth_not_the_process_footprint(self):
+        # llama.cpp maps its weights from files: the footprint misses them, so
+        # a 16 GiB model once reported 4 GiB.
+        loaded = {"wired_bytes": 21 * GIB, "roles": {"engine": {"current_footprint_bytes": 3 * GIB, "rss_bytes": 12 * GIB}}}
+        resources = {"wired_baseline_bytes": 3 * GIB, "wired_growth_bytes": 20 * GIB,
+                     "roles": {"engine": {"peak_footprint_bytes_max": 4 * GIB, "rss_bytes_max": 13 * GIB}}}
+        memory = check.memory_record(loaded, resources, None)
+        self.assertEqual((memory["engine_loaded_wired_bytes"], memory["engine_peak_wired_bytes"]), (18 * GIB, 20 * GIB))
+        self.assertEqual(memory["engine_peak_footprint_bytes"], 4 * GIB)
+        self.assertIsNone(check.memory_record(None, {}, None)["engine_loaded_wired_bytes"])
+
     def test_patch_check_records_a_diff_inside_the_edit_scope_and_runs_nothing(self):
         base = check.unpack(self.root / "tasks/flask-coding/flask.tar.gz", self.root / "fixture")
         case = self.cases[0]
@@ -242,7 +253,8 @@ class RunTest(RepositoryTest):
 
     def test_completed_run_cleans_up_and_writes_its_report(self):
         fake = FakeTemper()
-        harness = self.harness(fake)
+        memory = {"engine_loaded_wired_bytes": 18 * GIB, "engine_peak_wired_bytes": 20 * GIB}
+        harness = self.harness(fake, rows=[{"memory": memory}])
         self.assertEqual(harness.start(None), 0)
         run, directory = self.run_json()
         self.assertEqual((run["state"], run["cleanup"], run["cache"]["mode"]), ("complete", "complete", "shared"))
@@ -254,6 +266,7 @@ class RunTest(RepositoryTest):
         self.assertEqual(result["schema"], "field-kit-basic-check-result/v1")
         self.assertEqual(result["catalog"], ACTIVE)
         self.assertIn("| async-stream | patch-submitted", (directory / "report.md").read_text())
+        self.assertIn("| 18.0 GiB | 20.0 GiB |", (directory / "report.md").read_text())
         prepare = next(environment for arguments, environment in fake.calls if arguments[:2] == ["execution", "prepare"])
         self.assertNotIn("hf-cache", prepare.get("HF_HUB_CACHE", ""))
 

@@ -30,13 +30,19 @@ second attempt and no feedback.
 | Prefill speed | Tokens per second while the engine reads the prompt, from the engine's own counters |
 | Generation speed | Tokens per second while it writes the answer, including reasoning, from the engine's own counters |
 | Task time | From sending the request to the end of the answer |
-| Start time | From starting the engine until the model answers its health check |
-| Engine after load | Memory of the engine process after the model loaded, before the request |
-| Engine peak | The engine process's highest memory during the case |
-| Splash native memory | For Splash presets: the engine's own Metal allocations; they overlap the process numbers, so do not add them |
+| Start time | From starting the engine until the model answers its health check; shorter when the model files are still in the Mac's file cache |
+| Engine after load | How much the Mac's wired memory grew from before the engine started, after the model loaded |
+| Engine peak | The highest such growth in the samples taken during the case |
+| Splash native memory | For Splash presets: the engine's own Metal allocations; they overlap the engine numbers, so do not add them |
 
 Field Kit reports a rate only when the engine reports it. It never estimates
 one.
+
+Memory the GPU holds is wired, so the wired growth covers the model, its
+cache and its working buffers, for every engine. The process's own footprint
+and resident memory miss model weights that the engine maps from files; they
+stay in `result.json` but are not used as the engine's memory. Another app that
+wires memory during the case adds to the number.
 
 ## Results of a case
 

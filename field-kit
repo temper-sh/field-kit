@@ -26,4 +26,4 @@ if [ -z "$python_path" ]; then
     printf '%s\n' 'field-kit: run ./setup.sh to install the local runtime' >&2
     exit 1
 fi
-exec "$python_path" -B -S -c 'import sys; sys.path.insert(0, sys.argv.pop(1)); from fieldkit_runtime.cli import main; sys.exit(main())' "$field_kit_directory" "$@"
+exec "$python_path" -B -S -u -c 'import sys; sys.path.insert(0, sys.argv.pop(1)); from fieldkit_runtime.cli import main; sys.exit(main())' "$field_kit_directory" "$@"

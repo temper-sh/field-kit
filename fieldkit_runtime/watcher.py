@@ -21,6 +21,7 @@ FOOTPRINT = "/usr/bin/footprint"
 PS = "/bin/ps"
 SYSCTL = "/usr/sbin/sysctl"
 PMSET = "/usr/bin/pmset"
+VM_STAT = "/usr/bin/vm_stat"
 MIB = 1024**2
 
 
@@ -210,6 +211,14 @@ def parse_swap_used_bytes(text: str) -> int:
     return whole + (numerator + denominator - 1) // denominator
 
 
+def parse_wired_bytes(text: str) -> int:
+    page = re.search(r"page size of ([0-9]+) bytes", text)
+    wired = re.search(r"(?m)^Pages wired down:\s*([0-9]+)\.", text)
+    if not page or not wired:
+        raise WatchFailure("could not parse wired memory from vm_stat")
+    return int(wired.group(1)) * int(page.group(1))
+
+
 def parse_thermal(text: str) -> tuple[bool, int]:
     normalized = " ".join(text.lower().replace("_", " ").split())
     warning = "thermal warning" in normalized and "no thermal warning" not in normalized
@@ -246,12 +255,16 @@ def sample_macos(
             "rss_bytes": rss,
         }
     swap = parse_swap_used_bytes(command([SYSCTL, "-n", "vm.swapusage"], timeout_seconds))
+    # Memory the GPU holds is wired. Process footprint and RSS miss model
+    # weights mapped from files, so the engine's real use is the wired growth.
+    wired = parse_wired_bytes(command([VM_STAT], timeout_seconds))
     thermal_warning, cpu_speed_limit = parse_thermal(
         command([PMSET, "-g", "therm"], timeout_seconds)
     )
     return {
         "roles": roles,
         "swap_used_bytes": swap,
+        "wired_bytes": wired,
         "thermal_warning": thermal_warning,
         "cpu_speed_limit": cpu_speed_limit,
     }
@@ -268,7 +281,7 @@ def evaluate_snapshot(
 ) -> tuple[dict[str, int], list[dict[str, Any]]]:
     """Evaluate independent role limits. RSS values are deliberately never summed."""
     if not isinstance(snapshot, dict) or set(snapshot) != {
-        "roles", "swap_used_bytes", "thermal_warning", "cpu_speed_limit",
+        "roles", "swap_used_bytes", "wired_bytes", "thermal_warning", "cpu_speed_limit",
     }:
         raise WatchFailure("process snapshot has missing or unknown fields")
     roles = snapshot.get("roles")
@@ -307,6 +320,9 @@ def evaluate_snapshot(
     swap = snapshot.get("swap_used_bytes")
     if isinstance(swap, bool) or not isinstance(swap, int) or swap < 0:
         raise WatchFailure("process snapshot has an invalid swap counter")
+    wired = snapshot.get("wired_bytes")
+    if isinstance(wired, bool) or not isinstance(wired, int) or wired < 0:
+        raise WatchFailure("process snapshot has an invalid wired memory counter")
     swap_growth = max(0, swap - baseline_swap_bytes)
     swap_limit = spec["swap_growth_bytes_max"]
     if swap_limit is not None and swap_growth >= swap_limit:

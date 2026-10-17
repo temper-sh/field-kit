@@ -279,7 +279,7 @@ def render_report(run: dict[str, Any]) -> bytes:
             i=number(row.get("input_tokens"), 0), o=number(row.get("output_tokens"), 0),
             p=number(row.get("prefill_tokens_per_second")), g=number(row.get("generation_tokens_per_second")),
             t=duration(row.get("task_seconds")), s=duration(row.get("startup_seconds")),
-            l=gib(memory.get("engine_loaded_footprint_bytes")), k=gib(memory.get("engine_peak_footprint_bytes"))))
+            l=gib(memory.get("engine_loaded_wired_bytes")), k=gib(memory.get("engine_peak_wired_bytes"))))
     native = [row for row in run["cases"] if (row.get("memory") or {}).get("splash_native")]
     if native:
         lines += ["", "Splash native Metal memory (overlaps the process numbers; do not add them):", ""]
@@ -293,10 +293,11 @@ def render_report(run: dict[str, Any]) -> bytes:
               "Results: **patch-submitted** means the model returned a patch inside the task's edit scope;"
               " its tests run later, at review. **not comparable** means the speed or memory numbers were"
               " disturbed (heat, sleep, missing samples) or the stream did not finish.",
-              "Rates are the engine's own counters. Memory is the engine process footprint: after the model"
-              " loaded, and its peak during the case.",
-              "", "Send `result.json` to the coordinator if you want to share the run. It contains the model's"
-              " answers, your Mac's details and local paths."]
+              "Rates are the engine's own counters. Engine memory is how much the Mac's wired memory grew"
+              " from before the engine started: after the model loaded, and the highest sample during the"
+              " case. It includes the model as the GPU holds it; other apps that wire memory add to it.",
+              "", "Send `result.json` to the coordinator if you want to share the run. It contains the patches"
+              " the model submitted, your Mac's details and local paths."]
     return ("\n".join(lines) + "\n").encode()
 
 
@@ -588,7 +589,8 @@ class BasicCheck:
                 try:
                     checked = patch_check(response, directory / "fixture" / "base", case["edit_scope"])
                     atomic_write(stage / "patch.diff", checked["diff"].encode())
-                    row["patch"] = {"changed_files": checked["changed_files"], "diff_sha256": digest(checked["diff"].encode())}
+                    row["patch"] = {"changed_files": checked["changed_files"], "diff": checked["diff"],
+                                    "diff_sha256": digest(checked["diff"].encode())}
                 except InvalidPatch as error:
                     row["submission_error"] = str(error)
         except (Exception, KeyboardInterrupt) as error:
@@ -623,7 +625,10 @@ class BasicCheck:
 def memory_record(loaded: dict[str, Any] | None, resources: dict[str, Any], native: dict[str, Any] | None) -> dict[str, Any]:
     engine_loaded = ((loaded or {}).get("roles") or {}).get("engine") or {}
     engine_peak = (resources.get("roles") or {}).get("engine") or {}
+    baseline, loaded_wired = resources.get("wired_baseline_bytes"), (loaded or {}).get("wired_bytes")
     record = {
+        "engine_loaded_wired_bytes": None if baseline is None or loaded_wired is None else max(0, loaded_wired - baseline),
+        "engine_peak_wired_bytes": resources.get("wired_growth_bytes") or None,
         "engine_loaded_footprint_bytes": engine_loaded.get("current_footprint_bytes"),
         "engine_loaded_rss_bytes": engine_loaded.get("rss_bytes"),
         "engine_peak_footprint_bytes": engine_peak.get("peak_footprint_bytes_max") or None,
