@@ -96,6 +96,32 @@ class Temper:
             raise Refusal("Temper compiled a different preset")
         return result
 
+    def preset_check(self, root: Path, preset: str, memory_gib: int) -> dict[str, Any]:
+        """Temper's check of one user preset file in the root's presets.d.
+
+        Temper exits 1 for an invalid file and still prints its reason, which
+        becomes the refusal.
+        """
+        argv = [str(self.path), "preset", "check", preset, "--root", str(root), "--memory-gib", str(memory_gib), "--json"]
+        result = self.runner(argv, 60)
+        try:
+            document = json.loads(result.stdout) if len(result.stdout) <= RESPONSE_LIMIT else None
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            document = None
+        rows = document.get("presets") if isinstance(document, dict) and document.get("schema") == "temper-preset-check/v1" else None
+        checked = next((row for row in rows or [] if isinstance(row, dict) and row.get("id") == preset), None)
+        if checked is None:
+            if result.returncode:
+                raise CommandFailure(argv, result)
+            raise Refusal("Temper printed an unexpected document for preset check")
+        if checked.get("valid") is not True:
+            raise Refusal(f"Temper refuses the preset file: {checked.get('error') or 'no reason given'}")
+        if result.returncode:
+            raise CommandFailure(argv, result)
+        if not isinstance(checked.get("name"), str) or not isinstance(checked.get("changes"), list):
+            raise Refusal("Temper's preset check has no name or changes")
+        return checked
+
     def install_plan(self, root: Path, preset: str, environment: Mapping[str, str]) -> dict[str, Any]:
         """Temper's own review of downloads, disk and fit; it saves nothing."""
         result = self.document(["init", "--dry-run", "--root", root, "--preset", preset], 300,

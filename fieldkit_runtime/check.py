@@ -2,7 +2,9 @@
 
 Fixed method, no AI. Temper compiles, installs and serves the preset; Field
 Kit measures each case once, keeps every first attempt and cleans up only
-after Temper confirms that its processes stopped.
+after Temper confirms that its processes stopped. A tuning trial runs a
+Temper fork of a basic-check preset through the same steps and records its
+changes, so it stays separate from the preset's baseline.
 """
 from __future__ import annotations
 
@@ -36,6 +38,10 @@ INSTALLATION = "basic-check"
 GIB = 1024**3
 MIB = 1024**2
 UNFINISHED = ("preparing", "measuring", "cleaning")
+PRESET_FILE_BYTES_MAX = 64 * 1024
+# Changes that name other model or template files. Temper plans downloads only
+# for catalog presets, so a trial uses its origin's plan and may not add files.
+FILE_CHANGES = ("artifact", "template", "speculation.draft_artifact")
 
 
 # ---------------------------------------------------------------- protocol
@@ -106,6 +112,48 @@ def choose(survey: list[dict[str, Any]], requested: str | None) -> dict[str, Any
         if not row["blocked"]:
             return row
     raise Refusal("no preset of the basic check can run on this Mac; see the reasons above")
+
+
+def preset_file(path: Path) -> tuple[str, bytes]:
+    """A user preset file's ID, which is its name, and its bytes; Temper checks the content."""
+    if path.suffix != ".json" or not path.stem:
+        raise Refusal(f"a Temper preset file is named ID.json: {path}")
+    data = read_regular(path, PRESET_FILE_BYTES_MAX)
+    try:
+        document = json.loads(data)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise Refusal(f"invalid JSON in {path}: {error}") from error
+    if not isinstance(document, dict) or document.get("schema") != "temper-preset/v1":
+        raise Refusal(f"{path} is not a Temper preset file (temper-preset/v1)")
+    return path.stem, data
+
+
+def trial_origin(checked: dict[str, Any], survey: list[dict[str, Any]]) -> dict[str, Any]:
+    """The basic-check preset that a tuning trial forks. A trial changes settings, not files."""
+    origin = checked.get("origin")
+    if checked.get("form") != "fork":
+        raise Refusal("a tuning trial is a fork of a basic-check preset (temper preset fork), not a copy")
+    row = next((row for row in survey if row["preset"] == origin), None)
+    if row is None:
+        names = ", ".join(entry["preset"] for entry in survey)
+        raise Refusal(f"a tuning trial forks one of these presets: {names}")
+    changes = checked["changes"]
+    if not changes:
+        raise Refusal(f"the preset file changes nothing; run ./field-kit check --preset {origin} instead")
+    files = [change.get("path") for change in changes if change.get("path") in FILE_CHANGES]
+    if files:
+        raise Refusal("a tuning trial changes settings, not model or template files: " + ", ".join(files))
+    if row["blocked"]:
+        raise Refusal(f"{origin} cannot run on this Mac: {row['blocked']}")
+    return row
+
+
+def context_window(record: dict[str, Any], profile_min_memory_gib: Any) -> int | None:
+    """The window of the catalog profile that Temper compiled."""
+    for profile in record.get("profiles") or []:
+        if profile.get("min_memory_gib") == profile_min_memory_gib:
+            return profile.get("context_window_tokens")
+    return None
 
 
 TEMPLATE_BYTES_MAX = 1 * MIB
@@ -230,6 +278,16 @@ def duration(seconds: float | None) -> str:
     return f"{minutes} min {rest} s" if minutes else f"{rest} s"
 
 
+def setting(value: Any) -> str:
+    if type(value) is int:
+        return f"{value:,}"
+    return value if isinstance(value, str) else json.dumps(value)
+
+
+def describe_changes(changes: list[dict[str, Any]]) -> str:
+    return "; ".join(f"{change['path']} {setting(change.get('from'))} → {setting(change.get('to'))}" for change in changes)
+
+
 def describe_survey(survey: list[dict[str, Any]], chosen: str | None) -> list[str]:
     lines = []
     for row in survey:
@@ -245,8 +303,12 @@ def consent_text(run: dict[str, Any], protocol: dict[str, Any]) -> str:
              if run["cache"]["mode"] == "shared" else
              "a private model cache inside this run, removed afterwards")
     downloads = plan["remaining_download_bytes"]
+    trial = run.get("trial")
+    title = ([f"Tuning trial {preset['name']} ({preset['id']}, {preset['family']}), a fork of {trial['origin']}",
+              f"Changes: {describe_changes(trial['changes'])}"] if trial else
+             [f"Basic check of {preset['name']} ({preset['id']}, {preset['family']})"])
     return "\n".join([
-        f"Basic check of {preset['name']} ({preset['id']}, {preset['family']})",
+        *title,
         f"Mac: {run['machine'].get('chip', 'Apple Silicon')}, {gib(run['machine']['physical_memory_bytes'])} memory",
         f"Catalog sequence {run['catalog']['sequence']}; Temper {run['temper']['version'].removeprefix('temper ')}",
         "",
@@ -261,9 +323,28 @@ def consent_text(run: dict[str, Any], protocol: dict[str, Any]) -> str:
     ])
 
 
-def render_report(run: dict[str, Any]) -> bytes:
-    preset = run["preset"]
-    lines = [f"# Basic check — {preset['name']}", "",
+def room_lines(run: dict[str, Any], protocol: dict[str, Any]) -> list[str]:
+    """How far the run stayed from this model's and this Mac's limits."""
+    preset, lines = run["preset"], []
+    window, limit = preset.get("context_window_tokens"), preset.get("context_limit_tokens")
+    if window and limit:
+        lines.append(f"- Context window: {window:,} tokens; the model accepts up to {limit:,}.")
+    for row in run["cases"]:
+        if row["status"] == "context-window-exhausted":
+            lines.append(f"- {row['id']} filled the window: {number(row.get('input_tokens'), 0)} input and"
+                         f" {number(row.get('output_tokens'), 0)} output tokens.")
+    peaks = [value for value in ((row.get("memory") or {}).get("engine_peak_wired_bytes") for row in run["cases"]) if value]
+    if peaks:
+        budget = engine_budget(run["machine"], protocol["admission"]["engine_memory_fraction"])
+        lines.append(f"- Engine peak {gib(max(peaks))} of the {gib(budget)} an engine may use on this Mac"
+                     f" (three quarters of its memory, within the GPU limit): {gib(max(0, budget - max(peaks)))} left.")
+    return lines
+
+
+def render_report(run: dict[str, Any], protocol: dict[str, Any]) -> bytes:
+    preset, trial = run["preset"], run.get("trial")
+    lines = [f"# {'Tuning trial' if trial else 'Basic check'} — {preset['name']}", "",
+             *([f"- Fork of `{trial['origin']}`: {describe_changes(trial['changes'])}"] if trial else []),
              f"- Preset: `{preset['id']}` ({preset['family']}), catalog sequence {run['catalog']['sequence']}",
              f"- Mac: {run['machine'].get('chip', 'Apple Silicon')}, {gib(run['machine']['physical_memory_bytes'])},"
              f" macOS {run['machine'].get('target', {}).get('distribution_version', '?')}",
@@ -289,6 +370,13 @@ def render_report(run: dict[str, Any]) -> bytes:
             last = record.get("last") or {}
             lines.append(f"- {row['id']}: after load {gib(loaded.get('current_bytes'))},"
                          f" peak {gib(last.get('peak_bytes'))} ({record.get('state')})")
+    lines += ["", "## Room to tune", "", *room_lines(run, protocol), "",
+              "Field Kit looks for the best setup each Mac can use: the largest context window and the fastest"
+              " speeds that still finish the task, without swap growth or heat stops. The catalog's settings are"
+              " a starting point. Try a change as a tuning trial: see \"Tuning trials\" in"
+              " docs/experiments/basic-check.md."]
+    if trial:
+        lines.append(f"Compare this trial with a basic check of `{trial['origin']}` on the same Mac.")
     lines += ["",
               "Results: **patch-submitted** means the model returned a patch inside the task's edit scope;"
               " its tests run later, at review. **not comparable** means the speed or memory numbers were"
@@ -304,7 +392,7 @@ def render_report(run: dict[str, Any]) -> bytes:
 def result_document(run: dict[str, Any]) -> dict[str, Any]:
     return {"schema": RESULT_SCHEMA, **{key: run[key] for key in (
         "id", "protocol", "field_kit", "temper", "machine", "catalog", "preset", "lock_sha256", "cache",
-        "plan", "state", "stopped", "preparation", "cases", "cleanup")}}
+        "plan", "state", "stopped", "preparation", "cases", "cleanup")}, "trial": run.get("trial")}
 
 
 # ----------------------------------------------------------------- effects
@@ -361,9 +449,18 @@ class BasicCheck:
                          "blocked": admission(plan, preset, facts, self.protocol), "plan": plan})
         return inspected, rows
 
+    def trial(self, root: Path, source: tuple[str, bytes], rows: list[dict[str, Any]],
+              facts: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Temper's check of the user's preset file in this Temper folder, and the row it forks."""
+        preset, data = source
+        atomic_write(root / "presets.d" / f"{preset}.json", data)
+        checked = self.temper.preset_check(root, preset, facts["physical_memory_bytes"] // GIB)
+        return checked, trial_origin(checked, rows)
+
     # -- commands
 
-    def preview(self, requested: str | None) -> int:
+    def preview(self, requested: str | None, preset_path: Path | None = None) -> int:
+        source = preset_file(preset_path) if preset_path else None
         identity = self.temper.identity()
         facts = self.temper.machine_facts()
         root = self.repository / ".local" / "preview"
@@ -372,26 +469,39 @@ class BasicCheck:
         self.say(f"Temper {identity['version'].removeprefix('temper ')} · catalog sequence {inspected['active']['sequence']}"
                  f" · {facts.get('chip', 'Apple Silicon')} with {gib(facts['physical_memory_bytes'])}")
         self.say("Presets of the basic check on this Mac:")
+        checked = None
         try:
-            chosen = choose(rows, requested)
+            if source:
+                checked, chosen = self.trial(root, source, rows, facts)
+            else:
+                chosen = choose(rows, requested)
         except Refusal as error:
             for line in describe_survey(rows, None):
                 self.say(line)
             raise error
+        finally:
+            if source:
+                (root / "presets.d" / f"{source[0]}.json").unlink(missing_ok=True)
         for line in describe_survey(rows, chosen["preset"]):
             self.say(line)
         mode = cache_mode(chosen["plan"])
         downloads = chosen["plan"]["remaining_download_bytes"] if mode == "shared" else chosen["plan"]["download_bytes"]
         self.say("")
-        self.say(f"The check would install {chosen['preset']} and download about {gib(downloads)}"
+        if checked:
+            self.say(f"Tuning trial {source[0]}, a fork of {chosen['preset']}: {describe_changes(checked['changes'])}")
+            for warning in checked.get("warnings") or []:
+                self.say(f"Temper: {warning}")
+        self.say(f"The {'trial' if checked else 'check'} would install {source[0] if checked else chosen['preset']}"
+                 f" and download about {gib(downloads)}"
                  + (" (the model is already in your Hugging Face cache)." if mode == "shared" else "."))
         self.say("Preview only: nothing was downloaded and no run was created. Run ./field-kit check to start.")
         return 0
 
-    def start(self, requested: str | None, *, assume_yes: bool = False) -> int:
+    def start(self, requested: str | None, *, preset_path: Path | None = None, assume_yes: bool = False) -> int:
         pending = self.unfinished()
         if pending:
             return self.resume(pending[0])
+        source = preset_file(preset_path) if preset_path else None
         identity = self.temper.identity()
         facts = self.temper.machine_facts()
         run_id = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -403,32 +513,45 @@ class BasicCheck:
             root = directory / "temper"
             inspected, rows = self.survey(root, facts, dict(os.environ))
             self.say("Presets of the basic check on this Mac:")
-            chosen = None
+            chosen = checked = None
             try:
-                chosen = choose(rows, requested)
+                if source:
+                    checked, chosen = self.trial(root, source, rows, facts)
+                else:
+                    chosen = choose(rows, requested)
             finally:
                 for line in describe_survey(rows, chosen["preset"] if chosen else None):
                     self.say(line)
-            preset = chosen["preset"]
+            preset = source[0] if source else chosen["preset"]
             lock = directory / "execution.lock.json"
             compiled = self.temper.compile(root, preset, facts["physical_memory_bytes"] // GIB, lock)
+            if source and compiled.get("user_preset") is not True:
+                raise Refusal(f"Temper compiled a catalog preset instead of the preset file {source[0]}.json")
             execution = self.temper.inspect(lock)
             mode = cache_mode(chosen["plan"])
             cache = directory / "hf-cache"
             plan = chosen["plan"]
             if mode == "private":
                 cache.mkdir()
-                plan = self.temper.install_plan(root, preset, private_environment(cache))
+                # A trial installs its origin's files, so the origin's plan holds for both.
+                plan = self.temper.install_plan(root, chosen["preset"], private_environment(cache))
                 if not plan["can_prepare"]:
                     raise Refusal("Temper cannot install the preset into a private cache: "
                                   + "; ".join(plan.get("refusals") or ["no reason given"]))
+            record = inspected["catalog"]["presets"][chosen["preset"]]
             run = {
                 "schema": RUN_SCHEMA, "id": run_id, "state": "planned",
                 "protocol": {"id": "basic-check", "revision": self.protocol["revision"], "sha256": self.protocol_sha256},
                 "field_kit": runtime_identity(), "temper": identity, "machine": facts,
                 "catalog": inspected["active"],
-                "preset": {"id": preset, "name": chosen["name"], "engine": chosen["engine"], "family": chosen["family"],
-                           "profile_min_memory_gib": compiled.get("profile_min_memory_gib")},
+                "preset": {"id": preset, "name": checked["name"] if checked else chosen["name"], "engine": chosen["engine"],
+                           "family": chosen["family"], "profile_min_memory_gib": compiled.get("profile_min_memory_gib"),
+                           "context_window_tokens": checked.get("context_window_tokens") if checked else
+                           context_window(record, compiled.get("profile_min_memory_gib")),
+                           "context_limit_tokens": record.get("context_limit_tokens")},
+                "trial": None if not checked else {
+                    "origin": chosen["preset"], "changes": checked["changes"], "warnings": checked.get("warnings") or [],
+                    "file": json.loads(source[1]), "file_sha256": digest(source[1])},
                 "execution": execution, "lock_sha256": file_digest(lock),
                 "cache": {"mode": mode, "path": str(cache) if mode == "private" else None},
                 "plan": {key: plan[key] for key in ("download_bytes", "remaining_download_bytes", "fresh_disk_bytes",
@@ -474,9 +597,9 @@ class BasicCheck:
                 signal.signal(signal.SIGTERM, previous)
                 self.save(directory, run)
                 atomic_write(directory / "result.json", canonical_json(result_document(run)))
-                atomic_write(directory / "report.md", render_report(run))
+                atomic_write(directory / "report.md", render_report(run, self.protocol))
         self.say("")
-        self.say(render_report(run).decode())
+        self.say(render_report(run, self.protocol).decode())
         self.say(f"Report: {directory / 'report.md'}")
         self.say(f"Result: {directory / 'result.json'}")
         if run["state"] in UNFINISHED:
@@ -650,5 +773,5 @@ def command(arguments, repository: Path) -> int:
     temper = Temper(arguments.temper or repository / ".local" / "temper")
     check = BasicCheck(repository, temper)
     if arguments.preview:
-        return check.preview(arguments.preset)
-    return check.start(arguments.preset, assume_yes=arguments.yes)
+        return check.preview(arguments.preset, arguments.preset_file)
+    return check.start(arguments.preset, preset_path=arguments.preset_file, assume_yes=arguments.yes)

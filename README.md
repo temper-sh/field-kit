@@ -15,11 +15,15 @@ on your Mac adds a measured point for that preset: how fast it reads the
 prompt, how fast it writes, how much memory it uses and how long it needs for a
 fixed coding task. Failed and unfinished runs are useful too.
 
+The goal is the best setup each Mac can use: the largest context window and
+the fastest speeds that still finish the task. The catalog's settings are a
+starting point. Tuning trials on your Mac show how far they can go.
+
 ## Current experiments
 
 | Experiment | What it helps answer | Requirements | Status |
 |---|---|---|---|
-| [Basic check](docs/experiments/basic-check.md) | Does a preset fit this Mac, and how fast is it on a fixed coding task? | Apple Silicon Mac with 32 GB or more; the Hugging Face tool `hf`; free disk for the model unless it is already downloaded. Splash presets need Apple M3 or newer and macOS 26.4+. | Open for contributions. |
+| [Basic check](docs/experiments/basic-check.md) | Does a preset fit this Mac, and how fast is it on a fixed coding task? With tuning trials: how far can its settings go on this Mac? | Apple Silicon Mac with 32 GB or more; the Hugging Face tool `hf`; free disk for the model unless it is already downloaded. Splash presets need Apple M3 or newer and macOS 26.4+. | Open for contributions. |
 
 ## Try it
 
@@ -41,6 +45,11 @@ full plan and asks before it downloads anything.
 
 - **One preset per run.** The default is the first preset of the check that
   fits your Mac. Choose another with `--preset ID`.
+- **Tune for your Mac.** The report shows the room left: the context window
+  against the model's limit, and the memory left. A
+  [tuning trial](docs/experiments/basic-check.md#tuning-trials) runs a preset
+  with your changed settings, such as a larger window, with
+  `--preset-file FILE`.
 - **Two coding requests.** Each one asks the model to change a Flask
   repository and starts on a freshly loaded engine. One request can take from
   a few minutes to a few hours.

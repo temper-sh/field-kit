@@ -22,7 +22,10 @@ def _parser() -> argparse.ArgumentParser:
     check = subparsers.add_parser("check", help="run the basic check of one preset, or continue an unfinished run",
                                   description="Install one catalog preset, run the Flask coding cases once and record"
                                               " speed and memory. Shows the plan and asks before downloading.")
-    check.add_argument("--preset", help="catalog preset ID; default: the first preset of the check that can run here")
+    chosen = check.add_mutually_exclusive_group()
+    chosen.add_argument("--preset", help="catalog preset ID; default: the first preset of the check that can run here")
+    chosen.add_argument("--preset-file", type=Path, metavar="FILE",
+                        help="run a Temper fork of a basic-check preset (ID.json) as a tuning trial")
     check.add_argument("--preview", action="store_true", help="check this Mac and show the plan; download no models")
     check.add_argument("--yes", action="store_true", help="accept the shown plan without asking")
     check.add_argument("--temper", type=Path, help="Temper executable; default: .local/temper")

@@ -11,6 +11,12 @@ measurements, reports and cleanup. Temper owns execution-lock compilation,
 installation, rendering, binding and process primitives. Consume its public
 commands; never synthesize software locks or copy catalog facts into packages.
 
+Field Kit's goal is the maximum usable performance on each machine: the
+largest context window and the fastest speeds that still finish the task at
+baseline quality, without swap growth, memory failure or heat stops. Prompts,
+protocols, guides and reports encourage pushing settings toward that limit; a
+catalog default is a starting point, never the answer.
+
 The runtime uses the Python standard library. Keep discovery and planning
 read-only. Preserve first attempts and distinguish invalid evidence from an
 incorrect model answer. Keep each experiment's hypotheses, decision thresholds,

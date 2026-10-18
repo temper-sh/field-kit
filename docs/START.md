@@ -102,3 +102,18 @@ automatically. Incorrect answers and stopped runs are still useful.
 
 To measure another preset, start a new run with `--preset ID`. Each run keeps
 its own folder.
+
+## Tune for your Mac
+
+The report's **Room to tune** section shows how far the run stayed from the
+limits: the context window against the most the model accepts, cases that
+filled the window, and memory left. The catalog's settings are only a starting
+point. To find the best setup your Mac can use, run tuning trials: one changed
+setting per run, pushed until a limit is reached.
+[Tuning trials](experiments/basic-check.md#tuning-trials) explains the preset
+file and the steps:
+
+```sh
+./field-kit check --preview --preset-file trials/qwen-mtp-128k.json
+caffeinate -i ./field-kit check --preset-file trials/qwen-mtp-128k.json
+```

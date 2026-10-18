@@ -7,10 +7,17 @@ The check measures a preset exactly as Temper installs it on your Mac. It is
 the first step for every preset: later experiments compare engines, model
 builds and settings, but they start from these numbers.
 
+Field Kit looks for the best setup each Mac can use: the largest context
+window and the fastest speeds that still finish the task. The catalog's
+settings are a starting point, not that answer. Each report shows the room
+left, and a [tuning trial](#tuning-trials) measures a changed preset with the
+same method.
+
 ## What runs
 
-1. Temper compiles the preset for this Mac's memory from its signed catalog.
-   Field Kit passes the result to Temper unchanged.
+1. Temper compiles the preset for this Mac's memory from its signed catalog,
+   or, for a tuning trial, from your preset file. Field Kit passes the result
+   to Temper unchanged.
 2. Temper installs the engine and the model files into the run's own folder.
 3. For each of two Flask coding cases, Temper starts a fresh engine. Field Kit
    waits until the model is loaded, then sends the case once.
@@ -59,6 +66,18 @@ A model-side result lets the second case run. A stop on the machine side ends
 the run. A case marked **not comparable** finished, but its speed or memory
 numbers were disturbed: by heat, a CPU speed limit, sleep or missing samples.
 
+## Room to tune
+
+Every report ends with the distance to this model's and this Mac's limits:
+
+- the context window the run used, and the most the model accepts;
+- each case that filled the window, with its input and output tokens;
+- the engine's peak memory, and how much of the engine's share of this Mac
+  (three quarters of its memory, within the GPU limit) was left.
+
+A case that filled the window, or a lot of memory left, is a reason to try a
+tuning trial.
+
 ## Which presets
 
 The check covers Temper's **General** chat presets. Specialist presets have
@@ -68,6 +87,63 @@ can run on your Mac and why the others cannot.
 Before it downloads anything, Field Kit applies a memory floor: the model files
 plus 4 GiB must fit in three quarters of the Mac's memory and in its GPU memory
 limit. This is a floor, not a prediction that the preset fits.
+
+## Tuning trials
+
+The catalog's presets are measured on few Macs: today each preset has one set
+of settings, sized for 32 GB. A Mac with more memory can often use a larger
+window or other settings. A tuning trial measures one changed preset with the
+same cases, limits and measurements as the basic check, and records the change.
+
+Write a Temper preset file: a *fork* of a preset of the check, with your
+changes. The file name is the trial's ID (lowercase letters, digits, dots and
+dashes). For example, `trials/qwen-mtp-128k.json` (Git ignores `trials/`):
+
+```json
+{
+  "schema": "temper-preset/v1",
+  "origin": "qwen3.8-27b-q4xl-mtp",
+  "changes": {"context_window_tokens": 131072}
+}
+```
+
+Check it, then run it:
+
+```sh
+./field-kit check --preview --preset-file trials/qwen-mtp-128k.json
+caffeinate -i ./field-kit check --preset-file trials/qwen-mtp-128k.json
+```
+
+The preview shows Temper's list of changes, or Temper's reason when it refuses
+the file. To see every setting you can change, with its current value, run
+this after any preview:
+
+```sh
+.local/temper preset fields qwen3.8-27b-q4xl-mtp --root .local/preview
+```
+
+How to tune:
+
+1. Run the basic check of the preset first. It is the baseline the trials are
+   compared with.
+2. Change one setting per trial and push it toward its limit, for example a
+   window of 131,072 tokens, then 262,144.
+3. Stop when a limit is reached: the task no longer finishes, swap grows, the
+   run stops for heat, memory runs out, or speed drops so far that the setup is
+   no longer worth using. Keep the last setting that passed.
+
+Rules and limits:
+
+- A trial changes settings only: context window, engine settings, speculation
+  and request defaults. It cannot change the model or template files, because
+  Field Kit uses the original preset's download plan.
+- The memory floor counts the model files, not the context cache. A larger
+  window needs more memory than the floor shows; the run stops if swap grows.
+- A larger window can make a case run longer than the 4-hour request limit.
+- The report is titled **Tuning trial**. `result.json` records the original
+  preset, Temper's list of changes and your file, so a trial never counts as
+  the preset's baseline. Temper makes no quality or speed claim for your own
+  presets; the maintainers review trials before a catalog preset changes.
 
 ## Limits
 

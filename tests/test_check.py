@@ -22,7 +22,8 @@ ACTIVE = {"sha256": "c" * 64, "sequence": 2}
 
 def catalog():
     def preset(engine, group, interface="chat-completions"):
-        return {"engine": engine, "interface": interface, "presentation": {"group": group, "display_name": engine + " " + group}}
+        return {"engine": engine, "interface": interface, "presentation": {"group": group, "display_name": engine + " " + group},
+                "context_limit_tokens": 262144, "profiles": [{"min_memory_gib": 32, "context_window_tokens": 65536}]}
     return {"schema": "temper-catalog/v1", "engines": {"llama-cpp": {"adapter": "llama-server/v1"}, "splash": {"adapter": "splash/v2"}},
             "presets": {"zeta-new": preset("llama-cpp", "general"), "qwen3.8-27b-q4xl-mtp": preset("llama-cpp", "general"),
                         "qwen3.8-27b-q4xl-splash": preset("splash", "general"), "translator": preset("llama-cpp", "specialist"),
@@ -67,7 +68,11 @@ class FakeTemper:
                 "free_disk_bytes": 90 * GIB}}
         elif command == ("catalog", "compile"):
             Path(value("--out")).write_text('{"schema": "temper-execution-lock/v1"}\n')
-            document = {"schema": "temper-catalog-compilation/v1", "preset": value("--preset"), "profile_min_memory_gib": 32}
+            user = (Path(value("--root")) / "presets.d" / (value("--preset") + ".json")).is_file()
+            document = {"schema": "temper-catalog-compilation/v1", "preset": value("--preset"), "profile_min_memory_gib": 32,
+                        "user_preset": user}
+        elif command == ("preset", "check"):
+            return self.preset_check(arguments[2], Path(value("--root")))
         elif command == ("execution", "inspect"):
             document = self.execution()
         elif command == ("execution", "prepare"):
@@ -81,6 +86,24 @@ class FakeTemper:
 
     def execution(self):
         return {"schema": "temper-execution/v1", "preset": "qwen3.8-27b-q4xl-mtp", "presets": ["qwen3.8-27b-q4xl-mtp"]}
+
+    def preset_check(self, preset, root):
+        """Temper's check of a fork: its changes as paths, from the origin's values."""
+        file = json.loads((root / "presets.d" / (preset + ".json")).read_text())
+        origin = file.get("origin")
+        if origin not in catalog()["presets"]:
+            row = {"id": preset, "valid": False, "error": f"preset {preset!r}: unknown origin {origin!r}", "warnings": []}
+            return CommandResult(json.dumps({"schema": "temper-preset-check/v1", "presets": [row]}).encode(), b"", 1)
+        def flat(prefix, value):
+            if isinstance(value, dict):
+                return [item for key, inner in value.items() for item in flat(prefix + [key], inner)]
+            return [{"path": ".".join(prefix), "from": 65536 if prefix == ["context_window_tokens"] else None, "to": value}]
+        changes = flat([], file.get("changes") or {})
+        window = next((change["to"] for change in changes if change["path"] == "context_window_tokens"), 65536)
+        row = {"id": preset, "form": "copy" if "preset" in file else "fork", "origin": origin, "valid": True,
+               "name": catalog()["presets"][origin]["presentation"]["display_name"] + " (yours)", "warnings": [],
+               "changes": changes, "context_window_tokens": window, "engine": "llama-cpp", "fits": True}
+        return CommandResult(json.dumps({"schema": "temper-preset-check/v1", "presets": [row]}).encode(), b"", 0)
 
 
 class Harness(BasicCheck):
@@ -212,6 +235,42 @@ class DecisionTest(RepositoryTest):
         with self.assertRaises(InvalidPatch):
             check.patch_check({"message": {"content": "I would change it", "tool_calls": []}}, base, case["edit_scope"])
 
+    def test_a_trial_is_a_fork_that_changes_settings_of_a_preset_that_can_run(self):
+        rows = [{"preset": "qwen3.8-27b-q4xl-mtp", "blocked": None}, {"preset": "zeta-new", "blocked": "too large"}]
+        context = [{"path": "context_window_tokens", "from": 65536, "to": 131072}]
+        fork = {"form": "fork", "origin": "qwen3.8-27b-q4xl-mtp", "changes": context}
+        self.assertEqual(check.trial_origin(fork, rows)["preset"], "qwen3.8-27b-q4xl-mtp")
+        for checked, reason in (({**fork, "form": "copy"}, "not a copy"),
+                                ({**fork, "origin": "translator"}, "forks one of these presets"),
+                                ({**fork, "changes": []}, "changes nothing"),
+                                ({**fork, "changes": context + [{"path": "artifact", "from": "a", "to": "b"}]}, "not model or template files: artifact"),
+                                ({**fork, "origin": "zeta-new"}, "too large")):
+            with self.subTest(reason=reason), self.assertRaisesRegex(Refusal, reason):
+                check.trial_origin(checked, rows)
+
+    def test_a_preset_file_is_named_by_its_id_and_holds_a_temper_preset(self):
+        good = self.root / "qwen-mtp-128k.json"
+        good.write_text('{"schema": "temper-preset/v1", "origin": "qwen3.8-27b-q4xl-mtp"}')
+        self.assertEqual(check.preset_file(good)[0], "qwen-mtp-128k")
+        (self.root / "fork.txt").write_text(good.read_text())
+        with self.assertRaisesRegex(Refusal, "named ID.json"):
+            check.preset_file(self.root / "fork.txt")
+        (self.root / "lock.json").write_text('{"schema": "temper-execution-lock/v1"}')
+        with self.assertRaisesRegex(Refusal, "not a Temper preset file"):
+            check.preset_file(self.root / "lock.json")
+
+    def test_room_to_tune_shows_the_window_a_full_window_and_memory_left(self):
+        run = {"preset": {"context_window_tokens": 65536, "context_limit_tokens": 262144}, "machine": FACTS,
+               "cases": [{"id": "async-stream", "status": "context-window-exhausted", "input_tokens": 16078,
+                          "output_tokens": 49455, "memory": {"engine_peak_wired_bytes": 20 * GIB}},
+                         {"id": "template-decorators", "status": "patch-submitted", "memory": {"engine_peak_wired_bytes": 19 * GIB}}]}
+        self.assertEqual(check.room_lines(run, self.protocol), [
+            "- Context window: 65,536 tokens; the model accepts up to 262,144.",
+            "- async-stream filled the window: 16,078 input and 49,455 output tokens.",
+            "- Engine peak 20.0 GiB of the 24.0 GiB an engine may use on this Mac"
+            " (three quarters of its memory, within the GPU limit): 4.0 GiB left."])
+        self.assertEqual(check.room_lines({"preset": {}, "machine": FACTS, "cases": []}, self.protocol), [])
+
     def test_changed_task_files_are_refused(self):
         cases = self.root / "tasks/flask-coding/cases.json"
         cases.write_bytes(cases.read_bytes().replace(b"Flask", b"Flusk", 1))
@@ -309,6 +368,55 @@ class RunTest(RepositoryTest):
         self.assertTrue((directory / "temper").exists())
         with self.assertRaisesRegex(Refusal, "could not confirm"):
             self.harness().start(None)
+
+    def trial_file(self, changes, name="qwen-mtp-128k.json", origin="qwen3.8-27b-q4xl-mtp"):
+        path = self.root / "trials" / name
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(json.dumps({"schema": "temper-preset/v1", "origin": origin, "changes": changes}))
+        return path
+
+    def test_tuning_trial_runs_the_fork_and_keeps_it_apart_from_the_baseline(self):
+        fake = FakeTemper()
+        harness = self.harness(fake)
+        self.assertEqual(harness.start(None, preset_path=self.trial_file({"context_window_tokens": 131072})), 0)
+        run, directory = self.run_json()
+        self.assertEqual((run["state"], run["preset"]["id"], run["preset"]["context_window_tokens"]), ("complete", "qwen-mtp-128k", 131072))
+        self.assertEqual(run["preset"]["context_limit_tokens"], 262144)
+        self.assertEqual(run["trial"]["origin"], "qwen3.8-27b-q4xl-mtp")
+        self.assertEqual(run["trial"]["changes"], [{"path": "context_window_tokens", "from": 65536, "to": 131072}])
+        self.assertEqual(run["trial"]["file"]["changes"], {"context_window_tokens": 131072})
+        compiled = [arguments for arguments, _ in fake.calls if arguments[:2] == ["catalog", "compile"]]
+        self.assertEqual(compiled[0][compiled[0].index("--preset") + 1], "qwen-mtp-128k")
+        report = (directory / "report.md").read_text()
+        self.assertIn("# Tuning trial — llama-cpp general (yours)", report)
+        self.assertIn("- Fork of `qwen3.8-27b-q4xl-mtp`: context_window_tokens 65,536 → 131,072", report)
+        self.assertIn("Compare this trial with a basic check of `qwen3.8-27b-q4xl-mtp`", report)
+        self.assertEqual(json.loads((directory / "result.json").read_bytes())["trial"]["origin"], "qwen3.8-27b-q4xl-mtp")
+
+    def test_a_baseline_records_its_window_and_no_trial(self):
+        self.assertEqual(self.harness().start(None), 0)
+        run, directory = self.run_json()
+        self.assertIsNone(run["trial"])
+        self.assertEqual(run["preset"]["context_window_tokens"], 65536)
+        report = (directory / "report.md").read_text()
+        self.assertIn("# Basic check — ", report)
+        self.assertIn("## Room to tune", report)
+        self.assertIn("- Context window: 65,536 tokens; the model accepts up to 262,144.", report)
+
+    def test_trial_preview_names_the_changes_and_leaves_no_preset_file(self):
+        harness = self.harness()
+        self.assertEqual(harness.preview(None, self.trial_file({"engine_config": {"kv_cache": "f16"}})), 0)
+        text = "\n".join(harness.lines)
+        self.assertIn("Tuning trial qwen-mtp-128k, a fork of qwen3.8-27b-q4xl-mtp: engine_config.kv_cache null → f16", text)
+        self.assertIn("The trial would install qwen-mtp-128k", text)
+        self.assertEqual(list((self.root / ".local/preview/presets.d").iterdir()), [])
+        self.assertFalse((self.root / "runs").exists())
+
+    def test_temper_refusing_the_file_leaves_no_run(self):
+        harness = self.harness()
+        with self.assertRaisesRegex(Refusal, "Temper refuses the preset file: .*unknown origin"):
+            harness.start(None, preset_path=self.trial_file({"context_window_tokens": 131072}, origin="missing"))
+        self.assertEqual(list((self.root / "runs").iterdir()), [])
 
     def test_changed_checkout_refuses_to_continue_a_run(self):
         harness = self.harness(rows=[{"status": "interrupted", "failure": {"kind": "interrupted"}}])
