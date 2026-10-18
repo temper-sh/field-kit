@@ -25,10 +25,16 @@ def _parser() -> argparse.ArgumentParser:
     chosen = check.add_mutually_exclusive_group()
     chosen.add_argument("--preset", help="catalog preset ID; default: the first preset of the check that can run here")
     chosen.add_argument("--preset-file", type=Path, metavar="FILE",
-                        help="run a Temper fork of a basic-check preset (ID.json) as a tuning trial")
-    check.add_argument("--preview", action="store_true", help="check this Mac and show the plan; download no models")
-    check.add_argument("--yes", action="store_true", help="accept the shown plan without asking")
+                        help="run a Temper fork of a basic-check preset (ID.json) as a trial: other settings, weights or template")
+    look = check.add_mutually_exclusive_group()
+    look.add_argument("--preview", action="store_true", help="check this Mac and list the presets; download no models")
+    look.add_argument("--plan", action="store_true", help="print the exact plan a run asks consent for; create no run")
+    look.add_argument("--background", action="store_true",
+                      help="with --yes: run detached, keep the Mac awake, log to runs/background.log")
+    check.add_argument("--yes", action="store_true", help="accept the plan without asking (only after reading it)")
     check.add_argument("--temper", type=Path, help="Temper executable; default: temper on PATH")
+    subparsers.add_parser("status", help="show the background run and the newest run")
+    subparsers.add_parser("stop", help="stop the background run the way Ctrl-C does")
     subparsers.add_parser("version", help="print the Field Kit runtime version")
     subparsers.add_parser("verify", help="check the runtime and the protocol's task files")
     return parser
@@ -44,6 +50,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         if arguments.command == "check":
             from .check import command
             return command(arguments, REPOSITORY)
+        if arguments.command in ("status", "stop"):
+            from . import background
+            if arguments.command == "stop":
+                return background.stop(REPOSITORY)
+            from .check import load_protocol
+            return background.status(REPOSITORY, load_protocol(REPOSITORY)[0]["task"]["cases"])
         if arguments.command == "verify":
             from .check import load_protocol
             protocol, cases, protocol_sha256 = load_protocol(REPOSITORY)

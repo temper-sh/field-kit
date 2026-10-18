@@ -8,9 +8,9 @@ Study revision: `engine-tuning@1`.
 
 An AI coding agent, such as Claude Code or pi, plans the study. Between runs it
 reads the results, chooses the next [tuning trial](basic-check.md#tuning-trials),
-writes the choice and its reason into the study's log and gives you the
-command. You start each run yourself; Field Kit measures it with the basic
-check's method. The agent never starts a run.
+writes the choice and its reason into the study's log and shows you the run's
+plan. Each run starts only after you agree to that plan; Field Kit measures it
+with the basic check's method.
 
 ## What you need
 
@@ -35,15 +35,10 @@ agent again and send the same request; it continues from the study's log,
 `trials/<preset>/log.md`.
 
 The agent asks how many runs you want to spend in total, the baseline
-included. Before each run it shows the trial's change and the command, for
-example:
-
-```sh
-caffeinate -i ./field-kit check --preset-file trials/qwen3.8-27b-q4xl-mtp/qwen-mtp-t1.json
-```
-
-Run it in a terminal that stays open. Field Kit shows the full plan and asks
-you to type `yes`, as in the basic check.
+included. Before each run it shows the trial's change and Field Kit's plan for
+it. When you agree, it starts the run in the background: you can close the
+agent, and the Mac stays awake until the run ends. You can also run it in your
+own terminal instead.
 
 ## What you send
 
@@ -82,12 +77,12 @@ keep pushing while there is room.
 ### What is fixed and what you may change
 
 Fixed: the basic check's cases, limits, measurements and cleanup; the preset's
-weights and template; its request defaults (sampling, reasoning, output cap).
+weights and template, which the [weights comparison](weights-comparison.md)
+changes instead; its request defaults (sampling, reasoning, output cap).
 Also fixed, although Temper lists them under `engine_config`:
 `controls.reasoning_effort`, `controls.preserve_reasoning` and
 `controls.context_shift`, which change what the model writes or sees, and
-`controls.fit`, which lets llama.cpp change settings by itself. Field Kit
-refuses changes to model and template files.
+`controls.fit`, which lets llama.cpp change settings by itself.
 
 You may change, as a fork of the preset:
 
@@ -102,27 +97,27 @@ You may change, as a fork of the preset:
 setting with its type, choices and current value; run `./field-kit check
 --preview` first so that folder has the catalog.
 
-Never start a run, answer Field Kit's consent for the contributor, or change
-`runs/`, `protocols/`, `tasks/` or Field Kit's code. Read-only work is fine:
-`./field-kit check --preview` with `--preset` or `--preset-file`, `./field-kit
-version`, `./field-kit verify` (it prints Field Kit's code as `runtime=`),
+Start a run only as `docs/ASSISTANT.md` says: after a yes to its exact plan
+from `./field-kit check --plan`. Never change `runs/`, `protocols/`, `tasks/` or
+Field Kit's code. Read-only work is fine:
+`./field-kit check --preview` or `--plan`, with `--preset` or `--preset-file`,
+`./field-kit status`, `./field-kit version`, `./field-kit verify` (it prints Field Kit's code as `runtime=`),
 `temper preset fields`, and reading a model's public card or
 `config.json` on Hugging Face.
 
 ### Each session
 
 1. **Orient.** Read `AGENTS.md`, then the study log `trials/<preset>/log.md`
-   if it exists. Read `runs/*/result.json` and `runs/*/report.md`. If a
-   `runs/*/run.json` has state `preparing`, `measuring` or `cleaning`, a run
-   is unfinished: tell the contributor to continue it with `./field-kit check`
-   and stop. If one has state `retained`, tell them to send that run's
-   `report.md` to the maintainer and stop.
+   if it exists. Read `runs/*/result.json` and `runs/*/report.md`, and run
+   `./field-kit status`. If a run is still going, say how far it is and stop.
+   If one is unfinished and nothing runs, offer to continue it. If one has
+   state `retained`, tell them to send that run's `report.md` to the
+   maintainer and stop.
 2. **First session.** Run `./field-kit check --preview`, `./field-kit
-   version` and `./field-kit verify`, and write the log's brief (template
-   below). Ask the contributor
-   how many runs the study may use in total, the baseline and any repeats
-   included; runs made before the study do not count. Suggest six. Record the
-   answer with the date.
+   version` and `./field-kit verify`. Ask the contributor how many runs the
+   study may use in total, the baseline and any repeats included; runs made
+   before the study do not count. Suggest six. Then write the log's brief
+   (template below) with the answer and its date.
 3. **Compare like with like.** Speeds and memory compare only between runs
    with the same Temper version, catalog sequence and Field Kit code
    (`field_kit.sha256`, which `./field-kit verify` prints as `runtime=`). When
@@ -132,10 +127,11 @@ version`, `./field-kit verify` (it prints Field Kit's code as `runtime=`),
    this Mac (`trial` is null or missing, `preset.id` is the preset). When
    there is none with the current versions:
    - if an older basic check of the preset on this Mac shows a missing
-     outcome, the first trial addresses it; the old run already shows where
-     the limit is;
-   - otherwise the next run is the basic check:
-     `caffeinate -i ./field-kit check --preset <preset>`.
+     outcome, the first trial addresses it and counts as run 1; the old run
+     already shows where the limit is, but its speeds do not compare with the
+     trial's;
+   - otherwise the next run is the basic check of the preset
+     (`--preset <preset>`).
 
    A speed trial compares with the best earlier run on the same versions, a
    basic check or a trial that finished both cases; if there is none, run the
@@ -163,9 +159,10 @@ version`, `./field-kit verify` (it prints Field Kit's code as `runtime=`),
    change the trial keeps, not only the new one. The file name is the trial
    ID: lowercase letters, digits, dots and dashes, new for every trial. Never
    edit a file that a run has used. A baseline needs no file.
-8. **Validate** with `./field-kit check --preview --preset-file <file>`, or
-   `--preset <preset>` for a baseline. It must show exactly the intended
-   changes. Then give the contributor the run command and stop.
+8. **Plan and start.** `./field-kit check --plan --preset-file <file>`, or
+   `--preset <preset>` for a baseline, must show exactly the intended changes.
+   Show that plan, ask, and on a yes start the run as `docs/ASSISTANT.md`
+   says. Then stop until the run ends.
 
 ### Rules for the next step
 
@@ -233,7 +230,7 @@ Study engine-tuning@1 · started <date> · Field Kit <version> (code <first 8 ch
 - Decision: <run trial <id>: <changes> | run the baseline | repeat <id> | stop>
 - Reason: <mechanism and evidence; memory and time estimates>
 - Expect: <the result that would confirm or refute it>
-- Command: `caffeinate -i ./field-kit check --preset-file trials/<preset>/<id>.json`
+- Run options: `--preset-file trials/<preset>/<id>.json` (or `--preset <preset>`); started <date>, or waiting for the contributor
 - Runs used: <n> of <budget>, this one included
 
 ## Note <n> — <date>

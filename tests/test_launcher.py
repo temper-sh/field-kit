@@ -90,3 +90,46 @@ class LauncherTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BackgroundTest(unittest.TestCase):
+    """A detached check is found, reported and stopped by its recorded process."""
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="field kit background ")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        (self.root / "field-kit").write_text("#!/bin/sh\nexec python3 -c 'import time, signal, sys; "
+                                             "signal.signal(signal.SIGTERM, lambda *a: sys.exit(0)); time.sleep(60)' fieldkit_runtime \"$@\"\n")
+        (self.root / "field-kit").chmod(0o755)
+        commands = self.root / "commands"
+        commands.mkdir()
+        (commands / "caffeinate").write_text("#!/bin/sh\nexit 0\n")
+        (commands / "caffeinate").chmod(0o755)
+        self.path = os.environ["PATH"]
+        os.environ["PATH"] = str(commands) + os.pathsep + self.path
+        self.addCleanup(lambda: os.environ.__setitem__("PATH", self.path))
+
+    def test_start_status_and_stop(self):
+        from fieldkit_runtime import background
+        lines = []
+        self.assertEqual(background.start(self.root, ["--yes"], lines.append), 0)
+        state = json.loads((self.root / "runs/background.json").read_text())
+        self.assertTrue(background.alive(state["pid"]))
+        with self.assertRaisesRegex(Refusal, "already going"):
+            background.start(self.root, ["--yes"], lines.append)
+        run = self.root / "runs/20261018T190000Z"
+        run.mkdir()
+        (run / "run.json").write_text(json.dumps({"id": run.name, "state": "measuring", "preset": {"id": "p"},
+                                                  "cases": [{"id": "async-stream", "status": "patch-submitted"}]}))
+        lines.clear()
+        background.status(self.root, ["async-stream", "template-decorators"], lines.append)
+        text = "\n".join(lines)
+        self.assertIn("Background run: going since", text)
+        self.assertIn("1 of 2 cases done, now template-decorators", text)
+        lines.clear()
+        self.assertEqual(background.stop(self.root, lines.append, wait=20), 0)
+        self.assertIn("Stopped.", "\n".join(lines))
+        self.assertIsNone(background.running(self.root))
+        lines.clear()
+        background.status(self.root, ["async-stream", "template-decorators"], lines.append)
+        self.assertIn("It is not running. Continue it with ./field-kit check", "\n".join(lines))

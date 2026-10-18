@@ -43,7 +43,7 @@ when needed, a private model cache.
 
 ## Use a development Temper build
 
-Field Kit uses the `temper` on `PATH` and needs 0.3.0 or newer
+Field Kit uses the `temper` on `PATH` and needs 0.3.1 or newer
 (`MINIMUM_VERSION` in `fieldkit_runtime/temper.py`; raise it when Field Kit
 starts to use a newer Temper command). On first use, the `./field-kit`
 launcher asks that Temper to install Field Kit's Python from

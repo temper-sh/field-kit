@@ -3,8 +3,8 @@
 Measure how a Temper preset runs on your Mac: whether it fits, how fast it
 reads and writes, and how long a real coding task takes.
 
-Status: two studies, the basic check and engine tuning, for Apple Silicon Macs
-with 32 GB of memory or more. A run can take hours on a slower Mac and can download 15–20 GB
+Status: three studies, the basic check, engine tuning and weights comparison,
+for Apple Silicon Macs with 32 GB of memory or more. A run can take hours on a slower Mac and can download 15–20 GB
 when the model is not on your Mac yet.
 
 ## Why this is useful
@@ -24,32 +24,28 @@ starting point. Tuning trials on your Mac show how far they can go.
 | Experiment | What it helps answer | Requirements | Status |
 |---|---|---|---|
 | [Basic check](docs/experiments/basic-check.md) | Does a preset fit this Mac, and how fast is it on a fixed coding task? With tuning trials: how far can its settings go on this Mac? | Apple Silicon Mac with 32 GB or more; the Hugging Face tool `hf`; free disk for the model unless it is already downloaded. Splash presets need Apple M3 or newer and macOS 26.4+. | Open for contributions. |
-| [Engine tuning](docs/experiments/engine-tuning.md) | What is the best setup this Mac can use for one preset: the largest window and the fastest speeds that still finish the task? An AI agent plans the trials; you start each run. | As for the basic check, plus an AI coding agent such as Claude Code or pi. | New; first studies welcome. |
+| [Engine tuning](docs/experiments/engine-tuning.md) | What is the best setup this Mac can use for one preset: the largest window and the fastest speeds that still finish the task? An AI agent plans the trials; you approve each run. | As for the basic check, plus an AI coding agent such as Claude Code or pi. | New; first studies welcome. |
+| [Weights comparison](docs/experiments/weights-comparison.md) | Which build of a preset's model works best on this Mac? Larger builds (Q5, Q6, Q8) need more memory; their answers are compared centrally. An AI agent plans the runs. | As for engine tuning, plus free disk for one larger build at a time; most useful with 48 GB or more. | New; first studies welcome. |
 
 ## Try it
 
-Install Temper 0.3.0 or newer and the Hugging Face tool `hf`, then get Field
-Kit:
+**With an AI agent**, such as Claude Code or pi, send it this one message:
+
+```text
+Help me run a Field Kit study on this Mac. Use my Field Kit folder if I have one, or clone https://github.com/temper-sh/field-kit into ~/field-kit, then follow its docs/ASSISTANT.md.
+```
+
+It sets up what is missing (it asks before installing Temper or `hf`),
+explains the studies, recommends one for your Mac and runs it. Each run starts
+only after you agree to its plan, and runs in the background.
+
+**Without an agent**, install Temper 0.3.1 or newer and the Hugging Face tool
+`hf`, then:
 
 ```sh
 brew install temper-sh/temper/temper hf
 git clone https://github.com/temper-sh/field-kit.git
 cd field-kit
-```
-
-**With an AI agent**, such as Claude Code or pi: open it in this folder and
-send
-
-```text
-Help me run a Field Kit study.
-```
-
-It checks your Mac, explains each study and what it does, and guides you
-through the one you choose. You start every run yourself.
-
-**Without an agent:**
-
-```sh
 ./field-kit check --preview
 ./field-kit check
 ```

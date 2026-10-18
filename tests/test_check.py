@@ -31,9 +31,10 @@ def catalog():
 
 
 class FakeTemper:
-    """Answers each Temper command with the document 0.3.0 prints for it."""
+    """Answers each Temper command with the document 0.3.1 prints for it."""
     def __init__(self, model_bytes=None, can_prepare=None, cached=True):
-        self.model_bytes = {"qwen3.8-27b-q4xl-mtp": 17 * GIB, "qwen3.8-27b-q4xl-splash": 20 * GIB, "zeta-new": 30 * GIB, **(model_bytes or {})}
+        self.model_bytes = {"qwen3.8-27b-q4xl-mtp": 17 * GIB, "qwen3.8-27b-q4xl-splash": 20 * GIB, "zeta-new": 30 * GIB,
+                            "qwen-q5": 19 * GIB, "qwen-q8": 27 * GIB, **(model_bytes or {})}
         self.can_prepare = can_prepare or {}
         self.cached = cached
         self.calls = []
@@ -44,7 +45,7 @@ class FakeTemper:
         def value(flag):
             return arguments[arguments.index(flag) + 1]
         if arguments == ["version"]:
-            return CommandResult(b"temper 0.3.0\n", b"", 0)
+            return CommandResult(b"temper 0.3.1\n", b"", 0)
         command = tuple(arguments[:2])
         if command == ("machine", "facts"):
             document = FACTS
@@ -55,17 +56,15 @@ class FakeTemper:
             document = {"active": ACTIVE, "catalog": catalog()}
         elif command == ("init", "--dry-run"):
             preset = value("--preset")
-            private = environment is not None and "hf-cache" in environment.get("HF_HUB_CACHE", "")
-            model = {"name": "model.gguf", "bytes": self.model_bytes[preset], "kind": "model"}
-            remaining = [] if self.cached and not private else [model]
-            remaining.append({"name": "template.jinja", "bytes": 28000, "kind": "template"})
-            document = {"schema": "temper-configuration-result/v1", "plan": {
-                "can_prepare": self.can_prepare.get(preset, True), "refusals": [] if self.can_prepare.get(preset, True) else ["needs Apple M3"],
-                "presets": {preset: {"model_bytes": self.model_bytes[preset]}},
-                "download_bytes": self.model_bytes[preset] + 28000, "remaining_downloads": remaining,
-                "remaining_download_bytes": sum(item["bytes"] for item in remaining),
-                "fresh_disk_bytes": self.model_bytes[preset], "remaining_disk_bytes": sum(item["bytes"] for item in remaining),
-                "free_disk_bytes": 90 * GIB}}
+            document = {"schema": "temper-configuration-result/v1",
+                        "plan": self.plan(preset, self.model_bytes[preset], self.cached, environment)}
+        elif command == ("preset", "plan"):
+            preset = arguments[2]
+            file = json.loads((Path(value("--root")) / "presets.d" / (preset + ".json")).read_text())
+            weights = (file.get("changes") or {}).get("artifact")
+            size = self.model_bytes[weights] if weights else self.model_bytes[file["origin"]]
+            document = {"schema": "temper-preset-plan/v1", "preset": preset,
+                        "plan": self.plan(preset, size, self.cached and not weights, environment)}
         elif command == ("catalog", "compile"):
             Path(value("--out")).write_text('{"schema": "temper-execution-lock/v1"}\n')
             user = (Path(value("--root")) / "presets.d" / (value("--preset") + ".json")).is_file()
@@ -83,6 +82,17 @@ class FakeTemper:
         else:
             return CommandResult(b"", b"unknown command " + " ".join(arguments).encode(), 2)
         return CommandResult(json.dumps(document).encode(), b"", 0)
+
+    def plan(self, preset, size, cached, environment):
+        private = environment is not None and "hf-cache" in environment.get("HF_HUB_CACHE", "")
+        remaining = [] if cached and not private else [{"name": "model.gguf", "bytes": size, "kind": "model"}]
+        remaining.append({"name": "template.jinja", "bytes": 28000, "kind": "template"})
+        return {"can_prepare": self.can_prepare.get(preset, True),
+                "refusals": [] if self.can_prepare.get(preset, True) else ["needs Apple M3"],
+                "presets": {preset: {"model_bytes": size}}, "download_bytes": size + 28000,
+                "remaining_downloads": remaining, "remaining_download_bytes": sum(item["bytes"] for item in remaining),
+                "fresh_disk_bytes": size, "remaining_disk_bytes": sum(item["bytes"] for item in remaining),
+                "free_disk_bytes": 90 * GIB}
 
     def execution(self):
         return {"schema": "temper-execution/v1", "preset": "qwen3.8-27b-q4xl-mtp", "presets": ["qwen3.8-27b-q4xl-mtp"]}
@@ -134,9 +144,9 @@ class RepositoryTest(unittest.TestCase):
 
 
 class DecisionTest(RepositoryTest):
-    def test_versions_below_0_3_0_and_its_prereleases_are_refused(self):
-        for text, accepted in (("temper 0.3.0", True), ("temper 0.3.1", True), ("temper 1.0.0", True),
-                               ("temper 0.0.0-dev", True), ("temper 0.2.0", False), ("temper 0.3.0-alpha.1", False)):
+    def test_versions_below_0_3_1_and_its_prereleases_are_refused(self):
+        for text, accepted in (("temper 0.3.1", True), ("temper 0.3.2", True), ("temper 1.0.0", True),
+                               ("temper 0.0.0-dev", True), ("temper 0.3.0", False), ("temper 0.3.1-alpha.1", False)):
             with self.subTest(text=text):
                 self.assertEqual(version_at_least(text), accepted)
         with self.assertRaises(Refusal):
@@ -235,23 +245,29 @@ class DecisionTest(RepositoryTest):
         with self.assertRaises(InvalidPatch):
             check.patch_check({"message": {"content": "I would change it", "tool_calls": []}}, base, case["edit_scope"])
 
-    def test_a_trial_is_a_fork_that_changes_settings_of_a_preset_that_can_run(self):
-        rows = [{"preset": "qwen3.8-27b-q4xl-mtp", "blocked": None}, {"preset": "zeta-new", "blocked": "too large"}]
-        context = [{"path": "context_window_tokens", "from": 65536, "to": 131072}]
-        fork = {"form": "fork", "origin": "qwen3.8-27b-q4xl-mtp", "changes": context}
+    def test_a_trial_is_a_fork_of_a_preset_of_the_check_that_changes_something(self):
+        rows = [{"preset": "qwen3.8-27b-q4xl-mtp", "blocked": None}]
+        weights = [{"path": "artifact", "from": "qwen3.8-27b-q4xl", "to": "qwen-q5"}]
+        fork = {"form": "fork", "origin": "qwen3.8-27b-q4xl-mtp", "changes": weights}
         self.assertEqual(check.trial_origin(fork, rows)["preset"], "qwen3.8-27b-q4xl-mtp")
-        for checked, reason in (({**fork, "form": "copy"}, "not a copy"),
+        for checked, reason in (({**fork, "form": "copy"}, "copies, which can change the engine"),
                                 ({**fork, "origin": "translator"}, "forks one of these presets"),
-                                ({**fork, "changes": []}, "changes nothing"),
-                                ({**fork, "changes": context + [{"path": "artifact", "from": "a", "to": "b"}]}, "not model or template files: artifact"),
-                                ({**fork, "origin": "zeta-new"}, "too large")):
+                                ({**fork, "changes": []}, "changes nothing")):
             with self.subTest(reason=reason), self.assertRaisesRegex(Refusal, reason):
                 check.trial_origin(checked, rows)
 
     def test_a_preset_file_is_named_by_its_id_and_holds_a_temper_preset(self):
         good = self.root / "qwen-mtp-128k.json"
         good.write_text('{"schema": "temper-preset/v1", "origin": "qwen3.8-27b-q4xl-mtp"}')
-        self.assertEqual(check.preset_file(good)[0], "qwen-mtp-128k")
+        self.assertEqual(check.preset_file(good), ("qwen-mtp-128k", {"qwen-mtp-128k.json": good.read_bytes()}))
+        mine = self.root / "qwen-mine.json"
+        mine.write_text(json.dumps({"schema": "temper-preset/v1", "origin": "qwen3.8-27b-q4xl-mtp", "templates": {
+            "qwen-mine": {"sources": [{"hub": "local"}], "files": [{"path": "qwen-mine.jinja"}]}}}))
+        (self.root / "qwen-mine.jinja").write_text("{{ messages }}")
+        self.assertEqual(sorted(check.preset_file(mine)[1]), ["qwen-mine.jinja", "qwen-mine.json"])
+        mine.write_text(mine.read_text().replace("qwen-mine.jinja", "../escape.jinja"))
+        with self.assertRaisesRegex(Refusal, "not a plain file name"):
+            check.preset_file(mine)
         (self.root / "fork.txt").write_text(good.read_text())
         with self.assertRaisesRegex(Refusal, "named ID.json"):
             check.preset_file(self.root / "fork.txt")
@@ -385,6 +401,7 @@ class RunTest(RepositoryTest):
         self.assertEqual(run["trial"]["origin"], "qwen3.8-27b-q4xl-mtp")
         self.assertEqual(run["trial"]["changes"], [{"path": "context_window_tokens", "from": 65536, "to": 131072}])
         self.assertEqual(run["trial"]["file"]["changes"], {"context_window_tokens": 131072})
+        self.assertEqual(list(run["trial"]["files_sha256"]), ["qwen-mtp-128k.json"])
         compiled = [arguments for arguments, _ in fake.calls if arguments[:2] == ["catalog", "compile"]]
         self.assertEqual(compiled[0][compiled[0].index("--preset") + 1], "qwen-mtp-128k")
         report = (directory / "report.md").read_text()
@@ -392,6 +409,36 @@ class RunTest(RepositoryTest):
         self.assertIn("- Fork of `qwen3.8-27b-q4xl-mtp`: context_window_tokens 65,536 → 131,072", report)
         self.assertIn("Compare this trial with a basic check of `qwen3.8-27b-q4xl-mtp`", report)
         self.assertEqual(json.loads((directory / "result.json").read_bytes())["trial"]["origin"], "qwen3.8-27b-q4xl-mtp")
+
+    def test_a_weights_trial_uses_temper_s_plan_for_its_own_files(self):
+        fake = FakeTemper()
+        harness = self.harness(fake)
+        self.assertEqual(harness.start(None, preset_path=self.trial_file({"artifact": "qwen-q5"}, name="qwen-q5k.json")), 0)
+        run, _ = self.run_json()
+        self.assertEqual((run["preset"]["id"], run["cache"]["mode"]), ("qwen-q5k", "private"))
+        self.assertEqual(run["plan"]["remaining_download_bytes"], 19 * GIB + 28000)
+        planned = [arguments for arguments, _ in fake.calls if arguments[:2] == ["preset", "plan"]]
+        self.assertTrue(planned and all(arguments[2] == "qwen-q5k" for arguments in planned))
+        self.assertFalse(any(arguments[:2] == ["init", "--dry-run"] and "qwen-q5k" in arguments for arguments, _ in fake.calls))
+
+    def test_a_trial_too_large_for_this_mac_leaves_no_run(self):
+        harness = self.harness()
+        with self.assertRaisesRegex(Refusal, "qwen-q8k cannot run on this Mac: needs about 31.0 GiB"):
+            harness.start(None, preset_path=self.trial_file({"artifact": "qwen-q8"}, name="qwen-q8k.json"))
+        self.assertEqual(list((self.root / "runs").iterdir()), [])
+
+    def test_plan_only_shows_the_consent_text_and_creates_no_run(self):
+        harness = self.harness(answer="unused")
+        self.assertEqual(harness.start(None, plan_only=True), 0)
+        text = "\n".join(harness.lines)
+        self.assertIn("Basic check of", text)
+        self.assertIn("Plan only: nothing was downloaded and no run was created.", text)
+        self.assertEqual(list((self.root / "runs").iterdir()), [])
+
+    def test_plan_only_refuses_while_a_run_is_unfinished(self):
+        self.harness(rows=[{"status": "interrupted", "failure": {"kind": "interrupted"}}]).start(None)
+        with self.assertRaisesRegex(Refusal, "is unfinished"):
+            self.harness().start(None, plan_only=True)
 
     def test_a_baseline_records_its_window_and_no_trial(self):
         self.assertEqual(self.harness().start(None), 0)

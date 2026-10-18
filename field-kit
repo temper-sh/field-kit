@@ -10,7 +10,7 @@ check_python() {
 install_python() {
     temper=$(command -v temper 2>/dev/null || true)
     [ -n "$temper" ] || {
-        printf '%s\n' 'field-kit: Field Kit needs Temper 0.3.0 or newer. Install it with: brew install temper-sh/temper/temper' >&2
+        printf '%s\n' 'field-kit: Field Kit needs Temper 0.3.1 or newer. Install it with: brew install temper-sh/temper/temper' >&2
         exit 1
     }
     [ ! -L "$field_kit_local" ] || { printf '%s\n' 'field-kit: refusing a symlink at .local' >&2; exit 1; }

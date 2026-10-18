@@ -111,12 +111,12 @@ dashes). For example, `trials/qwen-mtp-128k.json` (Git ignores `trials/`):
 Check it, then run it:
 
 ```sh
-./field-kit check --preview --preset-file trials/qwen-mtp-128k.json
+./field-kit check --plan --preset-file trials/qwen-mtp-128k.json
 caffeinate -i ./field-kit check --preset-file trials/qwen-mtp-128k.json
 ```
 
-The preview shows Temper's list of changes, or Temper's reason when it refuses
-the file. To see every setting you can change, with its current value, run
+The plan shows Temper's list of changes, the downloads and the disk, or
+Temper's reason when it refuses the file. To see every setting you can change, with its current value, run
 this after any preview:
 
 ```sh
@@ -135,9 +135,11 @@ How to tune:
 
 Rules and limits:
 
-- A trial changes settings only: context window, engine settings, speculation
-  and request defaults. It cannot change the model or template files, because
-  Field Kit uses the original preset's download plan.
+- A trial can change settings, the weights (`temper preset weights`) or the
+  template, including your own template file next to the trial file. Temper
+  plans its downloads; weights that are not in your Hugging Face cache go into
+  a private cache inside the run, removed afterwards. A trial cannot change the
+  engine yet: Field Kit has measured only the catalog's engines.
 - The memory floor counts the model files, not the context cache. A larger
   window needs more memory than the floor shows; the run stops if swap grows.
 - A larger window can make a case run longer than the 4-hour request limit.

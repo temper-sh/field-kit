@@ -4,13 +4,15 @@ The basic check installs one Temper preset, sends it two fixed coding requests
 and records speed and memory. Read
 [what it measures](experiments/basic-check.md) if you want the details first.
 
-An AI agent can guide you through these steps: open it in the Field Kit
-folder and send `Help me run a Field Kit study.`
+An AI agent can do these steps for you. Send it: `Help me run a Field Kit
+study on this Mac. Use my Field Kit folder if I have one, or clone
+https://github.com/temper-sh/field-kit into ~/field-kit, then follow its
+docs/ASSISTANT.md.`
 
 ## Before you start
 
 - An Apple Silicon Mac with 32 GB of memory or more.
-- Temper 0.3.0 or newer, and the Hugging Face tool `hf`; Temper downloads
+- Temper 0.3.1 or newer, and the Hugging Face tool `hf`; Temper downloads
   models with it:
 
   ```sh
@@ -67,6 +69,18 @@ During the run:
 
 When the run ends, Field Kit removes the engine, the run's Temper folder and
 any private model cache. The terminal prints the report.
+
+To run it without keeping a terminal open, read the plan first, then start it
+in the background:
+
+```sh
+./field-kit check --plan
+./field-kit check --yes --background
+```
+
+It keeps the Mac awake until the run ends and writes to `runs/background.log`.
+`./field-kit status` shows how far it is; `./field-kit stop` stops it the way
+Ctrl-C does.
 
 ## Stop and continue
 

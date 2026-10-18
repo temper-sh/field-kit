@@ -14,7 +14,7 @@ from typing import Any, Mapping
 from .common import SHA256, Refusal
 from .process import CommandFailure, Runner, file_digest, run_process_progress, run_process_silent
 
-MINIMUM_VERSION = (0, 3, 0)
+MINIMUM_VERSION = (0, 3, 1)
 RESPONSE_LIMIT = 16 * 1024 * 1024
 VERSION = re.compile(r"temper (\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?")
 
@@ -25,7 +25,7 @@ def locate(explicit: Path | None = None) -> Path:
     if explicit is None:
         found = shutil.which("temper")
         if found is None:
-            raise Refusal("Field Kit needs Temper 0.3.0 or newer. Install it with: brew install temper-sh/temper/temper")
+            raise Refusal("Field Kit needs Temper 0.3.1 or newer. Install it with: brew install temper-sh/temper/temper")
         explicit = Path(found)
     return explicit.resolve()
 
@@ -38,7 +38,7 @@ def version_at_least(text: str, minimum: tuple[int, int, int] = MINIMUM_VERSION)
     if numbers == (0, 0, 0) and match.group(4) == "-dev":
         return True  # a local development build
     if match.group(4):
-        return numbers > minimum  # 0.3.0-alpha.1 precedes 0.3.0
+        return numbers > minimum  # 0.3.1-alpha.1 precedes 0.3.1
     return numbers >= minimum
 
 
@@ -77,7 +77,7 @@ class Temper:
             raise Refusal(f"Temper must be a regular executable file: {self.path}")
         text = self.run(["version"], 30).decode(errors="replace").strip()
         if not version_at_least(text):
-            raise Refusal(f"Field Kit needs Temper 0.3.0 or newer; found {text}."
+            raise Refusal(f"Field Kit needs Temper 0.3.1 or newer; found {text}."
                           " Upgrade it with: brew upgrade temper-sh/temper/temper")
         return {"path": str(self.path), "version": text, "sha256": file_digest(self.path)}
 
@@ -136,19 +136,16 @@ class Temper:
         return checked
 
     def install_plan(self, root: Path, preset: str, environment: Mapping[str, str]) -> dict[str, Any]:
-        """Temper's own review of downloads, disk and fit; it saves nothing."""
+        """Temper's own review of a catalog preset's downloads, disk and fit; it saves nothing."""
         result = self.document(["init", "--dry-run", "--root", root, "--preset", preset], 300,
                                "temper-configuration-result/v1", environment=environment)
-        plan = result.get("plan")
-        if not isinstance(plan, dict) or type(plan.get("can_prepare")) is not bool \
-                or not isinstance(plan.get("presets"), dict) or preset not in plan["presets"]:
-            raise Refusal("Temper returned an unknown install plan")
-        for key in ("download_bytes", "remaining_download_bytes", "fresh_disk_bytes", "remaining_disk_bytes", "free_disk_bytes"):
-            if type(plan.get(key)) is not int or plan[key] < 0:
-                raise Refusal(f"Temper's install plan has no {key}")
-        if type(plan["presets"][preset].get("model_bytes")) is not int:
-            raise Refusal("Temper's install plan has no model size")
-        return plan
+        return _plan(result.get("plan"), preset)
+
+    def preset_plan(self, root: Path, preset: str, environment: Mapping[str, str]) -> dict[str, Any]:
+        """The same review for a user preset in the root's presets.d."""
+        result = self.document(["preset", "plan", preset, "--root", root], 300, "temper-preset-plan/v1",
+                               environment=environment)
+        return _plan(result.get("plan"), preset)
 
     def inspect(self, lock: Path) -> dict[str, Any]:
         execution = self.document(["execution", "inspect", "--lock", lock], 60, "temper-execution/v1")
@@ -167,6 +164,18 @@ class Temper:
 
     def remove(self, lock: Path, root: Path, installation: str) -> dict[str, Any]:
         return self.document(["execution", "remove", "--lock", lock, "--root", root, "--installation", installation], 600)
+
+
+def _plan(plan: object, preset: str) -> dict[str, Any]:
+    if not isinstance(plan, dict) or type(plan.get("can_prepare")) is not bool \
+            or not isinstance(plan.get("presets"), dict) or preset not in plan["presets"]:
+        raise Refusal("Temper returned an unknown install plan")
+    for key in ("download_bytes", "remaining_download_bytes", "fresh_disk_bytes", "remaining_disk_bytes", "free_disk_bytes"):
+        if type(plan.get(key)) is not int or plan[key] < 0:
+            raise Refusal(f"Temper's install plan has no {key}")
+    if type(plan["presets"][preset].get("model_bytes")) is not int:
+        raise Refusal("Temper's install plan has no model size")
+    return plan
 
 
 def _snapshot(value: object) -> dict[str, Any]:

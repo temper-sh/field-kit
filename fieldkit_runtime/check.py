@@ -4,7 +4,8 @@ Fixed method, no AI. Temper compiles, installs and serves the preset; Field
 Kit measures each case once, keeps every first attempt and cleans up only
 after Temper confirms that its processes stopped. A tuning trial runs a
 Temper fork of a basic-check preset through the same steps and records its
-changes, so it stays separate from the preset's baseline.
+changes, so it stays separate from the preset's baseline. A trial may change
+settings, weights or the template; Temper plans its downloads.
 """
 from __future__ import annotations
 
@@ -39,9 +40,7 @@ GIB = 1024**3
 MIB = 1024**2
 UNFINISHED = ("preparing", "measuring", "cleaning")
 PRESET_FILE_BYTES_MAX = 64 * 1024
-# Changes that name other model or template files. Temper plans downloads only
-# for catalog presets, so a trial uses its origin's plan and may not add files.
-FILE_CHANGES = ("artifact", "template", "speculation.draft_artifact")
+TEMPLATE_FILE_BYTES_MAX = 1 * MIB
 
 
 # ---------------------------------------------------------------- protocol
@@ -114,8 +113,9 @@ def choose(survey: list[dict[str, Any]], requested: str | None) -> dict[str, Any
     raise Refusal("no preset of the basic check can run on this Mac; see the reasons above")
 
 
-def preset_file(path: Path) -> tuple[str, bytes]:
-    """A user preset file's ID, which is its name, and its bytes; Temper checks the content."""
+def preset_file(path: Path) -> tuple[str, dict[str, bytes]]:
+    """A user preset's ID, which is its file name, and the files that go into presets.d:
+    the preset and any local template files next to it. Temper checks the content."""
     if path.suffix != ".json" or not path.stem:
         raise Refusal(f"a Temper preset file is named ID.json: {path}")
     data = read_regular(path, PRESET_FILE_BYTES_MAX)
@@ -125,26 +125,32 @@ def preset_file(path: Path) -> tuple[str, bytes]:
         raise Refusal(f"invalid JSON in {path}: {error}") from error
     if not isinstance(document, dict) or document.get("schema") != "temper-preset/v1":
         raise Refusal(f"{path} is not a Temper preset file (temper-preset/v1)")
-    return path.stem, data
+    files = {path.name: data}
+    for record in (document.get("templates") or {}).values():
+        if not isinstance(record, dict) or not any(isinstance(source, dict) and source.get("hub") == "local"
+                                                   for source in record.get("sources") or []):
+            continue
+        for entry in record.get("files") or []:
+            name = entry.get("path") if isinstance(entry, dict) else None
+            if not isinstance(name, str) or not name or "/" in name or name.startswith(".") or name.endswith(".json"):
+                raise Refusal(f"{path} names a local template file that is not a plain file name: {name!r}")
+            files[name] = read_regular(path.parent / name, TEMPLATE_FILE_BYTES_MAX)
+    return path.stem, files
 
 
 def trial_origin(checked: dict[str, Any], survey: list[dict[str, Any]]) -> dict[str, Any]:
-    """The basic-check preset that a tuning trial forks. A trial changes settings, not files."""
+    """The basic-check preset that a trial forks. A copy, which can change the engine, is
+    refused: Field Kit has measured only the catalog's engines through the basic check."""
     origin = checked.get("origin")
     if checked.get("form") != "fork":
-        raise Refusal("a tuning trial is a fork of a basic-check preset (temper preset fork), not a copy")
+        raise Refusal("a trial is a fork of a basic-check preset (temper preset fork); copies, which can"
+                      " change the engine, are not supported yet")
     row = next((row for row in survey if row["preset"] == origin), None)
     if row is None:
         names = ", ".join(entry["preset"] for entry in survey)
-        raise Refusal(f"a tuning trial forks one of these presets: {names}")
-    changes = checked["changes"]
-    if not changes:
+        raise Refusal(f"a trial forks one of these presets: {names}")
+    if not checked["changes"]:
         raise Refusal(f"the preset file changes nothing; run ./field-kit check --preset {origin} instead")
-    files = [change.get("path") for change in changes if change.get("path") in FILE_CHANGES]
-    if files:
-        raise Refusal("a tuning trial changes settings, not model or template files: " + ", ".join(files))
-    if row["blocked"]:
-        raise Refusal(f"{origin} cannot run on this Mac: {row['blocked']}")
     return row
 
 
@@ -449,13 +455,19 @@ class BasicCheck:
                          "blocked": admission(plan, preset, facts, self.protocol), "plan": plan})
         return inspected, rows
 
-    def trial(self, root: Path, source: tuple[str, bytes], rows: list[dict[str, Any]],
-              facts: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Temper's check of the user's preset file in this Temper folder, and the row it forks."""
-        preset, data = source
-        atomic_write(root / "presets.d" / f"{preset}.json", data)
+    def trial(self, root: Path, source: tuple[str, dict[str, bytes]], rows: list[dict[str, Any]],
+              facts: dict[str, Any], environment: dict[str, str]) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        """Temper's check and install plan of the user's preset in this Temper folder, and the row it forks."""
+        preset, files = source
+        for name, data in files.items():
+            atomic_write(root / "presets.d" / name, data)
         checked = self.temper.preset_check(root, preset, facts["physical_memory_bytes"] // GIB)
-        return checked, trial_origin(checked, rows)
+        row = trial_origin(checked, rows)
+        plan = self.temper.preset_plan(root, preset, environment)
+        blocked = admission(plan, preset, facts, self.protocol)
+        if blocked:
+            raise Refusal(f"{preset} cannot run on this Mac: {blocked}")
+        return checked, row, plan
 
     # -- commands
 
@@ -472,20 +484,21 @@ class BasicCheck:
         checked = None
         try:
             if source:
-                checked, chosen = self.trial(root, source, rows, facts)
+                checked, chosen, plan = self.trial(root, source, rows, facts, dict(os.environ))
             else:
                 chosen = choose(rows, requested)
+                plan = chosen["plan"]
         except Refusal as error:
             for line in describe_survey(rows, None):
                 self.say(line)
             raise error
         finally:
-            if source:
-                (root / "presets.d" / f"{source[0]}.json").unlink(missing_ok=True)
+            for name in (source[1] if source else ()):
+                (root / "presets.d" / name).unlink(missing_ok=True)
         for line in describe_survey(rows, chosen["preset"]):
             self.say(line)
-        mode = cache_mode(chosen["plan"])
-        downloads = chosen["plan"]["remaining_download_bytes"] if mode == "shared" else chosen["plan"]["download_bytes"]
+        mode = cache_mode(plan)
+        downloads = plan["remaining_download_bytes"] if mode == "shared" else plan["download_bytes"]
         self.say("")
         if checked:
             self.say(f"Tuning trial {source[0]}, a fork of {chosen['preset']}: {describe_changes(checked['changes'])}")
@@ -497,8 +510,11 @@ class BasicCheck:
         self.say("Preview only: nothing was downloaded and no run was created. Run ./field-kit check to start.")
         return 0
 
-    def start(self, requested: str | None, *, preset_path: Path | None = None, assume_yes: bool = False) -> int:
+    def start(self, requested: str | None, *, preset_path: Path | None = None, assume_yes: bool = False,
+              plan_only: bool = False) -> int:
         pending = self.unfinished()
+        if pending and plan_only:
+            raise Refusal(f"run {pending[0].name} is unfinished; ./field-kit check continues it before another can start")
         if pending:
             return self.resume(pending[0])
         source = preset_file(preset_path) if preset_path else None
@@ -513,10 +529,10 @@ class BasicCheck:
             root = directory / "temper"
             inspected, rows = self.survey(root, facts, dict(os.environ))
             self.say("Presets of the basic check on this Mac:")
-            chosen = checked = None
+            chosen = checked = trial_plan = None
             try:
                 if source:
-                    checked, chosen = self.trial(root, source, rows, facts)
+                    checked, chosen, trial_plan = self.trial(root, source, rows, facts, dict(os.environ))
                 else:
                     chosen = choose(rows, requested)
             finally:
@@ -528,13 +544,13 @@ class BasicCheck:
             if source and compiled.get("user_preset") is not True:
                 raise Refusal(f"Temper compiled a catalog preset instead of the preset file {source[0]}.json")
             execution = self.temper.inspect(lock)
-            mode = cache_mode(chosen["plan"])
+            plan = trial_plan or chosen["plan"]
+            mode = cache_mode(plan)
             cache = directory / "hf-cache"
-            plan = chosen["plan"]
             if mode == "private":
                 cache.mkdir()
-                # A trial installs its origin's files, so the origin's plan holds for both.
-                plan = self.temper.install_plan(root, chosen["preset"], private_environment(cache))
+                plan = (self.temper.preset_plan(root, preset, private_environment(cache)) if source else
+                        self.temper.install_plan(root, preset, private_environment(cache)))
                 if not plan["can_prepare"]:
                     raise Refusal("Temper cannot install the preset into a private cache: "
                                   + "; ".join(plan.get("refusals") or ["no reason given"]))
@@ -551,7 +567,8 @@ class BasicCheck:
                            "context_limit_tokens": record.get("context_limit_tokens")},
                 "trial": None if not checked else {
                     "origin": chosen["preset"], "changes": checked["changes"], "warnings": checked.get("warnings") or [],
-                    "file": json.loads(source[1]), "file_sha256": digest(source[1])},
+                    "file": json.loads(source[1][Path(preset_path).name]),
+                    "files_sha256": {name: digest(data) for name, data in sorted(source[1].items())}},
                 "execution": execution, "lock_sha256": file_digest(lock),
                 "cache": {"mode": mode, "path": str(cache) if mode == "private" else None},
                 "plan": {key: plan[key] for key in ("download_bytes", "remaining_download_bytes", "fresh_disk_bytes",
@@ -561,6 +578,9 @@ class BasicCheck:
             }
             self.say("")
             self.say(consent_text(run, self.protocol))
+            if plan_only:
+                self.say("\nPlan only: nothing was downloaded and no run was created.")
+                return 0
             answer = "yes" if assume_yes else self.ask("\nType yes to start, anything else to cancel: ").strip().lower()
             if answer != "yes":
                 self.say("Cancelled. Nothing was downloaded.")
@@ -773,8 +793,21 @@ def _interrupt(_signal, _frame):
 
 
 def command(arguments, repository: Path) -> int:
+    if arguments.background:
+        if not arguments.yes:
+            raise Refusal("--background starts without asking, so it needs --yes; read the plan from --plan first")
+        from . import background
+        forwarded = ["--yes"]
+        if arguments.preset:
+            forwarded += ["--preset", arguments.preset]
+        if arguments.preset_file:
+            forwarded += ["--preset-file", str(arguments.preset_file.resolve())]
+        if arguments.temper:
+            forwarded += ["--temper", str(arguments.temper.resolve())]
+        return background.start(repository, forwarded)
     temper = Temper(locate(arguments.temper))
     check = BasicCheck(repository, temper)
     if arguments.preview:
         return check.preview(arguments.preset, arguments.preset_file)
-    return check.start(arguments.preset, preset_path=arguments.preset_file, assume_yes=arguments.yes)
+    return check.start(arguments.preset, preset_path=arguments.preset_file, assume_yes=arguments.yes,
+                       plan_only=arguments.plan)
