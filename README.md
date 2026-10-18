@@ -24,6 +24,7 @@ starting point. Tuning trials on your Mac show how far they can go.
 | Experiment | What it helps answer | Requirements | Status |
 |---|---|---|---|
 | [Basic check](docs/experiments/basic-check.md) | Does a preset fit this Mac, and how fast is it on a fixed coding task? With tuning trials: how far can its settings go on this Mac? | Apple Silicon Mac with 32 GB or more; the Hugging Face tool `hf`; free disk for the model unless it is already downloaded. Splash presets need Apple M3 or newer and macOS 26.4+. | Open for contributions. |
+| [Engine tuning](docs/experiments/engine-tuning.md) | What is the best setup this Mac can use for one preset: the largest window and the fastest speeds that still finish the task? An AI agent plans the trials; you start each run. | As for the basic check, plus an AI coding agent such as Claude Code or pi. | New; first studies welcome. |
 
 ## Try it
 
@@ -49,7 +50,8 @@ full plan and asks before it downloads anything.
   against the model's limit, and the memory left. A
   [tuning trial](docs/experiments/basic-check.md#tuning-trials) runs a preset
   with your changed settings, such as a larger window, with
-  `--preset-file FILE`.
+  `--preset-file FILE`. In an [engine-tuning study](docs/experiments/engine-tuning.md),
+  your AI agent plans the trials for you.
 - **Two coding requests.** Each one asks the model to change a Flask
   repository and starts on a freshly loaded engine. One request can take from
   a few minutes to a few hours.

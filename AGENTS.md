@@ -15,7 +15,8 @@ Field Kit's goal is the maximum usable performance on each machine: the
 largest context window and the fastest speeds that still finish the task at
 baseline quality, without swap growth, memory failure or heat stops. Prompts,
 protocols, guides and reports encourage pushing settings toward that limit; a
-catalog default is a starting point, never the answer.
+catalog default is a starting point, never the answer. When asked to tune a
+preset, follow `docs/experiments/engine-tuning.md`.
 
 The runtime uses the Python standard library. Keep discovery and planning
 read-only. Preserve first attempts and distinguish invalid evidence from an

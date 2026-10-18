@@ -110,8 +110,9 @@ limits: the context window against the most the model accepts, cases that
 filled the window, and memory left. The catalog's settings are only a starting
 point. To find the best setup your Mac can use, run tuning trials: one changed
 setting per run, pushed until a limit is reached.
+An AI agent can plan them: see the [engine-tuning study](experiments/engine-tuning.md).
 [Tuning trials](experiments/basic-check.md#tuning-trials) explains the preset
-file and the steps:
+file and the steps when you write a trial yourself:
 
 ```sh
 ./field-kit check --preview --preset-file trials/qwen-mtp-128k.json

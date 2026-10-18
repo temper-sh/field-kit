@@ -95,8 +95,9 @@ of settings, sized for 32 GB. A Mac with more memory can often use a larger
 window or other settings. A tuning trial measures one changed preset with the
 same cases, limits and measurements as the basic check, and records the change.
 
-Write a Temper preset file: a *fork* of a preset of the check, with your
-changes. The file name is the trial's ID (lowercase letters, digits, dots and
+To let an AI agent plan the trials and keep a log of its decisions, run an
+[engine-tuning study](engine-tuning.md). To write a trial yourself, make a
+Temper preset file: a *fork* of a preset of the check, with your changes. The file name is the trial's ID (lowercase letters, digits, dots and
 dashes). For example, `trials/qwen-mtp-128k.json` (Git ignores `trials/`):
 
 ```json
