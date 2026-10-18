@@ -29,7 +29,7 @@ from .process import atomic_write, exclusive_lock, file_digest, runtime_identity
 from .serving import HTTPResponseError, monitored_call
 from .splash_memory import SplashMemory
 from .stream import CodingStream
-from .temper import Temper
+from .temper import Temper, locate
 
 PROTOCOL = Path("protocols/basic-check.json")
 RUN_SCHEMA = "field-kit-basic-check-run/v1"
@@ -610,7 +610,10 @@ class BasicCheck:
     def verify_identity(self, directory: Path, run: dict[str, Any]) -> None:
         identity = self.temper.identity()
         if identity["sha256"] != run["temper"]["sha256"]:
-            raise Refusal("Temper changed since this run started; finish it with the same setup")
+            started = run["temper"]
+            raise Refusal(f"Temper changed since this run started. A run finishes with the Temper it started with:"
+                          f" {started['version']} at {started['path']}. If that file still exists, continue with"
+                          f" ./field-kit check --temper {started['path']}")
         if runtime_identity()["sha256"] != run["field_kit"]["sha256"] or self.protocol_sha256 != run["protocol"]["sha256"]:
             raise Refusal("this checkout changed since the run started; restore it to finish the run")
         if file_digest(directory / "execution.lock.json") != run["lock_sha256"]:
@@ -770,7 +773,7 @@ def _interrupt(_signal, _frame):
 
 
 def command(arguments, repository: Path) -> int:
-    temper = Temper(arguments.temper or repository / ".local" / "temper")
+    temper = Temper(locate(arguments.temper))
     check = BasicCheck(repository, temper)
     if arguments.preview:
         return check.preview(arguments.preset, arguments.preset_file)

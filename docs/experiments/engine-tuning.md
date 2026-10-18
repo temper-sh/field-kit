@@ -14,8 +14,9 @@ check's method. The agent never starts a run.
 
 ## What you need
 
-- Field Kit set up as in the [run guide](../START.md), with `./field-kit check
-  --preview` working.
+- Temper and Field Kit set up as in the [run guide](../START.md), with
+  `./field-kit check --preview` working. Do not upgrade Temper during the
+  study: speeds compare only between runs on the same Temper.
 - An AI coding agent that can read files and run commands in this folder. You
   pay for its use; each session reads a few small files.
 - Time. A run takes from one to several hours on most Macs; a study usually
@@ -97,7 +98,7 @@ You may change, as a fork of the preset:
   preset's own method and `none`. Other methods need draft weights, which a
   trial cannot add.
 
-`.local/temper preset fields <preset> --root .local/preview` lists every
+`temper preset fields <preset> --root .local/preview` lists every
 setting with its type, choices and current value; run `./field-kit check
 --preview` first so that folder has the catalog.
 
@@ -105,7 +106,7 @@ Never start a run, answer Field Kit's consent for the contributor, or change
 `runs/`, `protocols/`, `tasks/` or Field Kit's code. Read-only work is fine:
 `./field-kit check --preview` with `--preset` or `--preset-file`, `./field-kit
 version`, `./field-kit verify` (it prints Field Kit's code as `runtime=`),
-`.local/temper preset fields`, and reading a model's public card or
+`temper preset fields`, and reading a model's public card or
 `config.json` on Hugging Face.
 
 ### Each session

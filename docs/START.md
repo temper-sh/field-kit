@@ -4,13 +4,17 @@ The basic check installs one Temper preset, sends it two fixed coding requests
 and records speed and memory. Read
 [what it measures](experiments/basic-check.md) if you want the details first.
 
+An AI agent can guide you through these steps: open it in the Field Kit
+folder and send `Help me run a Field Kit study.`
+
 ## Before you start
 
 - An Apple Silicon Mac with 32 GB of memory or more.
-- The Hugging Face tool `hf` on your `PATH`; Temper downloads models with it:
+- Temper 0.3.0 or newer, and the Hugging Face tool `hf`; Temper downloads
+  models with it:
 
   ```sh
-  command -v hf || brew install hf
+  brew install temper-sh/temper/temper hf
   ```
 
 - Free disk for the model, unless it is already in your Hugging Face cache.
@@ -21,16 +25,11 @@ and records speed and memory. Read
 ```sh
 git clone https://github.com/temper-sh/field-kit.git
 cd field-kit
-./setup.sh --install-only
 ```
 
-Setup installs a signed Temper release and a private Python under `.local/`.
-It downloads about 31 MB, checks the release's checksum and signature, and
-needs no administrator access. Running it again checks and reuses the
-installation.
-
-If setup reports `.local/setup.lock` and no setup is running, run
-`rmdir .local/setup.lock`, then `./setup.sh` again.
+The first `./field-kit` command asks Temper to install Field Kit's own Python
+under `.local/` (about 27 MB, once). Field Kit uses the `temper` on your
+`PATH`; each run records its exact version.
 
 ## Look first
 
@@ -63,6 +62,8 @@ During the run:
   measurements like any other demanding app.
 - Keep this folder unchanged until the run ends. The code and inputs are part
   of the recorded run.
+- Do not upgrade Temper until the run ends. A run finishes with the Temper it
+  started with.
 
 When the run ends, Field Kit removes the engine, the run's Temper folder and
 any private model cache. The terminal prints the report.

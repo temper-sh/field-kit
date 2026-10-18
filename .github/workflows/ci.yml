@@ -22,11 +22,9 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Verify runtime
-        run: ./field-kit verify
-      - name: Check bootstrap entry point
         run: |
-          sh -n setup.sh field-kit
-          ./setup.sh --help
+          sh -n field-kit
+          FIELD_KIT_PYTHON="$(command -v python)" ./field-kit verify
       - name: Run hermetic tests
         run: python -m unittest discover -v
       - name: Check whitespace

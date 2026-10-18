@@ -28,7 +28,7 @@ def _parser() -> argparse.ArgumentParser:
                         help="run a Temper fork of a basic-check preset (ID.json) as a tuning trial")
     check.add_argument("--preview", action="store_true", help="check this Mac and show the plan; download no models")
     check.add_argument("--yes", action="store_true", help="accept the shown plan without asking")
-    check.add_argument("--temper", type=Path, help="Temper executable; default: .local/temper")
+    check.add_argument("--temper", type=Path, help="Temper executable; default: temper on PATH")
     subparsers.add_parser("version", help="print the Field Kit runtime version")
     subparsers.add_parser("verify", help="check the runtime and the protocol's task files")
     return parser

@@ -1,10 +1,14 @@
 # Working in Field Kit
 
-Read `README.md` and `docs/START.md`. When changing an experiment, read its guide
-in `docs/experiments/` and its package. Development plans and migration history
-live outside this repository. In the local-AI workspace, also follow the parent
-instructions and read `../REQUIREMENTS.md`, `../PLAN.md` and
-`../FIELD-KIT-PLAN.md` when present. Workspace cutover remains a separate decision.
+If the person wants to run a study or measure their Mac, follow
+`docs/ASSISTANT.md`. The rest of this file is for changing Field Kit.
+
+When changing Field Kit, read `README.md` and `docs/START.md`. When changing an
+experiment, read its guide in `docs/experiments/` and its package. Development
+plans and migration history live outside this repository. In the local-AI
+workspace, also follow the parent instructions and read `../REQUIREMENTS.md`,
+`../PLAN.md` and `../FIELD-KIT-PLAN.md` when present. Workspace cutover remains
+a separate decision.
 
 Field Kit owns portable questions, exact consent, bounded execution, sessions,
 measurements, reports and cleanup. Temper owns execution-lock compilation,

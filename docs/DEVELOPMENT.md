@@ -43,21 +43,21 @@ when needed, a private model cache.
 
 ## Use a development Temper build
 
-Field Kit needs Temper 0.3.0 or newer. Setup installs the signed release that
-`setup.sh` pins. To try a Temper checkout instead:
+Field Kit uses the `temper` on `PATH` and needs 0.3.0 or newer
+(`MINIMUM_VERSION` in `fieldkit_runtime/temper.py`; raise it when Field Kit
+starts to use a newer Temper command). On first use, the `./field-kit`
+launcher asks that Temper to install Field Kit's Python from
+`runtime/python-macos-arm64.lock.yaml`; `FIELD_KIT_PYTHON` names another
+Python 3.9 or newer instead. To try a Temper checkout:
 
 ```sh
 temper_source=/absolute/path/to/temper-checkout
 (cd "$temper_source" && go build -o build/temper ./cmd/temper)
-./setup.sh --install-only
 ./field-kit check --temper "$temper_source/build/temper" --preview
 ```
 
 Pass the same `--temper` path when continuing a run: the exact Temper binary
 and this checkout are part of the run, and a changed one is refused.
-
-Moving the pin to a new Temper release is a Field Kit release: update the
-archive name and checksum in `setup.sh`, then run setup and a preview.
 
 ## Change the method
 

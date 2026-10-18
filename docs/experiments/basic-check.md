@@ -120,7 +120,7 @@ the file. To see every setting you can change, with its current value, run
 this after any preview:
 
 ```sh
-.local/temper preset fields qwen3.8-27b-q4xl-mtp --root .local/preview
+temper preset fields qwen3.8-27b-q4xl-mtp --root .local/preview
 ```
 
 How to tune:

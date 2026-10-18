@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -16,6 +17,17 @@ from .process import CommandFailure, Runner, file_digest, run_process_progress, 
 MINIMUM_VERSION = (0, 3, 0)
 RESPONSE_LIMIT = 16 * 1024 * 1024
 VERSION = re.compile(r"temper (\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?")
+
+
+def locate(explicit: Path | None = None) -> Path:
+    """The Temper to use: --temper, else `temper` on PATH. A link, such as
+    Homebrew's, resolves to its file, so a run records the binary itself."""
+    if explicit is None:
+        found = shutil.which("temper")
+        if found is None:
+            raise Refusal("Field Kit needs Temper 0.3.0 or newer. Install it with: brew install temper-sh/temper/temper")
+        explicit = Path(found)
+    return explicit.resolve()
 
 
 def version_at_least(text: str, minimum: tuple[int, int, int] = MINIMUM_VERSION) -> bool:
@@ -65,7 +77,8 @@ class Temper:
             raise Refusal(f"Temper must be a regular executable file: {self.path}")
         text = self.run(["version"], 30).decode(errors="replace").strip()
         if not version_at_least(text):
-            raise Refusal(f"Field Kit needs Temper 0.3.0 or newer; found {text}. Run ./setup.sh again.")
+            raise Refusal(f"Field Kit needs Temper 0.3.0 or newer; found {text}."
+                          " Upgrade it with: brew upgrade temper-sh/temper/temper")
         return {"path": str(self.path), "version": text, "sha256": file_digest(self.path)}
 
     def machine_facts(self) -> dict[str, Any]:

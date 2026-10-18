@@ -3,8 +3,8 @@
 Measure how a Temper preset runs on your Mac: whether it fits, how fast it
 reads and writes, and how long a real coding task takes.
 
-Status: one experiment, the basic check, for Apple Silicon Macs with 32 GB of
-memory or more. A run can take hours on a slower Mac and can download 15–20 GB
+Status: two studies, the basic check and engine tuning, for Apple Silicon Macs
+with 32 GB of memory or more. A run can take hours on a slower Mac and can download 15–20 GB
 when the model is not on your Mac yet.
 
 ## Why this is useful
@@ -28,19 +28,35 @@ starting point. Tuning trials on your Mac show how far they can go.
 
 ## Try it
 
+Install Temper 0.3.0 or newer and the Hugging Face tool `hf`, then get Field
+Kit:
+
 ```sh
+brew install temper-sh/temper/temper hf
 git clone https://github.com/temper-sh/field-kit.git
 cd field-kit
-./setup.sh --install-only
+```
+
+**With an AI agent**, such as Claude Code or pi: open it in this folder and
+send
+
+```text
+Help me run a Field Kit study.
+```
+
+It checks your Mac, explains each study and what it does, and guides you
+through the one you choose. You start every run yourself.
+
+**Without an agent:**
+
+```sh
 ./field-kit check --preview
 ./field-kit check
 ```
 
-Setup downloads a signed Temper 0.3.0 release and a private Python into this
-folder (about 31 MB) and needs no Homebrew or administrator access. Install
-`hf` yourself first, for example with `brew install hf`. The preview lists the
-presets that can run on your Mac and downloads no models. `check` shows the
-full plan and asks before it downloads anything.
+The first command installs Field Kit's own Python through Temper (about 27 MB,
+once). The preview lists the presets that can run on your Mac and downloads no
+models. `check` shows the full plan and asks before it downloads anything.
 
 ## What to expect
 
