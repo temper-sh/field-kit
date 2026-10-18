@@ -31,7 +31,7 @@ cd field-kit
 ./field-kit check
 ```
 
-Setup downloads a signed Temper 0.2.0 release and a private Python into this
+Setup downloads a signed Temper 0.3.0 release and a private Python into this
 folder (about 31 MB) and needs no Homebrew or administrator access. Install
 `hf` yourself first, for example with `brew install hf`. The preview lists the
 presets that can run on your Mac and downloads no models. `check` shows the

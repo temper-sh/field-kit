@@ -43,7 +43,7 @@ when needed, a private model cache.
 
 ## Use a development Temper build
 
-Field Kit needs Temper 0.2.0 or newer. Setup installs the signed release that
+Field Kit needs Temper 0.3.0 or newer. Setup installs the signed release that
 `setup.sh` pins. To try a Temper checkout instead:
 
 ```sh

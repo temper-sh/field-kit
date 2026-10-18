@@ -13,7 +13,7 @@ from typing import Any, Mapping
 from .common import SHA256, Refusal
 from .process import CommandFailure, Runner, file_digest, run_process_progress, run_process_silent
 
-MINIMUM_VERSION = (0, 2, 0)
+MINIMUM_VERSION = (0, 3, 0)
 RESPONSE_LIMIT = 16 * 1024 * 1024
 VERSION = re.compile(r"temper (\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?")
 
@@ -26,7 +26,7 @@ def version_at_least(text: str, minimum: tuple[int, int, int] = MINIMUM_VERSION)
     if numbers == (0, 0, 0) and match.group(4) == "-dev":
         return True  # a local development build
     if match.group(4):
-        return numbers > minimum  # 0.2.0-alpha.1 precedes 0.2.0
+        return numbers > minimum  # 0.3.0-alpha.1 precedes 0.3.0
     return numbers >= minimum
 
 
@@ -65,7 +65,7 @@ class Temper:
             raise Refusal(f"Temper must be a regular executable file: {self.path}")
         text = self.run(["version"], 30).decode(errors="replace").strip()
         if not version_at_least(text):
-            raise Refusal(f"Field Kit needs Temper 0.2.0 or newer; found {text}. Run ./setup.sh again.")
+            raise Refusal(f"Field Kit needs Temper 0.3.0 or newer; found {text}. Run ./setup.sh again.")
         return {"path": str(self.path), "version": text, "sha256": file_digest(self.path)}
 
     def machine_facts(self) -> dict[str, Any]:

@@ -28,14 +28,14 @@ trap cleanup_setup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 field_kit_stage=$(mktemp -d "$field_kit_local/.setup.XXXXXX")
-field_kit_archive=temper_0.2.0_darwin_arm64.zip
-field_kit_sha=e4c2dd5272b94a6f1e886bad697e2d753282d2d1d280173fa64fdc626642f615
+field_kit_archive=temper_0.3.0_darwin_arm64.zip
+field_kit_sha=1f68818fdcc276cca6f3b03e30842053ee62ab8a68a52d648f37ece5a4ba9876
 field_kit_zip="$field_kit_local/$field_kit_archive"
 [ ! -L "$field_kit_zip" ] || { printf '%s\n' 'Refusing a symlink at the release cache.' >&2; exit 1; }
-printf '%s\n' 'Installing Temper 0.2.0 and Python locally (about 31 MB of downloads).' 'No administrator access is needed. Model downloads and inference require confirmation next.'
+printf '%s\n' 'Installing Temper 0.3.0 and Python locally (about 31 MB of downloads).' 'No administrator access is needed. Model downloads and inference require confirmation next.'
 if [ ! -f "$field_kit_zip" ]; then
     curl --fail --location --proto '=https' --tlsv1.2 --retry 2 --connect-timeout 20 --max-time 600 \
-        "https://github.com/temper-sh/temper/releases/download/v0.2.0/$field_kit_archive" \
+        "https://github.com/temper-sh/temper/releases/download/v0.3.0/$field_kit_archive" \
         --output "$field_kit_stage/$field_kit_archive"
     [ "$(shasum -a 256 "$field_kit_stage/$field_kit_archive" | cut -d ' ' -f 1)" = "$field_kit_sha" ] || {
         printf '%s\n' 'Temper release checksum mismatch; nothing was installed.' >&2; exit 1;
@@ -56,7 +56,7 @@ fi
 # preserve their group/other bits during extraction instead of masking them.
 umask 022
 # Field Kit before 0.6 installed this Python with an alpha Temper, and Temper
-# 0.2.0 refuses that folder. Setup owns it, so replace it.
+# 0.2.0 and later refuse that folder. Setup owns it, so replace it.
 if [ -d "$field_kit_local/python" ] && [ ! -L "$field_kit_local/python" ] && [ ! -f "$field_kit_local/python/temper-root.json" ]; then
     printf '%s\n' 'Replacing the Python of an earlier Field Kit setup.'
     rm -f "$field_kit_local/python-path"

@@ -23,14 +23,14 @@ ACTIVE = {"sha256": "c" * 64, "sequence": 2}
 def catalog():
     def preset(engine, group, interface="chat-completions"):
         return {"engine": engine, "interface": interface, "presentation": {"group": group, "display_name": engine + " " + group}}
-    return {"schema": "temper-catalog/v1", "engines": {"llama-cpp": {"adapter": "llama-server/v1"}, "splash": {"adapter": "splash/v1"}},
+    return {"schema": "temper-catalog/v1", "engines": {"llama-cpp": {"adapter": "llama-server/v1"}, "splash": {"adapter": "splash/v2"}},
             "presets": {"zeta-new": preset("llama-cpp", "general"), "qwen3.8-27b-q4xl-mtp": preset("llama-cpp", "general"),
                         "qwen3.8-27b-q4xl-splash": preset("splash", "general"), "translator": preset("llama-cpp", "specialist"),
                         "reranker": preset("llama-cpp", "general", "reranking")}}
 
 
 class FakeTemper:
-    """Answers each Temper command with the document 0.2.0 prints for it."""
+    """Answers each Temper command with the document 0.3.0 prints for it."""
     def __init__(self, model_bytes=None, can_prepare=None, cached=True):
         self.model_bytes = {"qwen3.8-27b-q4xl-mtp": 17 * GIB, "qwen3.8-27b-q4xl-splash": 20 * GIB, "zeta-new": 30 * GIB, **(model_bytes or {})}
         self.can_prepare = can_prepare or {}
@@ -43,7 +43,7 @@ class FakeTemper:
         def value(flag):
             return arguments[arguments.index(flag) + 1]
         if arguments == ["version"]:
-            return CommandResult(b"temper 0.2.0\n", b"", 0)
+            return CommandResult(b"temper 0.3.0\n", b"", 0)
         command = tuple(arguments[:2])
         if command == ("machine", "facts"):
             document = FACTS
@@ -111,9 +111,9 @@ class RepositoryTest(unittest.TestCase):
 
 
 class DecisionTest(RepositoryTest):
-    def test_versions_below_0_2_0_and_its_prereleases_are_refused(self):
-        for text, accepted in (("temper 0.2.0", True), ("temper 0.2.1", True), ("temper 1.0.0", True),
-                               ("temper 0.0.0-dev", True), ("temper 0.1.0", False), ("temper 0.2.0-alpha.1", False)):
+    def test_versions_below_0_3_0_and_its_prereleases_are_refused(self):
+        for text, accepted in (("temper 0.3.0", True), ("temper 0.3.1", True), ("temper 1.0.0", True),
+                               ("temper 0.0.0-dev", True), ("temper 0.2.0", False), ("temper 0.3.0-alpha.1", False)):
             with self.subTest(text=text):
                 self.assertEqual(version_at_least(text), accepted)
         with self.assertRaises(Refusal):

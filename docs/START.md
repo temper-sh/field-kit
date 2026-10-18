@@ -58,9 +58,9 @@ During the run:
 
 - Keep the Mac on power and awake. `caffeinate -i` keeps it from sleeping.
 - Close other demanding apps; they change the measurements.
-- If you use Temper yourself, send it no requests until the run ends. Temper
-  0.2.0 starts every engine on the same port, so your own engine would
-  collide with the run's.
+- Your own Temper can keep running: the run uses its own ports. A request
+  that loads one of your models uses memory and the GPU, so it changes the
+  measurements like any other demanding app.
 - Keep this folder unchanged until the run ends. The code and inputs are part
   of the recorded run.
 
