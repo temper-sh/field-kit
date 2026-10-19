@@ -1,5 +1,6 @@
 """The basic check's decisions and run states, with a fake Temper and no model."""
 import json
+import copy
 from pathlib import Path
 import shutil
 import tempfile
@@ -66,16 +67,33 @@ class FakeTemper:
             document = {"schema": "temper-preset-plan/v1", "preset": preset,
                         "plan": self.plan(preset, size, self.cached and not weights, environment)}
         elif command == ("catalog", "compile"):
-            Path(value("--out")).write_text('{"schema": "temper-execution-lock/v1"}\n')
-            user = (Path(value("--root")) / "presets.d" / (value("--preset") + ".json")).is_file()
+            name = value("--preset")
+            source = Path(value("--root")) / "presets.d" / (name + ".json")
+            user = source.is_file()
+            record = copy.deepcopy(catalog()["presets"].get(name, catalog()["presets"]["qwen3.8-27b-q4xl-mtp"]))
+            artifacts = {}
+            if user:
+                file = json.loads(source.read_text())
+                if "preset" in file:
+                    record = file["preset"]
+                else:
+                    record = copy.deepcopy(catalog()["presets"][file["origin"]])
+                    for key, val in file.get("changes", {}).items():
+                        if key in ("context_window_tokens", "engine_config"):
+                            record["profiles"][0][key] = val
+                        else:
+                            record[key] = val
+                artifacts = file.get("artifacts", {})
+            Path(value("--out")).write_text(json.dumps({"schema": "temper-execution-lock/v1", "preset": name,
+                "records": {"presets": {name: record}, "engines": catalog()["engines"], "artifacts": artifacts}}))
             document = {"schema": "temper-catalog-compilation/v1", "preset": value("--preset"), "profile_min_memory_gib": 32,
                         "user_preset": user}
         elif command == ("preset", "check"):
             return self.preset_check(arguments[2], Path(value("--root")))
         elif command == ("execution", "inspect"):
-            document = self.execution()
+            document = self.execution(json.loads(Path(value("--lock")).read_text())["preset"])
         elif command == ("execution", "prepare"):
-            document = {"schema": "temper-execution-material/v1", "execution": self.execution(), "generation": "a" * 64,
+            document = {"schema": "temper-execution-material/v1", "execution": self.execution(json.loads(Path(value("--lock")).read_text())["preset"]), "generation": "a" * 64,
                         "binding": "schema: temper-field-kit-binding/v1\n"}
         elif command == ("execution", "remove"):
             document = {"removed": True}
@@ -94,8 +112,8 @@ class FakeTemper:
                 "fresh_disk_bytes": size, "remaining_disk_bytes": sum(item["bytes"] for item in remaining),
                 "free_disk_bytes": 90 * GIB}
 
-    def execution(self):
-        return {"schema": "temper-execution/v1", "preset": "qwen3.8-27b-q4xl-mtp", "presets": ["qwen3.8-27b-q4xl-mtp"]}
+    def execution(self, preset="qwen3.8-27b-q4xl-mtp"):
+        return {"schema": "temper-execution/v1", "preset": preset, "presets": [preset]}
 
     def preset_check(self, preset, root):
         """Temper's check of a fork: its changes as paths, from the origin's values."""
@@ -122,7 +140,7 @@ class Harness(BasicCheck):
         binary = repository / "temper"
         binary.write_bytes(b"fake temper")
         super().__init__(repository, Temper(binary, runner=fake, progress_runner=fake),
-                         ask=lambda _: answer, say=self.lines.append if hasattr(self, "lines") else (lambda _: None))
+                         ask=lambda _: answer, say=self.lines.append if hasattr(self, "lines") else (lambda _: None), workload="coding")
         self.rows = list(rows)
         self.measured = []
 
@@ -152,9 +170,9 @@ class DecisionTest(RepositoryTest):
         with self.assertRaises(Refusal):
             version_at_least("Temper version unknown")
 
-    def test_general_chat_presets_follow_the_protocol_order_then_new_ones(self):
+    def test_new_general_models_do_not_become_coding_candidates(self):
         self.assertEqual(check.eligible_presets(catalog(), self.protocol),
-                         ["qwen3.8-27b-q4xl-mtp", "qwen3.8-27b-q4xl-splash", "zeta-new"])
+                         ["qwen3.8-27b-q4xl-mtp", "qwen3.8-27b-q4xl-splash"])
 
     def test_memory_floor_uses_three_quarters_of_memory_and_the_wired_limit(self):
         plan = {"can_prepare": True, "presets": {"p": {"model_bytes": 20 * GIB}}}
@@ -250,7 +268,7 @@ class DecisionTest(RepositoryTest):
         weights = [{"path": "artifact", "from": "qwen3.8-27b-q4xl", "to": "qwen-q5"}]
         fork = {"form": "fork", "origin": "qwen3.8-27b-q4xl-mtp", "changes": weights}
         self.assertEqual(check.trial_origin(fork, rows)["preset"], "qwen3.8-27b-q4xl-mtp")
-        for checked, reason in (({**fork, "form": "copy"}, "copies, which can change the engine"),
+        for checked, reason in (({**fork, "form": "copy"}, "a fork must name"),
                                 ({**fork, "origin": "translator"}, "forks one of these presets"),
                                 ({**fork, "changes": []}, "changes nothing")):
             with self.subTest(reason=reason), self.assertRaisesRegex(Refusal, reason):
@@ -311,7 +329,7 @@ class RunTest(RepositoryTest):
         self.assertFalse((self.root / "runs").exists())
         text = "\n".join(harness.lines)
         self.assertIn("→ qwen3.8-27b-q4xl-mtp", text)
-        self.assertIn("this Mac allows 24.0 GiB", text)  # zeta-new: 30 GiB
+        self.assertNotIn("zeta-new", text)
         self.assertIn("already in your Hugging Face cache", text)
 
     def test_declined_consent_removes_the_run_folder(self):
@@ -407,7 +425,7 @@ class RunTest(RepositoryTest):
         report = (directory / "report.md").read_text()
         self.assertIn("# Tuning trial — llama-cpp general (yours)", report)
         self.assertIn("- Fork of `qwen3.8-27b-q4xl-mtp`: context_window_tokens 65,536 → 131,072", report)
-        self.assertIn("Compare this trial with a basic check of `qwen3.8-27b-q4xl-mtp`", report)
+        self.assertIn("Compare this trial with a reviewed Qwen baseline", report)
         self.assertEqual(json.loads((directory / "result.json").read_bytes())["trial"]["origin"], "qwen3.8-27b-q4xl-mtp")
 
     def test_a_weights_trial_uses_temper_s_plan_for_its_own_files(self):

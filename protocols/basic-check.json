@@ -1,18 +1,17 @@
 {
   "schema": "field-kit-protocol/v1",
   "id": "basic-check",
-  "revision": 1,
-  "question": "Does this preset fit this Mac, and how fast is it on a fixed coding task?",
-  "method": "Install one catalog preset as Temper compiles it for this Mac, then send each Flask case once as a first attempt with the preset's own sampling and output settings. Each case gets a fresh engine process. The run records native prefill and generation rates, task time, memory after load and at peak, and the submitted patch. No AI decides anything; tests run later, centrally.",
+  "revision": 2,
+  "question": "Which Qwen configuration delivers useful quality, speed, cache behavior and context on this hardware?",
+  "method": "An agent chooses bounded measurements from hardware evidence gaps: smoke first, then relevant coding work with tests and code review, diagnosis, context/cache tuning and unused confirmation work. The runner preserves exact configurations, first attempts, native rates and loaded/peak memory. Submission alone never establishes quality.",
+  "model": "Qwen3.8 27B",
+  "engine_families": ["llama-server", "splash", "rapid-mlx", "vllm-metal"],
   "presets": {
     "interface": "chat-completions",
     "group": "general",
     "default_order": [
       "qwen3.8-27b-q4xl-mtp",
-      "qwen3.8-27b-q4xl-splash",
-      "gemma-4-26b-a4b-qat-ud-q4-k-xl-llama",
-      "muse-glimmer-30b-q4xl-llama",
-      "gemma-4-31b-qat-ud-q4-k-xl-llama"
+      "qwen3.8-27b-q4xl-splash"
     ]
   },
   "task": {

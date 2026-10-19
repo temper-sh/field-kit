@@ -1,135 +1,82 @@
-# Run the basic check
+# Run a Qwen study
 
-The basic check installs one Temper preset, sends it two fixed coding requests
-and records speed and memory. Read
-[what it measures](experiments/basic-check.md) if you want the details first.
+Use the one-message prompt in the [README](../README.md#start-with-one-message).
+The agent follows [the contributor workflow](ASSISTANT.md), chooses useful
+questions for your hardware and prepares one bounded study for approval.
 
-An AI agent can do these steps for you. Send it: `Help me run a Field Kit
-study on this Mac. Use my Field Kit folder if I have one, or clone
-https://github.com/temper-sh/field-kit into ~/field-kit, then follow its
-docs/ASSISTANT.md.`
+## Setup
 
-## Before you start
-
-- An Apple Silicon Mac with 32 GB of memory or more.
-- Temper 0.3.1 or newer, and the Hugging Face tool `hf`; Temper downloads
-  models with it:
-
-  ```sh
-  brew install temper-sh/temper/temper hf
-  ```
-
-- Free disk for the model, unless it is already in your Hugging Face cache.
-  The preview shows the exact amount.
-
-## Set up
+You need an Apple Silicon Mac, Temper 0.3.1 or newer, and hf for model downloads.
+Install these if needed:
 
 ```sh
+brew install temper-sh/temper/temper hf
 git clone https://github.com/temper-sh/field-kit.git
 cd field-kit
 ```
 
-The first `./field-kit` command asks Temper to install Field Kit's own Python
-under `.local/` (about 27 MB, once). Field Kit uses the `temper` on your
-`PATH`; each run records its exact version.
+The first Field Kit command installs its private Python through Temper
+(about 27 MB). It stays in .local/ for reuse. Model engines and weights are
+installed only after approval.
 
-## Look first
-
-```sh
-./field-kit check --preview
-```
-
-The preview lists the presets of the check, says which ones can run on this
-Mac and why the others cannot, and names the one a run would use. It downloads
-no models and creates no run.
-
-## Start a run
+Coding studies need pytest, asgiref and the frozen Flask task's dependencies.
+The agent checks an existing grading environment first. A project-local test
+environment can be prepared using Python 3.12 or newer:
 
 ```sh
-caffeinate -i ./field-kit check
+python3 -m venv .local/grading
+.local/grading/bin/python -m pip install -r runtime/grading-requirements.txt
 ```
 
-To check another preset, add `--preset ID` with an ID from the preview.
+This is a reusable Field Kit test tool, separate from engine environments.
+The runner itself uses the standard library. Candidate code executes inside
+macOS sandbox-exec with network and process spawning denied.
 
-Field Kit shows the plan: the preset, the downloads, the disk space, the time
-limits and what it removes afterwards. Type `yes` to start. Anything else
-cancels without downloading.
+## Approval and progress
 
-During the run:
+The plan names exact candidates and freezes engine/software, weights and
+templates. It limits runs, elapsed time, planned downloads, context size and
+request time. The agent chooses trials and tuning controls within that scope.
 
-- Keep the Mac on power and awake. `caffeinate -i` keeps it from sleeping.
-- Close other demanding apps; they change the measurements.
-- Your own Temper can keep running: the run uses its own ports. A request
-  that loads one of your models uses memory and the GPU, so it changes the
-  measurements like any other demanding app.
-- Keep this folder unchanged until the run ends. The code and inputs are part
-  of the recorded run.
-- Do not upgrade Temper until the run ends. A run finishes with the Temper it
-  started with.
-
-When the run ends, Field Kit removes the engine, the run's Temper folder and
-any private model cache. The terminal prints the report.
-
-To run it without keeping a terminal open, read the plan first, then start it
-in the background:
+Keep the Mac awake and on power; close other demanding applications. Avoid
+changing Field Kit, Temper or the grading environment during a study.
 
 ```sh
-./field-kit check --plan
-./field-kit check --yes --background
+./field-kit status
+./field-kit study status STUDY_ID
+./field-kit stop
 ```
 
-It keeps the Mac awake until the run ends and writes to `runs/background.log`.
-`./field-kit status` shows how far it is; `./field-kit stop` stops it the way
-Ctrl-C does.
+A background trial keeps the Mac awake until that trial ends. The agent must
+return to review its result and choose the next experiment. Closing the agent
+does not leave an autonomous study planner running.
 
-## Stop and continue
+## Stop, continue and close
 
-Press **Ctrl-C once** and wait. Field Kit stops the current request, waits for
-Temper to stop its processes and saves what it has. This can take up to two
-minutes.
-
-To continue, run the same command again:
+Ctrl-C or stop preserves the attempt and asks Temper to stop its owned
+processes. Wait for shutdown to finish.
 
 ```sh
-./field-kit check
+./field-kit study resume STUDY_ID
+./field-kit study close STUDY_ID
 ```
 
-An unfinished run always comes first. It continues with the next case; an
-interrupted request is kept as it is and is not repeated. If the installation
-was interrupted, the next run continues it.
+Resume preserves first attempts instead of silently repeating them. Close
+works after the budget expires and can cancel safe unfinished preparation.
+It removes owned installations, weight caches and reconstructible source copies.
 
-If Temper could not confirm that its processes stopped, Field Kit keeps the
-run's files and refuses to continue. Keep the `runs/` folder and send the
-maintainer the run's `report.md` and the printed error.
+An uncommitted attempt, retained run or uncertain shutdown blocks cleanup.
+Keep its process status and report for recovery with the original Temper.
+Do not delete recovery files or kill processes by name. Give the maintainer
+the study ID, run ID and exact error.
 
-## Share the result
+## Results and sharing
 
-Each run has its own folder under `runs/`:
+studies/ID/study.json owns approval, budgets and run references; report.md
+summarizes evidence. Referenced runs/ID/ directories hold results and execution
+locks. Coding runs also hold review/tests.json and review.json.
 
-- **`report.md`**: a readable summary.
-- **`result.json`**: the measurements, the patches the model submitted,
-  details of your Mac, local paths and the exact versions used.
-
-Read the report, look over the JSON, then send `result.json` to the person
-coordinating the measurements, through a channel you choose. Mention anything
-unusual, such as other heavy work at the same time. Nothing is uploaded
-automatically. Incorrect answers and stopped runs are still useful.
-
-To measure another preset, start a new run with `--preset ID`. Each run keeps
-its own folder.
-
-## Tune for your Mac
-
-The report's **Room to tune** section shows how far the run stayed from the
-limits: the context window against the most the model accepts, cases that
-filled the window, and memory left. The catalog's settings are only a starting
-point. To find the best setup your Mac can use, run tuning trials: one changed
-setting per run, pushed until a limit is reached.
-An AI agent can plan them: see the [engine-tuning study](experiments/engine-tuning.md).
-[Tuning trials](experiments/basic-check.md#tuning-trials) explains the preset
-file and the steps when you write a trial yourself:
-
-```sh
-./field-kit check --preview --preset-file trials/qwen-mtp-128k.json
-caffeinate -i ./field-kit check --preset-file trials/qwen-mtp-128k.json
-```
+Keep the study and referenced run directories together when sharing. They
+include hardware details and local paths. The agent writes a concise conclusion
+with the chosen exact configuration, quality, speed, loaded/peak memory,
+measured context scope and unresolved questions. Publication is separate.

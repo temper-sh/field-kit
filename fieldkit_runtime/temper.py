@@ -131,6 +131,8 @@ class Temper:
             raise Refusal(f"Temper refuses the preset file: {checked.get('error') or 'no reason given'}")
         if result.returncode:
             raise CommandFailure(argv, result)
+        if checked.get("form") == "copy" and "changes" not in checked:
+            checked["changes"] = []
         if not isinstance(checked.get("name"), str) or not isinstance(checked.get("changes"), list):
             raise Refusal("Temper's preset check has no name or changes")
         return checked

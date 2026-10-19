@@ -49,16 +49,16 @@ def running(repository: Path) -> dict[str, Any] | None:
     return state if state and alive(state["pid"]) else None
 
 
-def start(repository: Path, arguments: list[str], say: Callable[[str], None] = print) -> int:
+def start(repository: Path, arguments: list[str], say: Callable[[str], None] = print, *, command="check") -> int:
     runs = repository / "runs"
     current = running(repository)
     if current:
         raise Refusal(f"a background run is already going (process {current['pid']}); ./field-kit status shows it")
     runs.mkdir(exist_ok=True)
     with open(runs / LOG, "ab") as log:
-        log.write(f"\n=== {_now()} field-kit check {' '.join(arguments)}\n".encode())
+        log.write(f"\n=== {_now()} field-kit {command} {' '.join(arguments)}\n".encode())
         log.flush()
-        process = subprocess.Popen([str(repository / "field-kit"), "check", *arguments], cwd=repository,
+        process = subprocess.Popen([str(repository / "field-kit"), command, *arguments], cwd=repository,
                                    stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
     # caffeinate keeps the Mac from sleeping until the check ends.
     subprocess.Popen(["caffeinate", "-i", "-w", str(process.pid)], stdin=subprocess.DEVNULL,
@@ -88,6 +88,7 @@ def status(repository: Path, cases: list[str], say: Callable[[str], None] = prin
     if run is None:
         say("No runs yet." if not current else "It has not created its run folder yet.")
     else:
+        cases = run.get("case_ids", cases)
         done = [row["id"] for row in run.get("cases") or []]
         line = f"Newest run: {run['id']}, {run['preset']['id']}, state {run['state']}"
         if run["state"] == "measuring":
@@ -97,8 +98,8 @@ def status(repository: Path, cases: list[str], say: Callable[[str], None] = prin
         for row in run.get("cases") or []:
             say(f"  {row['id']}: {row['status']}")
         if run["state"] in ("preparing", "measuring", "cleaning") and not current:
-            say("It is not running. Continue it with ./field-kit check, or in the background with"
-                " ./field-kit check --yes --background.")
+            route = f"study resume {run['study']['id']}" if run.get("study") else "check"
+            say(f"It is not running. Continue it with ./field-kit {route}.")
         elif run["state"] == "complete":
             say(f"Report: {runs / run['id'] / 'report.md'}")
     log = runs / LOG

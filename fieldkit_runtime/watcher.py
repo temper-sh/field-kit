@@ -50,7 +50,7 @@ def validate_watch_spec(value: object) -> dict[str, Any]:
         "command_timeout_seconds", "roles",
         "swap_growth_bytes_max", "thermal_stop", "cpu_speed_limit_stop",
     }
-    if not isinstance(value, dict) or set(value) != fields:
+    if not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - {"wired_growth_bytes_max"}:
         raise Refusal("process watch has missing or unknown fields")
     if value.get("schema") != WATCH_SCHEMA:
         raise Refusal("process watch has an unsupported schema")
@@ -69,6 +69,7 @@ def validate_watch_spec(value: object) -> dict[str, Any]:
         "process watch command_timeout_seconds",
     )
     _optional_limit(value.get("swap_growth_bytes_max"), "process watch swap limit")
+    _optional_limit(value.get("wired_growth_bytes_max"), "process watch wired growth limit")
     if not isinstance(value.get("thermal_stop"), bool) or not isinstance(
         value.get("cpu_speed_limit_stop"), bool
     ):
@@ -278,6 +279,7 @@ def evaluate_snapshot(
     observed_rss_peaks: dict[str, int],
     gap_milliseconds: int,
     sleep_wake_milliseconds: int = 0,
+    baseline_wired_bytes: int | None = None,
 ) -> tuple[dict[str, int], list[dict[str, Any]]]:
     """Evaluate independent role limits. RSS values are deliberately never summed."""
     if not isinstance(snapshot, dict) or set(snapshot) != {
@@ -323,6 +325,13 @@ def evaluate_snapshot(
     wired = snapshot.get("wired_bytes")
     if isinstance(wired, bool) or not isinstance(wired, int) or wired < 0:
         raise WatchFailure("process snapshot has an invalid wired memory counter")
+    wired_limit = spec.get("wired_growth_bytes_max")
+    if wired_limit is not None:
+        if baseline_wired_bytes is None:
+            raise WatchFailure("wired growth limit requires a pre-engine baseline")
+        growth = max(0, wired - baseline_wired_bytes)
+        if growth >= wired_limit:
+            reasons.append({"kind": "wired-growth", "observed_bytes": growth, "limit_bytes": wired_limit})
     swap_growth = max(0, swap - baseline_swap_bytes)
     swap_limit = spec["swap_growth_bytes_max"]
     if swap_limit is not None and swap_growth >= swap_limit:
@@ -378,6 +387,7 @@ class CoordinatedWatcher:
         output: Path,
         *,
         baseline_swap_bytes: int | None = None,
+        baseline_wired_bytes: int | None = None,
         sampler: Callable[[dict[str, Any], float], dict[str, Any]] = sample_macos,
         request_stop: Callable[[], None],
         monotonic_ns: Callable[[], int] = time.monotonic_ns,
@@ -393,6 +403,7 @@ class CoordinatedWatcher:
         ):
             raise Refusal("process watch baseline swap bytes must be a non-negative integer")
         self.baseline_swap_bytes = baseline_swap_bytes
+        self.baseline_wired_bytes = baseline_wired_bytes
         self.sampler = sampler
         self.request_stop = request_stop
         self.monotonic_ns = monotonic_ns
@@ -438,6 +449,7 @@ class CoordinatedWatcher:
                     observed_rss_peaks=peaks,
                     gap_milliseconds=gap,
                     sleep_wake_milliseconds=sleep_wake,
+                    baseline_wired_bytes=self.baseline_wired_bytes,
                 )
             except (KeyError, WatchFailure) as error:
                 snapshot = None

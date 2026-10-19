@@ -29,6 +29,9 @@ passes execution locks to Temper unchanged.
 | `protocols/basic-check.json` | The basic check's fixed method, limits and stop rules |
 | `tasks/flask-coding/` | The Flask cases, the Flask source and the hidden tests used at review |
 | `fieldkit_runtime/check.py` | The basic check: plan, consent, install, measure, clean up, report |
+| `fieldkit_runtime/study.py` | Bounded approval, frozen candidate material, quality gates, reusable resources and close/recovery |
+| `fieldkit_runtime/workloads.py` | Cheap smoke and deterministic context/cache questions |
+| `fieldkit_runtime/review.py` | Sandboxed grading control, exact patch reconstruction and attributable source-review bindings |
 | `fieldkit_runtime/temper.py` | The Temper commands Field Kit uses and the fields it reads |
 | `fieldkit_runtime/probe.py`, `watcher.py` | One supervised `temper execution serve` and its process, memory, swap and heat observation |
 | `fieldkit_runtime/serving.py`, `stream.py` | Bounded HTTP calls and the streamed answer, kept even when it stops early |
@@ -40,6 +43,18 @@ step), the execution lock, one folder per case (request, raw stream, answer,
 patch and process observations), `result.json` and `report.md`. While the run
 is active it also holds the run's Temper folder, the unpacked Flask source and,
 when needed, a private model cache.
+
+Studies own `studies/ID/study.json`: one approval and budget reservation, frozen
+candidate plans and references to immutable runs. Their private runtime/cache
+survives individual trials and is removed on close. `--reason` records the
+evidence gap driving each trial. Tests cover interrupted work, stale reviews,
+scope violations, budget exhaustion and failed cleanup with a fresh controller.
+They establish workflow behavior, not real engine performance or hardware fit.
+
+The coding evaluator uses the pinned development requirements in
+`runtime/grading-requirements.txt` with Python 3.12+. A baseline control must
+pass before candidate tests can be interpreted. The runner remains stdlib-only.
+Record the evaluator identity and retain failed controls as invalid evidence.
 
 ## Use a development Temper build
 

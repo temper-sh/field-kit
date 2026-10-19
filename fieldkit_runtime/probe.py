@@ -253,7 +253,8 @@ class ManagedProbe:
             if status and status["state"] == "running" and status["listeners_verified"]:
                 self.router_binding = self._binding(status, router_spec)
                 self.router_watch = _WatchHandle(watcher.CoordinatedWatcher(router_spec, self.router_binding,
-                    self.log_dir / "router-watch.jsonl", baseline_swap_bytes=self.baseline_swap, request_stop=self.request_stop))
+                    self.log_dir / "router-watch.jsonl", baseline_swap_bytes=self.baseline_swap,
+                    baseline_wired_bytes=self.baseline_wired, request_stop=self.request_stop))
                 return
             time.sleep(0.1)
         raise ProbeError("Temper did not establish the planned router boundary")
@@ -269,7 +270,8 @@ class ManagedProbe:
             self.router_watch.finish()
             self.router_watch = None
         self.full_watch = _WatchHandle(watcher.CoordinatedWatcher(self.watch_spec, self.full_binding,
-            self.log_dir / "process-watch.jsonl", baseline_swap_bytes=self.baseline_swap, request_stop=self.request_stop))
+            self.log_dir / "process-watch.jsonl", baseline_swap_bytes=self.baseline_swap,
+            baseline_wired_bytes=self.baseline_wired, request_stop=self.request_stop))
         self.validate_owned_boundary()
         return True
 

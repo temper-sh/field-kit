@@ -1,112 +1,77 @@
-# Help a contributor run Field Kit
+# Guide a Qwen hardware study
 
-Instructions for an AI agent. The person you help wants to measure local AI
-models on their Mac with Field Kit. They may not know the terms: use plain
-words and short answers, and explain a term when it matters for a choice. Do
-the work for them; ask only where these instructions say so.
+You are the study agent. Do discovery, candidate preparation, execution and
+interpretation for the contributor. Follow the [Qwen method](experiments/qwen-hardware.md).
 
-## 1. Say what Field Kit is
+## Discover and recover
 
-In two or three sentences: Field Kit measures how a [Temper](https://github.com/temper-sh/temper)
-preset (a model with its engine and settings) runs on this Mac: whether it
-fits, how fast it reads and writes, and how long a real coding task takes.
-Its goal is the best setup each Mac can use. Results stay on the Mac; the
-person decides what to share.
+Use the current Field Kit folder, the person's named folder, or ~/field-kit.
+If none exists, establish the destination and clone the official repository.
+Read existing studies and run states before updating anything. Unfinished runs
+need their original Field Kit and Temper; retained runs need recovery.
 
-## 2. Get ready
+Check Temper, hf and Python. Explain missing setup and obtain approval for its
+concrete operations together. The first Field Kit command may install its own
+27 MB Python through Temper. Find a ready grading Python or prepare the small
+project-local test environment in [START](START.md#setup) with setup approval.
+Do this before proposing expensive coding work.
 
-- **Field Kit folder.** Use the folder you were opened in when it is a Field
-  Kit clone, or the one the person named, or `~/field-kit`. If there is none,
-  ask once whether they keep one elsewhere; if not, clone
-  `https://github.com/temper-sh/field-kit` into `~/field-kit`. In an existing
-  clone, check `runs/*/run.json` for an unfinished run first (state
-  `preparing`, `measuring` or `cleaning`): a run cannot continue after Field
-  Kit's code changes, so finish it (step 3) before you update with
-  `git pull`.
-- **Temper.** `temper version` must print 0.3.1 or newer. If Temper is
-  missing, offer `brew install temper-sh/temper/temper`; if it is older, offer
-  `brew upgrade temper-sh/temper/temper`. Ask before you run either, and do not
-  upgrade while a run is unfinished: a run finishes with the Temper it started
-  with.
-- **`hf`.** Temper downloads models with the Hugging Face tool. If `command -v
-  hf` finds nothing, offer `brew install hf` and ask first.
+Run ./field-kit check --preview. Read current catalog assessments and earlier
+results. Separate exact-hardware evidence, transferable observations and open
+hypotheses. On larger Macs prioritize admitted Rapid MLX / vLLM Metal candidates,
+usable longer input/continuation boundaries and larger Qwen quants. Do not
+spend the budget merely repeating reference M5 / 32 GiB defaults.
 
-If `.local/python-path` does not exist yet, the first `./field-kit` command
-of any kind, `status` included, installs Field Kit's own Python through
-Temper, about 27 MB, once, inside the Field Kit folder. Tell the person before
-you run it.
+A missing Qwen engine preset is a research gap, not a reason to test Gemma.
+Catalog presentation groups do not establish workload suitability.
 
-## 3. Finish what is open
+## Prepare one bounded approval
 
-`./field-kit status` shows a background run and the newest run. If a run is
-unfinished (state `preparing`, `measuring` or `cleaning`) and nothing is
-running, offer to continue it (step 6). If a run has state `retained`, ask the
-person to send its `report.md` to the maintainer. A study's log in
-`trials/<preset>/log.md` shows a study in progress: continue it with that
-study's guide.
+Use Temper's preset commands and engine contracts. Verify model lineage and
+quant compatibility; resolve exact files, revisions and templates. A copy may
+select another catalog engine; a fork may change settings, weights or template.
 
-## 4. Choose the study
+Prepare study plan. Choose limits from available time, disk and memory, then
+explain each candidate's evidence gap and value. Show the exact plan, tuning
+scope, cleanup and evaluator. Ask once for approval. Existing approval for that
+scope remains valid; do not ask again for each trial.
 
-Run `./field-kit check --preview`. It shows the Mac, the presets of the basic
-check that can run here and their downloads, and downloads no models. Read the
-README's **Current experiments** table and each study's guide in
-`docs/experiments/`, and the reports of earlier runs in `runs/`. Then
-recommend the study that adds the most for this Mac:
+After approval, study start ID --plan FILE --yes records it. Use study run for
+all its trials. Never bypass its gates with standalone check. New material or
+increased limits need a new concrete plan and approval; approved settings do not.
 
-- no basic check of any preset on this Mac yet → the **basic check** of the
-  preview's default preset (marked `→`), unless the person names another;
-- a basic check on this Mac that filled its window, or left a lot of memory
-  or time → **engine tuning**. A run on an older Temper or catalog still
-  counts for its outcomes; only its speeds and memory stop comparing;
-- 48 GB of memory or more, well beyond the preset's model, for example a 64 GB
-  Mac with a 16 GB model → **weights comparison**, which runs larger builds of
-  the model. Do not recommend it first on a smaller Mac.
+## Drive the experiment
 
-Present the recommendation and the other studies in a few lines each: the
-question, what runs on the Mac and for how long, the downloads, whether you
-plan between runs, and what they may send (each guide's **What you send**;
-for the basic check, the run's `result.json`). Let the person choose; if they ask
-you to decide, take your recommendation and say so.
+1. Smoke admitted candidates cheaply. Investigate load/parser/template failures
+   before long coding tasks.
+2. Give promising Qwen candidates the exploratory coding case. Run tests,
+   inspect source and candidate tests, and attach your review immediately.
+3. Investigate surprising results, especially Q5 worse than Q4. Separate
+   controlled comparisons from independently tuned deployment comparisons.
+4. Tune useful candidates through speed, cache and context trials. Change one
+   explanatory factor at a time and justify every trial with --reason.
+5. Freeze finalists before using confirmation work. Once consumed, it cannot
+   become unseen evidence for more tuning of that candidate.
 
-## 5. Plan the run
+Read the task, source and test output before reviewing. Scripts enforce bindings
+and gates; they cannot assess the thoughtfulness of your prose review.
+After each trial explain the result, quality, time, loaded/peak memory with
+counter/workload, and the decision it changes. Missing or invalid evidence
+is not model failure. Patch submission, fast output and a configured window
+do not establish quality or context fit.
 
-Follow the chosen study's guide; engine tuning and weights comparison have
-their own instructions for you. Before every run, print its exact plan with
-`./field-kit check --plan` and the run's options (`--preset ID` or
-`--preset-file FILE`). Show the plan to the person as it is, from its title line (`Basic check of
-…` or `Tuning trial …`) to the end: the preset or trial, downloads, disk, time
-limits and cleanup. For time, add that a run
-takes from about an hour to several hours, and quote the task times of earlier
-runs of the same preset when there are any. Then ask whether to start it.
+## Finish
 
-## 6. Start it
+Stop when the budget ends, the useful question is answered or further runs
+have low information value. Write one concise conclusion beside the study:
+selected run/lock, chip/memory/OS, quality, completion time, native rates,
+loaded/peak memory and its limitations, tested input/output/continuation scope,
+cache behavior and unresolved anomalies.
 
-Only after the person says yes to that plan:
+Prepare the smallest supported Temper preset/profile proposal, referring to
+exact evidence. Do not mutate or publish the shared catalog as part of a study.
 
-```sh
-./field-kit check --yes --background <the options of the plan, none for the default preset>
-```
-
-It runs detached, keeps the Mac awake and writes to `runs/background.log`.
-Tell them they can close you and the terminal; the Mac should stay on power.
-When they come back, `./field-kit status` shows how far it is, and
-`./field-kit stop` stops it the way Ctrl-C does. If they prefer to watch it,
-give them the command without `--background` and `--yes` for their own
-terminal instead; Field Kit then asks them to type `yes`.
-
-## 7. After the run
-
-Go through `runs/<id>/report.md` with them: the results, what "not comparable"
-means and the **Room to tune** section. Then follow the study's next step, or
-recommend the next study.
-
-## Rules
-
-- Start a run only after a yes to its exact plan from `--plan`. Never pass
-  `--yes` without one.
-- Ask before installing software or changing their system. Never upload
-  anything; results stay under `runs/` and sharing is the person's choice.
-- Do not change Field Kit's code, protocols, tasks or `runs/`.
-- At the end, say what to send: each run's `result.json`, which holds the
-  submitted patches, the Mac's details and local paths, and anything the
-  study's guide adds.
+Run study close ID. Say what was removed or retained and what the contributor
+may share. Preserve existing user installations/caches, first attempts and
+important failures. Do not duplicate evidence packages or manually delete
+recovery material.

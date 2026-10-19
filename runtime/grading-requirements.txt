@@ -1,0 +1,15 @@
+# Tested development evaluator; use a project-local Python 3.12+ venv.
+# Never install into a model engine's environment.
+asgiref==3.9.1
+blinker==1.9.0
+click==8.2.1
+iniconfig==2.1.0
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.2
+packaging==25.0
+pluggy==1.6.0
+Pygments==2.19.2
+pytest==8.4.1
+python-dotenv==1.1.1
+Werkzeug==3.1.3

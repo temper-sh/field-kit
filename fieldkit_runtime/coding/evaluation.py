@@ -70,7 +70,7 @@ def _stop(process):
 def _sandbox_profile(candidate, destination, oracle, python, baseline):
     interpreter = Path(python).resolve()
     # The locked standalone interpreter contains its libraries and stdlib.
-    allowed = [candidate, destination, baseline, oracle, interpreter.parent.parent,
+    allowed = [candidate, destination, baseline, oracle, interpreter.parent.parent, Path(python).absolute().parent.parent,
                Path("/System"), Path("/usr/lib"), Path("/usr/share"),
                Path("/private/etc"), Path("/dev")]
     reads = " ".join("(subpath " + json.dumps(str(path.resolve())) + ")" for path in allowed)
@@ -89,6 +89,12 @@ def _counts(path):
         suites = [suites]
     return {key: sum(int(s.attrib.get(key, 0)) for s in suites)
             for key in ("tests", "failures", "errors", "skipped")}
+
+
+def group_passes(group):
+    summary = group.get("summary") or {}
+    return group.get("exit_code") == 0 and not group.get("stopped") \
+        and summary.get("tests", 0) > summary.get("skipped", 0)
 
 
 def _run_group(candidate, out, label, tests, python, oracle, baseline):
@@ -195,7 +201,7 @@ def evaluate(candidate_path, output_dir, case, fixture, python, *, require_candi
     else:
         groups["candidate"] = {"exit_code": None, "seconds": 0, "output": None,
             "summary": None, "status": "missing", "required": require_candidate_tests}
-    behavior = all(groups[name]["exit_code"] == 0 and not groups[name].get("stopped") and (groups[name].get("summary") or {}).get("tests", 0) > 0 for name in ("original", "hidden"))
+    behavior = all(group_passes(groups[name]) for name in ("original", "hidden"))
     candidate_cases_executed = 0
     junit = out / "candidate/junit.xml"
     if junit.exists():
