@@ -26,6 +26,8 @@ def _parser() -> argparse.ArgumentParser:
     chosen.add_argument("--preset-file", type=Path, metavar="FILE",
                         help="Temper fork or self-contained Qwen copy (ID.json), including alternate engines")
     _workload_options(check)
+    check.add_argument("--python", type=Path, help="ready grading Python; required for coding quality")
+    _quality_limits(check)
     check.add_argument("--case", help="one frozen coding case")
     look = check.add_mutually_exclusive_group()
     look.add_argument("--preview", action="store_true", help="check this Mac and list the presets; download no models")
@@ -44,8 +46,11 @@ def _parser() -> argparse.ArgumentParser:
     plan.add_argument("--max-runs", type=int, default=12)
     plan.add_argument("--hours", type=float, default=8)
     plan.add_argument("--download-gib", type=float, default=100)
-    plan.add_argument("--max-context", type=int, default=131072)
-    plan.add_argument("--request-seconds", type=int, default=1800)
+    plan.add_argument("--max-context", type=int, default=131072,
+                      help="approved exploration ceiling; choose for the model/backend and work, not as a measured capacity")
+    plan.add_argument("--request-seconds", type=int, default=1800,
+                      help="request deadline; allow for long prefill, source replay and generation within the study budget")
+    _quality_limits(plan)
     start = actions.add_parser("start", help="approve a saved study plan; no inference yet")
     start.add_argument("id")
     start.add_argument("--plan", type=Path, required=True)
@@ -81,6 +86,13 @@ def _workload_options(parser):
     parser.add_argument("--workload", choices=("smoke", "coding", "context", "cache"), default="smoke")
     parser.add_argument("--records", type=int, default=256, help="context/cache input size in records, not tokens")
     parser.add_argument("--output-tokens", type=int, default=512, help="synthetic request output allowance")
+    parser.add_argument("--coding-mode", choices=("performance", "quality"), default="performance",
+                        help="performance: one response; quality: bounded visible-test and repair loop")
+
+
+def _quality_limits(parser):
+    parser.add_argument("--quality-turns", type=int, default=8, help="maximum model responses per quality case, including final submission")
+    parser.add_argument("--quality-seconds", type=int, default=14400, help="total time per quality case, including visible tests and repairs")
 
 
 def main(argv: Sequence[str] | None = None) -> int:

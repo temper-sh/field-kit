@@ -15,6 +15,7 @@ from typing import Any, Callable
 
 from . import watcher, workloads
 from .coding.evaluation import unpack
+from .coding import quality
 from .coding.patches import InvalidPatch, staged_texts, submission
 from .common import Refusal, canonical_json, digest, load_json, read_regular
 from .probe import ManagedProbe, ProbeError
@@ -318,6 +319,7 @@ def consent_text(run: dict[str, Any], protocol: dict[str, Any]) -> str:
         f"Downloads: {gib(downloads)} (model files: {cache})",
         f"Disk needed: {gib(plan['remaining_disk_bytes'])} of {gib(plan['free_disk_bytes'])} free",
         f"Work: {run.get('workload', {}).get('kind', 'coding')}; cases: {', '.join(run.get('case_ids', protocol['task']['cases']))}",
+        *coding_description(run),
         f"Time limits: install {duration(limits['prepare_seconds'])}, start {duration(limits['startup_seconds'])},"
         f" each request {duration(min(limits['request_seconds'], 300) if run.get('workload', {}).get('kind') == 'smoke' else limits['request_seconds'])}",
         "Stops early on memory pressure (swap growth), heat or CPU speed limits.",
@@ -355,6 +357,7 @@ def render_report(run: dict[str, Any], protocol: dict[str, Any]) -> bytes:
              f"- Temper {run['temper']['version'].removeprefix('temper ')}, Field Kit {run['field_kit']['version']},"
              f" protocol basic-check@{run['protocol']['revision']}",
              f"- State: {run['state']}" + (f" ({run['stopped']})" if run.get("stopped") else ""), "",
+             *coding_description(run), "",
              "| Case | Result | Input tokens | Output tokens | Prefill tok/s | Generation tok/s | Task time | Start time | Engine after load | Engine peak |",
              "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
     for row in run["cases"]:
@@ -365,6 +368,13 @@ def render_report(run: dict[str, Any], protocol: dict[str, Any]) -> bytes:
             p=number(row.get("prefill_tokens_per_second")), g=number(row.get("generation_tokens_per_second")),
             t=duration(row.get("task_seconds")), s=duration(row.get("startup_seconds")),
             l=gib(memory.get("engine_loaded_wired_bytes")), k=gib(memory.get("engine_peak_wired_bytes"))))
+    if run.get("quality_baseline"):
+        lines += ["", f"Quality reference: run `{run['quality_baseline']['run']}`, lock `{run['quality_baseline']['lock_sha256']}`."
+                  " This reference does not qualify changed settings automatically."]
+    if any("quality" in row for row in run["cases"]):
+        lines += ["", "Quality time covers visible tests and repair turns through final submission; final independent grading and source review occur afterwards."
+                  " Input/output counts sum requests, including repeated input. Per-request rates and first attempts remain in quality.turns."
+                  " Peak wired growth during this workflow can include the evaluator; compare performance memory using one-shot runs."]
     native = [row for row in run["cases"] if (row.get("memory") or {}).get("splash_native")]
     if native:
         lines += ["", "Splash native Metal memory (overlaps the process numbers; do not add them):", ""]
@@ -403,7 +413,18 @@ def result_document(run: dict[str, Any]) -> dict[str, Any]:
         "id", "protocol", "field_kit", "temper", "machine", "catalog", "preset", "lock_sha256", "cache",
         "plan", "state", "stopped", "preparation", "cases", "cleanup")}, "trial": run.get("trial"),
         "workload": run.get("workload"), "study": run.get("study"), "purpose": run.get("purpose"), "reason": run.get("reason"),
-        "limits": run.get("limits"), "deadline": run.get("deadline")}
+        "limits": run.get("limits"), "deadline": run.get("deadline"),
+        "quality_evaluator": run.get("quality_evaluator"), "quality_baseline": run.get("quality_baseline")}
+
+
+def coding_description(run):
+    work = run.get("workload") or {}
+    if work.get("kind") != "coding":
+        return []
+    if work.get("coding_mode", "performance") == "performance":
+        return ["Coding performance: one response, no test feedback or repairs; review is a degradation check, not full quality qualification."]
+    return [f"Coding quality: up to {work['quality_turns']} responses and {duration(work['quality_seconds'])} per case,"
+            " including sandboxed visible tests and repairs; final independent tests and source review are separate."]
 
 
 # ----------------------------------------------------------------- effects
@@ -425,16 +446,26 @@ def private_environment(cache: Path) -> dict[str, str]:
 class BasicCheck:
     def __init__(self, repository: Path, temper: Temper, *, ask: Callable[[str], str] = input,
                  say: Callable[[str], None] = print, workload: str = "smoke", case_id: str | None = None,
-                 records: int = 256, output_tokens: int = 512, require_complete_cache: bool = False):
+                 records: int = 256, output_tokens: int = 512, require_complete_cache: bool = False,
+                 coding_mode: str = "performance", quality_turns: int = 8, quality_seconds: int = 14400,
+                 grading_python: Path | None = None):
         self.repository = repository
         self.temper = temper
         self.ask, self.say = ask, say
         self.protocol, self.coding_cases, self.protocol_sha256 = load_protocol(repository)
-        self.workload = {"kind": workload, "case_id": case_id, "records": records, "output_tokens": output_tokens}
+        self.workload = {"kind": workload, "case_id": case_id, "records": records, "output_tokens": output_tokens,
+                         "coding_mode": coding_mode, "quality_turns": quality_turns, "quality_seconds": quality_seconds}
         self.cases = workloads.cases(self.coding_cases, **self.workload)
+        self.quality_evaluator = None
+        if coding_mode == "quality":
+            if grading_python is None:
+                raise Refusal("coding quality needs --python naming a ready grading environment")
+            from .review import evaluator
+            self.quality_evaluator = evaluator(grading_python)
         self.runs = repository / "runs"
         self.planned = None
         self.deadline = None
+        self.quality_deadline = None
         self.require_complete_cache = require_complete_cache
 
     # -- discovery
@@ -592,6 +623,7 @@ class BasicCheck:
             run = {
                 "schema": RUN_SCHEMA, "id": run_id, "state": "planned",
                 "workload": self.workload, "case_ids": [case["id"] for case in self.cases],
+                "quality_evaluator": self.quality_evaluator,
                 "limits": {**self.protocol["limits"], "request_seconds": self.time_limit("request_seconds")},
                 "protocol": {"id": "basic-check", "revision": self.protocol["revision"], "sha256": self.protocol_sha256},
                 "field_kit": runtime_identity(), "temper": identity, "machine": facts,
@@ -651,6 +683,11 @@ class BasicCheck:
             self.verify_identity(directory, run)
             self.workload = run.get("workload", {"kind": "coding"})
             self.cases = workloads.cases(self.coding_cases, **self.workload)
+            self.quality_evaluator = run.get("quality_evaluator")
+            if self.workload.get("coding_mode") == "quality":
+                from .review import evaluator
+                if not self.quality_evaluator or evaluator(Path(self.quality_evaluator["path"])) != self.quality_evaluator:
+                    raise Refusal("the coding quality evaluator changed; restore the approved environment")
             previous = signal.signal(signal.SIGTERM, _interrupt)
             try:
                 if run["state"] == "preparing":
@@ -762,7 +799,16 @@ class BasicCheck:
                 memory = SplashMemory(lambda: monitored_call(probe, source, {}, native["timeout_seconds"], method="GET"),
                                       source, native["interval_seconds"])
                 memory.capture("loaded")
-            if "steps" in case:
+            if self.workload.get("coding_mode") == "quality":
+                self.quality_deadline = time.time() + self.workload["quality_seconds"]
+                if self.deadline is not None:
+                    self.quality_deadline = min(self.quality_deadline, self.deadline)
+                response = quality.run(
+                    case, stage, directory / "fixture", self.quality_evaluator["path"],
+                    self.workload["quality_turns"], self.quality_deadline,
+                    lambda folder, body, observed: self.request(probe, folder, preset, body, observed, memory),
+                    rates, row, observer=probe.ensure_healthy)
+            elif "steps" in case:
                 row["steps"] = []
                 for step in case["steps"]:
                     folder = stage / step["id"]
@@ -795,7 +841,17 @@ class BasicCheck:
             if "steps" in row:
                 row["task_seconds"] = sum(step.get("task_seconds") or 0 for step in row["steps"])
                 row["stream_complete"] = all(step.get("stream_complete") for step in row["steps"])
-            if case.get("oracle"):
+            if "quality" in row:
+                turns = row["quality"]["turns"]
+                row["task_seconds"] = row["quality"]["elapsed_seconds"]
+                for key in ("input_tokens", "output_tokens"):
+                    row[key] = sum(turn[key] for turn in turns) if all(turn.get(key) is not None for turn in turns) else None
+                row["first_token_seconds"] = turns[0]["first_token_seconds"]
+                row["reasoning_characters"] = sum(turn["reasoning_characters"] for turn in turns)
+                # Native rates belong to individual requests, not the whole
+                # test/repair workflow. Keep them in quality.turns.
+                row["prefill_tokens_per_second"] = row["generation_tokens_per_second"] = None
+            if isinstance(case.get("oracle"), dict):
                 row["correct"], row["answer_check"] = workloads.correct(response, case["oracle"])
             if "edit_scope" in case and not row["failure"] and response.get("stream_complete") and response.get("finish_reason") != "length":
                 try:
@@ -815,7 +871,8 @@ class BasicCheck:
                 pass
             finally:
                 resources = probe.finish()
-        row["safe_to_cleanup"] = bool(resources.get("safe_to_cleanup"))
+                self.quality_deadline = None
+        row["safe_to_cleanup"] = bool(resources.get("safe_to_cleanup")) and row.get("evaluator_safe_to_cleanup", True)
         row["memory"] = memory_record(loaded, resources, memory.result() if memory else None)
         row["resources"] = resources
         if resources.get("stop_reasons") and not row["failure"]:
@@ -825,7 +882,7 @@ class BasicCheck:
         return row
 
     def request(self, probe, stage, preset, request, row, memory):
-        body = {**request, "model": preset}
+        body = {**request, "model": preset, "stream": True, "stream_options": {"include_usage": True}}
         atomic_write(stage / "request.json", canonical_json(body))
         stream = CodingStream(stage / "response.sse")
         try:
@@ -848,6 +905,11 @@ class BasicCheck:
             remaining = self.deadline - time.time()
             if remaining <= 0:
                 raise TimeoutError("study time budget exhausted")
+            maximum = min(maximum, remaining)
+        if self.quality_deadline is not None:
+            remaining = self.quality_deadline - time.time()
+            if remaining <= 0:
+                raise TimeoutError("coding quality time budget exhausted")
             maximum = min(maximum, remaining)
         return maximum
 
@@ -892,6 +954,10 @@ def command(arguments, repository: Path) -> int:
         from . import background
         forwarded = ["--yes"]
         forwarded += ["--workload", arguments.workload, "--records", str(arguments.records), "--output-tokens", str(arguments.output_tokens)]
+        forwarded += ["--coding-mode", arguments.coding_mode, "--quality-turns", str(arguments.quality_turns),
+                      "--quality-seconds", str(arguments.quality_seconds)]
+        if arguments.python:
+            forwarded += ["--python", str(arguments.python.resolve())]
         if arguments.case:
             forwarded += ["--case", arguments.case]
         if arguments.preset:
@@ -903,7 +969,9 @@ def command(arguments, repository: Path) -> int:
         return background.start(repository, forwarded)
     temper = Temper(locate(arguments.temper))
     check = BasicCheck(repository, temper, workload=arguments.workload, case_id=arguments.case,
-                       records=arguments.records, output_tokens=arguments.output_tokens)
+                       records=arguments.records, output_tokens=arguments.output_tokens, coding_mode=arguments.coding_mode,
+                       quality_turns=arguments.quality_turns, quality_seconds=arguments.quality_seconds,
+                       grading_python=arguments.python)
     if arguments.preview:
         return check.preview(arguments.preset, arguments.preset_file)
     return check.start(arguments.preset, preset_path=arguments.preset_file, assume_yes=arguments.yes,

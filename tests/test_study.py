@@ -181,7 +181,7 @@ class StudyTest(RepositoryTest):
         with self.assertRaisesRegex(Refusal, "smoke pass"):
             self.measure(kind="coding")
         self.measure()
-        self.measure(kind="coding")
+        self.measure(kind="coding", coding_mode="quality")
         self.assertEqual(json.loads((self.latest() / "run.json").read_text())["case_ids"], ["async-stream"])
         with self.assertRaisesRegex(Refusal, "tests and code review"):
             self.measure(kind="cache", purpose="tune")
@@ -190,11 +190,35 @@ class StudyTest(RepositoryTest):
             with self.assertRaisesRegex(Refusal, "reviewed baseline"):
                 self.measure(kind="context", purpose="tune")
         with patch.object(review, "verdict", return_value="pass"):
-            self.measure(kind="coding", purpose="confirm")
+            self.measure(kind="coding", purpose="confirm", coding_mode="quality")
             self.assertEqual(json.loads((self.latest() / "run.json").read_text())["case_ids"], ["template-decorators"])
             atomic_write(self.latest() / "review/tests.json", canonical_json({"evaluator": self.evaluator}))
             with self.assertRaisesRegex(Refusal, "consumed its held-out"):
                 self.measure(kind="coding", purpose="tune")
+
+    def test_one_shot_pass_is_not_full_quality_and_diagnosis_remains_available(self):
+        self.start()
+        self.measure()
+        self.measure(kind="coding")
+        atomic_write(self.latest() / "review/tests.json", canonical_json({"evaluator": self.evaluator}))
+        with patch.object(review, "verdict", return_value="pass"):
+            with self.assertRaisesRegex(Refusal, "reviewed baseline"):
+                self.measure(kind="coding", purpose="tune")
+            self.measure(kind="coding", purpose="diagnose", coding_mode="quality")
+
+    def test_performance_uses_quality_reference_without_repeating_full_work(self):
+        self.start()
+        self.measure()
+        self.measure(kind="coding", coding_mode="quality")
+        baseline = json.loads((self.latest() / "run.json").read_text())
+        atomic_write(self.latest() / "review/tests.json", canonical_json({"evaluator": self.evaluator}))
+        with patch.object(review, "verdict", return_value="pass"):
+            with self.assertRaisesRegex(Refusal, "performance tuning uses one-shot"):
+                self.measure(kind="coding", purpose="tune", coding_mode="quality")
+            self.measure(kind="coding", purpose="tune")
+        performance = json.loads((self.latest() / "run.json").read_text())
+        self.assertEqual(performance["workload"]["coding_mode"], "performance")
+        self.assertEqual(performance["quality_baseline"], {"run": baseline["id"], "lock_sha256": baseline["lock_sha256"]})
 
     def test_budget_is_reserved_before_effect_and_survives_new_controller(self):
         self.plan["budgets"]["runs"] = 1

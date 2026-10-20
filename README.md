@@ -16,15 +16,18 @@ gaps left by the reference M5 / 32 GiB.
 ## Start with one message
 
 ```text
-Help me run a Qwen hardware study on this Mac. Use my Field Kit folder if I have one, or clone https://github.com/temper-sh/field-kit into ~/field-kit, then follow docs/ASSISTANT.md. Prioritize evidence missing from the catalog, review coding quality during the study, and clean up owned resources afterwards.
+Help me find the maximum usable Qwen presets for this Mac. Use my Field Kit folder if I have one, or clone https://github.com/temper-sh/field-kit into ~/field-kit, then follow docs/ASSISTANT.md. Prioritize evidence missing from the catalog, plan useful extensions after healthy passes, investigate results that conflict with expectations, review coding quality during the study, and clean up owned resources afterwards.
 ```
 
 The agent prepares candidates and explains the downloads, time and limits.
-You approve the study once. It chooses trials within that scope; different
-weights, engines or templates require another plan.
+You approve the study once. It continues useful tuning within that scope after
+healthy passes; different weights, engines or templates require another plan.
+An exhausted test budget leaves the upper boundary open.
 
 The workflow is smoke → reviewed quality → diagnosis and tuning → final
-confirmation. A submitted patch does not count as successful coding work.
+confirmation. Quality assessments allow the model to test and repair its code.
+Performance trials use one response, with a review for degradation; they do not
+repeat the full quality run. A submitted patch does not count as successful coding work.
 
 ## What stays on your Mac
 

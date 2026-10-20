@@ -37,6 +37,7 @@ passes execution locks to Temper unchanged.
 | `fieldkit_runtime/serving.py`, `stream.py` | Bounded HTTP calls and the streamed answer, kept even when it stops early |
 | `fieldkit_runtime/splash_memory.py` | Splash's native Metal memory counters |
 | `fieldkit_runtime/coding/` | The Flask task's patch scope and its sandboxed test grader |
+| `fieldkit_runtime/coding/quality.py` | Bounded quality-only proposal/test/repair loop; visible feedback, preserved attempts and final submission |
 
 A run folder `runs/<UTC time>/` holds `run.json` (the state, written after each
 step), the execution lock, one folder per case (request, raw stream, answer,
@@ -50,6 +51,10 @@ survives individual trials and is removed on close. `--reason` records the
 evidence gap driving each trial. Tests cover interrupted work, stale reviews,
 scope violations, budget exhaustion and failed cleanup with a fresh controller.
 They establish workflow behavior, not real engine performance or hardware fit.
+Protocol revision 3 separates one-shot coding performance from quality work.
+Quality tests cover feedback-driven repair, withheld oracles, exhausted budgets
+and uncertain evaluator shutdown. The same executor serves local and remote
+studies; performance calls never enter its repair loop.
 
 The coding evaluator uses the pinned development requirements in
 `runtime/grading-requirements.txt` with Python 3.12+. A baseline control must

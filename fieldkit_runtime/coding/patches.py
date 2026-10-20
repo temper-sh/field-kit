@@ -41,13 +41,13 @@ def unique_object(pairs):
     return result
 
 
-def submission(response):
+def submission(response, *, tool="submit_patch"):
     calls = response.get("message", {}).get("tool_calls") or []
     if len(calls) != 1:
         raise InvalidPatch("Submit exactly one submit_patch tool call.")
     function = calls[0].get("function", {})
-    if function.get("name") != "submit_patch":
-        raise InvalidPatch("The tool must be submit_patch.")
+    if function.get("name") != tool:
+        raise InvalidPatch(f"The tool must be {tool}.")
     arguments = function.get("arguments")
     if isinstance(arguments, str):
         try:

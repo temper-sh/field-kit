@@ -36,7 +36,15 @@ macOS sandbox-exec with network and process spawning denied.
 
 The plan names exact candidates and freezes engine/software, weights and
 templates. It limits runs, elapsed time, planned downloads, context size and
-request time. The agent chooses trials and tuning controls within that scope.
+request time, and the response/time budget of a full coding-quality case.
+The agent chooses trials and tuning controls within that scope. Full coding
+runs assess quality with test feedback and repairs; one-shot runs measure
+performance and check degradation against a quality baseline.
+The proposed budget should cover useful extensions after healthy passes,
+diagnosis and final confirmation. These ceilings control spending and runtime;
+they are not measurements of the Mac's capacity or recommended preset caps.
+If time runs out first, the result names the best tested point and the open
+boundary.
 
 Keep the Mac awake and on power; close other demanding applications. Avoid
 changing Field Kit, Temper or the grading environment during a study.

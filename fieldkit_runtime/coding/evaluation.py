@@ -1,4 +1,4 @@
-"""Evaluate a first-attempt Flask patch with frozen original and independent tests.
+"""Evaluate a Flask proposal with visible or final independent tests.
 
 Extracted from the Splash comparison. Candidate Python runs only inside the
 macOS sandbox; returned result inspection never executes candidate code.
@@ -97,7 +97,10 @@ def group_passes(group):
         and summary.get("tests", 0) > summary.get("skipped", 0)
 
 
-def _run_group(candidate, out, label, tests, python, oracle, baseline):
+def _run_group(candidate, out, label, tests, python, oracle, baseline, *, deadline=None, observer=None):
+    timeout = GROUP_TIMEOUT if deadline is None else min(GROUP_TIMEOUT, deadline - time.time())
+    if timeout <= 0:
+        raise TimeoutError("coding quality time budget exhausted before testing")
     destination = out / label
     destination.mkdir()
     temporary = destination / "tmp"
@@ -132,16 +135,20 @@ def _run_group(candidate, out, label, tests, python, oracle, baseline):
            "PYTHONNOUSERSITE": "1", "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
            "NO_PROXY": "*", "PIP_NO_INDEX": "1"}
     (destination / "invocation.json").write_text(json.dumps({"argv": argv, "cwd": str(destination),
-        "env": env, "timeout_seconds": GROUP_TIMEOUT, "log_limit_bytes": LOG_LIMIT}, indent=2) + "\n")
+        "env": env, "timeout_seconds": timeout, "log_limit_bytes": LOG_LIMIT}, indent=2) + "\n")
     start = time.monotonic()
     stopped = None
     interrupted = None
+    if observer:
+        observer()
     with log.open("wb") as output:
         process = subprocess.Popen(argv, cwd=destination, env=env, stdout=output,
                                    stderr=subprocess.STDOUT, start_new_session=True)
         try:
             while process.poll() is None:
-                if time.monotonic() - start > GROUP_TIMEOUT:
+                if observer:
+                    observer()
+                if time.monotonic() - start > timeout:
                     stopped = "deadline"
                     break
                 if log.stat().st_size > LOG_LIMIT:
@@ -170,7 +177,8 @@ def _run_group(candidate, out, label, tests, python, oracle, baseline):
     return result
 
 
-def evaluate(candidate_path, output_dir, case, fixture, python, *, require_candidate_tests=True):
+def evaluate(candidate_path, output_dir, case, fixture, python, *, require_candidate_tests=True,
+             visible_only=False, deadline=None, observer=None):
     if not Path("/usr/bin/sandbox-exec").is_file():
         raise RuntimeError("macOS sandbox-exec is required; candidate code was not run")
     baseline = Path(fixture) / "base"
@@ -193,15 +201,23 @@ def evaluate(candidate_path, output_dir, case, fixture, python, *, require_candi
             and (not (baseline / rel).exists() or path.read_bytes() != (baseline / rel).read_bytes())):
             own_tests.append(str(path))
     groups = {}
+    # Visible feedback must neither run nor grant filesystem access to the
+    # independent oracle. It remains a final assessment after submission.
     oracle = Path(fixture) / case["oracle"]
-    groups["original"] = _run_group(candidate, out, "original", original, str(python), oracle.parent, baseline)
-    groups["hidden"] = _run_group(candidate, out, "hidden", [str(oracle)], str(python), oracle.parent, baseline)
+    readable_tests = baseline / "tests" if visible_only else oracle.parent
+    groups["original"] = _run_group(candidate, out, "original", original, str(python), readable_tests, baseline,
+                                    deadline=deadline, observer=observer)
+    if not visible_only:
+        groups["hidden"] = _run_group(candidate, out, "hidden", [str(oracle)], str(python), oracle.parent, baseline,
+                                      deadline=deadline, observer=observer)
     if own_tests:
-        groups["candidate"] = _run_group(candidate, out, "candidate", own_tests, str(python), oracle.parent, baseline)
+        groups["candidate"] = _run_group(candidate, out, "candidate", own_tests, str(python), readable_tests, baseline,
+                                         deadline=deadline, observer=observer)
     else:
         groups["candidate"] = {"exit_code": None, "seconds": 0, "output": None,
             "summary": None, "status": "missing", "required": require_candidate_tests}
-    behavior = all(group_passes(groups[name]) for name in ("original", "hidden"))
+    behavioral_groups = ("original",) if visible_only else ("original", "hidden")
+    behavior = all(group_passes(groups[name]) for name in behavioral_groups)
     candidate_cases_executed = 0
     junit = out / "candidate/junit.xml"
     if junit.exists():
@@ -214,11 +230,11 @@ def evaluate(candidate_path, output_dir, case, fixture, python, *, require_candi
                      (candidate_cases_executed > 0 or not require_candidate_tests))
                     if own_tests else not require_candidate_tests)
     valid = all(groups[name].get("summary") is not None and not groups[name].get("stopped")
-                for name in ("original", "hidden"))
+                for name in behavioral_groups)
     result = {"case_id": case_id, "candidate": str(candidate), "groups": groups, "valid": valid,
               "behavior_pass": behavior, "all_pass": behavior and candidate_ok,
               "require_candidate_tests": require_candidate_tests,
               "candidate_tests": own_tests,
-              "candidate_test_cases_executed": candidate_cases_executed}
+              "candidate_test_cases_executed": candidate_cases_executed, "visible_only": visible_only}
     (out / "result.json").write_text(json.dumps(result, indent=2) + "\n")
     return result

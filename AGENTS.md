@@ -20,13 +20,25 @@ largest context window and the fastest speeds that still finish the task at
 baseline quality, without swap growth, memory failure or heat stops. Prompts,
 protocols, guides and reports encourage pushing settings toward that limit; a
 catalog default is a starting point, never the answer. When asked to tune a
-preset, follow `docs/experiments/qwen-hardware.md`.
+preset, follow the [continuation method](docs/experiments/qwen-hardware.md#continue-toward-useful-limits).
+Plan useful extensions before execution and continue after healthy passes
+within approval. Budget exhaustion is an incomplete search, not a measured
+maximum. Diagnostic output allowances must not become arbitrary preset caps.
 
 The current research scope is Qwen. Catalog presentation groups do not grant
 coding eligibility. The study agent prioritizes hardware evidence gaps, runs
 cheap smoke checks, reviews coding tests and source before tuning, investigates
 anomalies, and confirms finalists on unused work. Do not call patch submission
 quality success or a configured window measured context capacity.
+Coding quality uses a bounded visible-test and repair workflow, with final
+independent tests and source review. Coding performance uses one response and
+a reviewed degradation check. Full runs assess or reassess quality; do not
+repeat them at every performance tuning point. Preserve first-attempt outcomes
+separately from final results. The [coding modes](docs/experiments/basic-check.md#coding-modes)
+also serve local Labs/Workshop work.
+Apply the [diagnosis procedure](docs/ASSISTANT.md#research-unexpected-results)
+to any material mismatch with expectations, including quant quality reversals
+and unexpected gains. Check both our setup and the expectation itself.
 
 Study consent is bounded by exact material and explicit resource/time limits;
 settings within that approved scope do not require repeated permission. Temper

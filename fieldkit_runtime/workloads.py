@@ -11,7 +11,12 @@ KINDS = ("smoke", "coding", "context", "cache")
 
 
 def cases(coding: list[dict[str, Any]], kind: str, *, case_id: str | None = None,
-          records: int = 256, output_tokens: int = 512) -> list[dict[str, Any]]:
+          records: int = 256, output_tokens: int = 512, coding_mode: str = "performance",
+          quality_turns: int = 8, quality_seconds: int = 14400) -> list[dict[str, Any]]:
+    if coding_mode not in ("performance", "quality") or (coding_mode == "quality" and kind != "coding"):
+        raise Refusal("quality mode applies only to coding; choose performance or quality")
+    if type(quality_turns) is not int or quality_turns < 1 or type(quality_seconds) is not int or quality_seconds < 1:
+        raise Refusal("quality response and time budgets must be positive integers")
     if kind not in KINDS or type(records) is not int or not 8 <= records <= 32768:
         raise Refusal("choose smoke, coding, context or cache, with 8–32768 input records")
     if type(output_tokens) is not int or not 32 <= output_tokens <= 32768:

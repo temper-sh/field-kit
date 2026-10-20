@@ -43,7 +43,7 @@ def _source(repository: Path, directory: Path):
     result = load_json(directory / "result.json", 64 * 1024**2)
     if result.get("state") not in ("complete", "cancelled"):
         raise Refusal("finish or close the run before grading; its result is still changing")
-    if result.get("protocol", {}).get("id") != "basic-check" or result["protocol"].get("revision") not in (1, 2):
+    if result.get("protocol", {}).get("id") != "basic-check" or result["protocol"].get("revision") not in (1, 2, 3):
         raise Refusal("this review does not own that run's frozen tasks")
     if result.get("workload") and result["workload"]["kind"] != "coding":
         raise Refusal("source review applies to coding work")
@@ -56,6 +56,8 @@ def test(repository: Path, directory: Path, python: Path) -> dict[str, Any]:
     identity = evaluator(python)
     with _lock(directory):
         result, cases, protocol = _source(repository, directory)
+        if result.get("quality_evaluator") and result["quality_evaluator"] != identity:
+            raise Refusal("final grading needs the quality run's recorded evaluator")
         source_sha = file_digest(directory / "result.json")
         out = directory / "review"
         committed = out / "tests.json"
@@ -166,7 +168,8 @@ def prune(directory: Path) -> None:
         return  # Retain stale-review source copies without blocking runtime cleanup.
     if status is None:
         return
-    for path in [directory / "review/fixture", *(directory / "review").glob("*/candidate")]:
+    for path in [directory / "review/fixture", *(directory / "review").glob("*/candidate"),
+                 *(directory / "cases").glob("*/turn-*/candidate")]:
         if path.is_symlink():
             raise Refusal(f"refusing cleanup through symlink: {path}")
         if path.exists():

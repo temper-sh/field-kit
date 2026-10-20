@@ -29,8 +29,9 @@ def opportunities(facts: dict[str, Any]) -> list[str]:
     return (["Prioritize Rapid MLX and vLLM Metal Qwen candidates that pass Temper's memory/admission plan;"
              " their larger memory needs left gaps on the reference M5 / 32 GiB.",
              "Bracket usable input plus output/continuation on this memory tier; a configured window is not evidence of fit."]
-            if large else ["Measure gaps for this chip and memory tier; do not spend this machine's budget retrying known memory refusals."]) + [
-        "Keep a cheap current Qwen baseline. Investigate the Q4/Q5 quality reversal with matched settings and valid review.",
+            if large else ["Measure gaps for this chip and memory tier; reopen a memory refusal only when material, settings, implementation or evidence changes."]) + [
+        "Keep a cheap current Qwen baseline. Investigate material mismatches with expectations across quality, speed, memory, context and behavior, including the Q4/Q5 reversal and unexpected gains.",
+        "Plan useful extensions after healthy passes: seek more usable context/output room and effective acceleration within approval, not just the catalog default.",
         "Skip already answered questions at the same engine, weights, template, settings and hardware identity.",
         "Treat missing counters, broken evaluation and unsupported interfaces as missing evidence, not bad model quality."]
 
@@ -84,11 +85,13 @@ def validate_variant(base: dict[str, Any], variant: dict[str, Any], maximum_cont
 
 def plan(repository: Path, temper: Temper, *, presets: list[str], files: list[Path], python: Path,
          max_runs: int, hours: float, download_gib: float, max_context: int, request_seconds: int,
-         say=print) -> dict[str, Any]:
+         quality_turns: int = 8, quality_seconds: int = 14400, say=print) -> dict[str, Any]:
     if not presets and not files:
         raise Refusal("name the Qwen baselines and candidate preset files in the study plan")
     if max_runs < 1 or not 0 < hours <= 168 or download_gib < 0 or max_context < 512 or request_seconds < 1:
         raise Refusal("study budgets must be positive (downloads may be zero), with at most one week per approval")
+    if type(quality_turns) is not int or quality_turns < 1 or type(quality_seconds) is not int or quality_seconds < 1:
+        raise Refusal("coding quality response and time budgets must be positive integers")
     evaluator = review.evaluator(python)
     candidates = []
     for preset, source in [*((item, None) for item in presets), *((None, item) for item in files)]:
@@ -117,7 +120,8 @@ def plan(repository: Path, temper: Temper, *, presets: list[str], files: list[Pa
     return {"schema": PLAN_SCHEMA, "created_at": utc_now(), "machine": first["machine"],
             "temper": first["temper"], "field_kit": first["field_kit"], "evaluator": evaluator,
             "budgets": {"runs": max_runs, "seconds": int(hours * 3600), "download_bytes": int(download_gib * GIB),
-                        "context_tokens": max_context, "request_seconds": request_seconds},
+                        "context_tokens": max_context, "request_seconds": request_seconds,
+                        "quality_turns": quality_turns, "quality_seconds": quality_seconds},
             "disk": {"candidate_bytes": disk, "free_bytes": free, "working_reserve_bytes": 2 * GIB},
             "tuning_scope": "context, output allowance, engine_config, sampling/reasoning, speculation using approved artifacts, compute",
             "candidates": candidates}
@@ -138,7 +142,12 @@ def describe(document: dict[str, Any]) -> str:
         lines.append(f"- {candidate['id']} / {run['preset']['family']}: "
                      f"up to {run['plan']['remaining_download_bytes'] / GIB:.2f} GiB downloads; lock {run['lock_sha256']}")
     lines += [f"Agent may tune: {document['tuning_scope']}.",
-              "Smoke → reviewed coding shortlist → diagnosis / speed, cache and context tuning → unused confirmation case.",
+              "Smoke → coding quality assessment → one-shot performance and context/cache tuning → quality confirmation when needed.",
+              f"Quality cases allow at most {limits['quality_turns']} responses and {limits['quality_seconds']} seconds including tests and repairs, within the total study budget.",
+              "Performance coding is one response without repairs; review checks degradation against the qualified baseline.",
+              "Plan useful extensions after healthy passes; reserve time for diagnosis and final confirmation.",
+              "Investigate material surprises, including quant quality reversals; check the setup, measurement and expectation before generalizing.",
+              "These budgets bound exploration, not preset capability. An untested upper boundary remains open when the budget ends.",
               f"Coding evaluator: {document['evaluator']['path']}",
               "Processes stop after each trial. Study-owned weights and software are reused until study close.",
               "Close removes owned installations, model caches and reconstructible source copies; results, patches, reviews and failures stay.",
@@ -206,9 +215,10 @@ class Study:
             raise Refusal("candidate is outside the approved study")
         return candidate
 
-    def gate(self, state, candidate, kind, purpose):
+    def gate(self, state, candidate, kind, purpose, coding_mode="performance"):
         qualified = smoked = False
         confirmed = False
+        baseline = None
         for entry in state["runs"]:
             directory = self.repository / "runs" / entry["id"]
             run = load_json(directory / "run.json", 64 * 1024**2)
@@ -222,7 +232,10 @@ class Study:
                 if not tests_path.exists() or load_json(tests_path, 16 * 1024**2).get("evaluator") != state["plan"]["evaluator"]:
                     raise Refusal(f"run {run['id']} was not graded with the study's approved evaluator")
                 if entry["candidate"] == candidate["id"]:
-                    qualified |= verdict == "pass" and all(row.get("measurement_valid") for row in run["cases"])
+                    if run["workload"].get("coding_mode") == "quality" and verdict == "pass" \
+                            and all(row.get("measurement_valid") for row in run["cases"]):
+                        qualified = True
+                        baseline = {"run": run["id"], "lock_sha256": run["lock_sha256"]}
                     confirmed |= run["purpose"] == "confirm"
             if entry["candidate"] == candidate["id"] and run["workload"]["kind"] == "smoke":
                 smoked |= bool(run["cases"]) and all(row["status"] == "passed" and row.get("measurement_valid") for row in run["cases"])
@@ -232,9 +245,14 @@ class Study:
             raise Refusal("candidate needs reviewed baseline quality before tuning or confirmation; use diagnose for a known failure")
         if confirmed and purpose != "diagnose":
             raise Refusal("this candidate has consumed its held-out case; further learning is diagnostic, not fresh confirmation")
+        if coding_mode == "quality" and purpose == "tune":
+            raise Refusal("performance tuning uses one-shot coding; full quality runs are assessment or diagnosis")
+        if kind == "coding" and purpose == "confirm" and coding_mode != "quality":
+            raise Refusal("coding quality confirmation requires --coding-mode quality")
+        return baseline
 
     def run(self, candidate_id: str, *, kind="smoke", purpose="screen", variant: Path | None = None,
-            records=256, output_tokens=512, reason: str):
+            records=256, output_tokens=512, coding_mode="performance", reason: str):
         with exclusive_lock(self.directory / ".lock"):
             state = self.load()
             if state["state"] != "open":
@@ -247,7 +265,7 @@ class Study:
             candidate = self._candidate(state, candidate_id)
             if kind == "coding" and review.evaluator(Path(state["plan"]["evaluator"]["path"])) != state["plan"]["evaluator"]:
                 raise Refusal("the approved grading environment changed")
-            self.gate(state, candidate, kind, purpose)
+            quality_baseline = self.gate(state, candidate, kind, purpose, coding_mode)
             limits = state["plan"]["budgets"]
             if len(state["runs"]) >= limits["runs"] or time.time() >= state["deadline"]:
                 raise Refusal("study budget exhausted; close it or propose a new bounded study")
@@ -255,7 +273,7 @@ class Study:
                 raise Refusal("request output allowance exceeds the study ceiling")
             # Coding uses one tuning case; the second is consumed only for confirmation.
             case_id = ("template-decorators" if purpose == "confirm" else "async-stream") if kind == "coding" else None
-            worker = StudyCheck(self, state, kind, case_id, records, output_tokens)
+            worker = StudyCheck(self, state, kind, case_id, records, output_tokens, coding_mode)
             if worker.unfinished():
                 raise Refusal("another run is unfinished; finish or recover it before this study")
             selected = candidate
@@ -275,6 +293,7 @@ class Study:
                 atomic_write(runtime / "presets.d" / name, data.encode())
             run.update(id=run_id, state="preparing", approved_at=state["approved_at"],
                        workload=worker.workload, case_ids=[case["id"] for case in worker.cases],
+                       quality_evaluator=worker.quality_evaluator, quality_baseline=quality_baseline,
                        study={"id": self.identity, "candidate": candidate_id}, purpose=purpose, reason=reason,
                        lock_sha256=file_digest(directory / "execution.lock.json"), preparation=None, cases=[], cleanup="pending")
             run["limits"] = {**worker.protocol["limits"], "request_seconds": min(limits["request_seconds"], 300) if kind == "smoke" else limits["request_seconds"]}
@@ -307,7 +326,8 @@ class Study:
                 run = load_json(directory / "run.json", 64 * 1024**2)
                 if run["state"] in UNFINISHED or run["state"] == "retained":
                     spec = run["workload"]
-                    worker = StudyCheck(self, state, spec["kind"], spec["case_id"], spec["records"], spec["output_tokens"])
+                    worker = StudyCheck(self, state, spec["kind"], spec["case_id"], spec["records"], spec["output_tokens"],
+                                        spec.get("coding_mode", "performance"))
                     return worker.resume(directory)
             raise Refusal("study has no unfinished run")
 
@@ -371,19 +391,24 @@ class Study:
                 memory = row.get("memory") or {}
                 counters = [memory.get(key) for key in ("engine_loaded_wired_bytes", "engine_peak_wired_bytes")]
                 mem = " / ".join("missing" if n is None else f"{n / GIB:.2f}" for n in counters)
-                lines.append(f"| {entry['id']} / {run['purpose']} | {entry['candidate']} | {row['id']} | "
+                mode = f" / {run['workload'].get('coding_mode', 'performance')}" if run["workload"]["kind"] == "coding" else ""
+                lines.append(f"| {entry['id']} / {run['purpose']} | {entry['candidate']} | {row['id']}{mode} | "
                              f"{quality or row['status']}{'' if row.get('measurement_valid') else ' (measurement invalid)'} | "
                              f"{row.get('task_seconds', 'missing')} | {row.get('input_tokens')} / {row.get('output_tokens')} | "
                              f"{row.get('prefill_tokens_per_second')} / {row.get('generation_tokens_per_second')} | {mem} |")
         lines += ["", "Trial decisions:"]
         for entry in state["runs"]:
             run = load_json(self.repository / "runs" / entry["id"] / "run.json", 64 * 1024**2)
-            lines.append(f"- {entry['id']}: {run.get('reason', 'not recorded')}")
+            baseline = run.get("quality_baseline")
+            lines.append(f"- {entry['id']}: {run.get('reason', 'not recorded')}" +
+                         (f" Quality reference: {baseline['run']} / {baseline['lock_sha256']}." if baseline else ""))
         lines += ["", "Memory is sampled system wired growth over pre-load baseline, affected by other apps;"
                   " it is not a native allocation total or minimum required machine RAM. Missing counters stay missing.",
                   "None means missing, never zero. Context/cache table rates describe the last request; time covers the session."
                   " Steps retain their actual input/output counts and cache counters in each run."
                   " Output allowance is a ceiling, not proof that the model generated that many tokens.",
+                  "Coding performance is one-shot; its review is a degradation check. Coding quality includes visible tests and repairs;"
+                  " per-turn rates remain in the run, and peak wired growth may include the evaluator. Final independent grading and review are separate.",
                   "", "The agent's conclusion must name the selected run/lock, reviewed quality, hardware scope, measured"
                   " context boundary, unresolved anomalies and tradeoffs. A catalog change requires separate review."]
         text = "\n".join(lines) + "\n"
@@ -392,8 +417,11 @@ class Study:
 
 
 class StudyCheck(BasicCheck):
-    def __init__(self, study, state, kind, case_id, records, output_tokens):
-        super().__init__(study.repository, study.temper, workload=kind, case_id=case_id, records=records, output_tokens=output_tokens)
+    def __init__(self, study, state, kind, case_id, records, output_tokens, coding_mode="performance"):
+        budgets = state["plan"]["budgets"]
+        super().__init__(study.repository, study.temper, workload=kind, case_id=case_id, records=records, output_tokens=output_tokens,
+                         coding_mode=coding_mode, quality_turns=budgets["quality_turns"], quality_seconds=budgets["quality_seconds"],
+                         grading_python=Path(state["plan"]["evaluator"]["path"]))
         self.study = study
         self.deadline = state["deadline"]
         self.protocol["limits"]["request_seconds"] = min(self.protocol["limits"]["request_seconds"], state["plan"]["budgets"]["request_seconds"])
@@ -421,7 +449,7 @@ def command(arguments, repository: Path) -> int:
         from . import background
         forwarded = ["run", arguments.id, "--candidate", arguments.candidate, "--workload", arguments.workload,
                      "--purpose", arguments.purpose, "--reason", arguments.reason, "--records", str(arguments.records),
-                     "--output-tokens", str(arguments.output_tokens)]
+                     "--output-tokens", str(arguments.output_tokens), "--coding-mode", arguments.coding_mode]
         if arguments.preset_file:
             forwarded += ["--preset-file", str(arguments.preset_file.resolve())]
         if arguments.temper:
@@ -432,7 +460,8 @@ def command(arguments, repository: Path) -> int:
     if action == "plan":
         document = plan(repository, temper, presets=arguments.preset, files=arguments.preset_file, python=arguments.python,
                         max_runs=arguments.max_runs, hours=arguments.hours, download_gib=arguments.download_gib,
-                        max_context=arguments.max_context, request_seconds=arguments.request_seconds)
+                        max_context=arguments.max_context, request_seconds=arguments.request_seconds,
+                        quality_turns=arguments.quality_turns, quality_seconds=arguments.quality_seconds)
         if arguments.out.exists():
             raise Refusal("plan output already exists; retain it and choose a new path")
         atomic_write(arguments.out, canonical_json(document))
@@ -446,7 +475,7 @@ def command(arguments, repository: Path) -> int:
     elif action == "run":
         return study.run(arguments.candidate, kind=arguments.workload, purpose=arguments.purpose,
                          variant=arguments.preset_file, records=arguments.records, output_tokens=arguments.output_tokens,
-                         reason=arguments.reason)
+                         coding_mode=arguments.coding_mode, reason=arguments.reason)
     elif action == "resume":
         return study.resume()
     elif action == "close":
