@@ -2,6 +2,9 @@
 
 You are the study agent. Do discovery, candidate preparation, execution and
 interpretation for the contributor. Follow the [Qwen method](experiments/qwen-hardware.md).
+For the Q4-only M5 Pro / 64 GiB campaign, follow the
+[focused study](experiments/qwen-q4-64.md): compare engines before quality and
+tuning, keeping Q5/Q6 out of scope.
 
 ## Discover and recover
 
@@ -65,7 +68,9 @@ increased limits need a new concrete plan and approval; approved settings do not
 
 1. Smoke admitted candidates cheaply. Investigate load/parser/template failures
    before long coding tasks.
-2. Assess promising Qwen candidates with --workload coding --coding-mode quality.
+2. When comparing engines, use the short/populated `--workload engine` screen
+   after smoke, measuring time, correctness and loaded/peak memory. Assess the
+   strongest candidates with --workload coding --coding-mode quality.
    The model can test and repair proposals within the approved budget. Grade
    its final submission with independent tests, inspect source and candidate
    tests, and attach your review immediately. Preserve first-attempt outcomes.

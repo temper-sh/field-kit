@@ -38,6 +38,12 @@ def _parser() -> argparse.ArgumentParser:
     check.add_argument("--temper", type=Path, help="Temper executable; default: temper on PATH")
     study = subparsers.add_parser("study", help="plan, run and close an agent-directed Qwen study")
     actions = study.add_subparsers(dest="action", required=True)
+    candidates = actions.add_parser("prepare-q4", help="prepare four Q4 candidates for the 64 GiB engine screen; no model downloads")
+    candidates.add_argument("--out", type=Path, required=True, help="new directory for the candidate preset files")
+    candidates.add_argument("--temper", type=Path)
+    export = actions.add_parser("export", help="archive a closed study with every referenced run and review")
+    export.add_argument("id")
+    export.add_argument("--out", type=Path, required=True)
     plan = actions.add_parser("plan", help="compile exact candidates and a bounded approval; download no models")
     plan.add_argument("--preset", action="append", default=[])
     plan.add_argument("--preset-file", type=Path, action="append", default=[])
@@ -83,7 +89,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _workload_options(parser):
-    parser.add_argument("--workload", choices=("smoke", "coding", "context", "cache"), default="smoke")
+    parser.add_argument("--workload", choices=("smoke", "engine", "coding", "context", "cache"), default="smoke")
     parser.add_argument("--records", type=int, default=256, help="context/cache input size in records, not tokens")
     parser.add_argument("--output-tokens", type=int, default=512, help="synthetic request output allowance")
     parser.add_argument("--coding-mode", choices=("performance", "quality"), default="performance",

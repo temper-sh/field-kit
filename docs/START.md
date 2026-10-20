@@ -84,7 +84,13 @@ studies/ID/study.json owns approval, budgets and run references; report.md
 summarizes evidence. Referenced runs/ID/ directories hold results and execution
 locks. Coding runs also hold review/tests.json and review.json.
 
-Keep the study and referenced run directories together when sharing. They
+After close, create a complete archive:
+
+```sh
+./field-kit study export STUDY_ID --out study-results.zip
+```
+
+The command checks every referenced run and includes its evidence. The files
 include hardware details and local paths. The agent writes a concise conclusion
 with the chosen exact configuration, quality, speed, loaded/peak memory,
 measured context scope and unresolved questions. Publication is separate.

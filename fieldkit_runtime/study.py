@@ -30,7 +30,8 @@ def opportunities(facts: dict[str, Any]) -> list[str]:
              " their larger memory needs left gaps on the reference M5 / 32 GiB.",
              "Bracket usable input plus output/continuation on this memory tier; a configured window is not evidence of fit."]
             if large else ["Measure gaps for this chip and memory tier; reopen a memory refusal only when material, settings, implementation or evidence changes."]) + [
-        "Keep a cheap current Qwen baseline. Investigate material mismatches with expectations across quality, speed, memory, context and behavior, including the Q4/Q5 reversal and unexpected gains.",
+        "Hold the requested quant fixed while comparing engines; broaden quant scope only when that is part of the requested study.",
+        "Investigate material mismatches with expectations across quality, speed, memory, context and behavior, including unexpected gains.",
         "Plan useful extensions after healthy passes: seek more usable context/output room and effective acceleration within approval, not just the catalog default.",
         "Skip already answered questions at the same engine, weights, template, settings and hardware identity.",
         "Treat missing counters, broken evaluation and unsupported interfaces as missing evidence, not bad model quality."]
@@ -72,7 +73,15 @@ def frozen_material(lock: dict[str, Any]) -> dict[str, Any]:
 
 
 def validate_variant(base: dict[str, Any], variant: dict[str, Any], maximum_context: int) -> None:
-    if frozen_material(base) != frozen_material(variant):
+    fixed_base, fixed_variant = frozen_material(base), frozen_material(variant)
+    approved = fixed_base["records"].get("artifacts", {})
+    selected = fixed_variant["records"].get("artifacts", {})
+    # Turning speculation off drops its unused sidecar from Temper's closure.
+    # Omitting approved material grants no new access; adding or changing it does.
+    if any(key not in approved or value != approved[key] for key, value in selected.items()):
+        raise Refusal("variant changes approved weights or draft; it needs a new study plan")
+    fixed_base["records"]["artifacts"] = selected
+    if fixed_base != fixed_variant:
         raise Refusal("variant changes approved engine/software/weights/template or other fixed material; it needs a new study plan")
     selected = variant["records"]["presets"][variant["preset"]]
     for profile in selected["profiles"]:
@@ -142,7 +151,7 @@ def describe(document: dict[str, Any]) -> str:
         lines.append(f"- {candidate['id']} / {run['preset']['family']}: "
                      f"up to {run['plan']['remaining_download_bytes'] / GIB:.2f} GiB downloads; lock {run['lock_sha256']}")
     lines += [f"Agent may tune: {document['tuning_scope']}.",
-              "Smoke → coding quality assessment → one-shot performance and context/cache tuning → quality confirmation when needed.",
+              "Smoke → short/populated engine measurements → selected candidate quality → one-shot performance and context/cache tuning → quality confirmation when needed.",
               f"Quality cases allow at most {limits['quality_turns']} responses and {limits['quality_seconds']} seconds including tests and repairs, within the total study budget.",
               "Performance coding is one response without repairs; review checks degradation against the qualified baseline.",
               "Plan useful extensions after healthy passes; reserve time for diagnosis and final confirmation.",
@@ -296,7 +305,9 @@ class Study:
                        quality_evaluator=worker.quality_evaluator, quality_baseline=quality_baseline,
                        study={"id": self.identity, "candidate": candidate_id}, purpose=purpose, reason=reason,
                        lock_sha256=file_digest(directory / "execution.lock.json"), preparation=None, cases=[], cleanup="pending")
-            run["limits"] = {**worker.protocol["limits"], "request_seconds": min(limits["request_seconds"], 300) if kind == "smoke" else limits["request_seconds"]}
+            request_limit = min(worker.protocol["limits"]["request_seconds"],
+                                {"smoke": 300, "engine": 900}.get(kind, limits["request_seconds"]))
+            run["limits"] = {**worker.protocol["limits"], "request_seconds": request_limit}
             run["deadline"] = state["deadline"]
             # Material scope is frozen. Reusing downloads never grants permission
             # to touch the user's cache or a different candidate's installation.
@@ -378,8 +389,8 @@ class Study:
                  f"Runs: {len(state['runs'])}/{limits['runs']}; download reservation: {state['reserved_download_bytes'] / GIB:.2f}"
                  f"/{limits['download_bytes'] / GIB:g} GiB; time remaining: {max(0, state['deadline'] - time.time()) / 3600:.2f} hours.",
                  "", describe(state["plan"]), "",
-                 "| Run / purpose | Candidate | Work | Quality | Time (s) | Input / output tokens | Prefill / decode tok/s | Loaded / peak wired growth (GiB) |",
-                 "|---|---|---|---|---:|---|---|---|"]
+                 "| Run / purpose | Candidate | Work | Quality | Time (s) | First token (s) | Input / output tokens | Prefill / decode tok/s | Loaded / peak wired growth (GiB) |",
+                 "|---|---|---|---|---:|---:|---|---|---|"]
         for entry in state["runs"]:
             directory = self.repository / "runs" / entry["id"]
             run = load_json(directory / "run.json", 64 * 1024**2)
@@ -394,7 +405,8 @@ class Study:
                 mode = f" / {run['workload'].get('coding_mode', 'performance')}" if run["workload"]["kind"] == "coding" else ""
                 lines.append(f"| {entry['id']} / {run['purpose']} | {entry['candidate']} | {row['id']}{mode} | "
                              f"{quality or row['status']}{'' if row.get('measurement_valid') else ' (measurement invalid)'} | "
-                             f"{row.get('task_seconds', 'missing')} | {row.get('input_tokens')} / {row.get('output_tokens')} | "
+                             f"{row.get('task_seconds', 'missing')} | {row.get('first_token_seconds', 'missing')} | "
+                             f"{row.get('input_tokens')} / {row.get('output_tokens')} | "
                              f"{row.get('prefill_tokens_per_second')} / {row.get('generation_tokens_per_second')} | {mem} |")
         lines += ["", "Trial decisions:"]
         for entry in state["runs"]:
@@ -445,6 +457,10 @@ class StudyCheck(BasicCheck):
 
 
 def command(arguments, repository: Path) -> int:
+    if arguments.action == "export":
+        from .export import export_study
+        print(export_study(repository, arguments.id, arguments.out))
+        return 0
     if arguments.action == "run" and arguments.background:
         from . import background
         forwarded = ["run", arguments.id, "--candidate", arguments.candidate, "--workload", arguments.workload,
@@ -457,6 +473,10 @@ def command(arguments, repository: Path) -> int:
         return background.start(repository, forwarded, command="study")
     temper = Temper(locate(arguments.temper))
     action = arguments.action
+    if action == "prepare-q4":
+        from .q4 import prepare
+        prepare(repository, temper, arguments.out)
+        return 0
     if action == "plan":
         document = plan(repository, temper, presets=arguments.preset, files=arguments.preset_file, python=arguments.python,
                         max_runs=arguments.max_runs, hours=arguments.hours, download_gib=arguments.download_gib,

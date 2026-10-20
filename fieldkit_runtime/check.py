@@ -358,15 +358,15 @@ def render_report(run: dict[str, Any], protocol: dict[str, Any]) -> bytes:
              f" protocol basic-check@{run['protocol']['revision']}",
              f"- State: {run['state']}" + (f" ({run['stopped']})" if run.get("stopped") else ""), "",
              *coding_description(run), "",
-             "| Case | Result | Input tokens | Output tokens | Prefill tok/s | Generation tok/s | Task time | Start time | Engine after load | Engine peak |",
-             "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
+             "| Case | Result | Input tokens | Output tokens | Prefill tok/s | Generation tok/s | Task time | First token | Start time | Engine after load | Engine peak |",
+             "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
     for row in run["cases"]:
         memory = row.get("memory") or {}
-        lines.append("| {id} | {status}{valid} | {i} | {o} | {p} | {g} | {t} | {s} | {l} | {k} |".format(
+        lines.append("| {id} | {status}{valid} | {i} | {o} | {p} | {g} | {t} | {f} | {s} | {l} | {k} |".format(
             id=row["id"], status=row["status"], valid="" if row.get("measurement_valid") else " (not comparable)",
             i=number(row.get("input_tokens"), 0), o=number(row.get("output_tokens"), 0),
             p=number(row.get("prefill_tokens_per_second")), g=number(row.get("generation_tokens_per_second")),
-            t=duration(row.get("task_seconds")), s=duration(row.get("startup_seconds")),
+            t=duration(row.get("task_seconds")), f=duration(row.get("first_token_seconds")), s=duration(row.get("startup_seconds")),
             l=gib(memory.get("engine_loaded_wired_bytes")), k=gib(memory.get("engine_peak_wired_bytes"))))
     if run.get("quality_baseline"):
         lines += ["", f"Quality reference: run `{run['quality_baseline']['run']}`, lock `{run['quality_baseline']['lock_sha256']}`."
@@ -403,8 +403,9 @@ def render_report(run: dict[str, Any], protocol: dict[str, Any]) -> bytes:
               "Rates are the engine's own counters. Engine memory is how much the Mac's wired memory grew"
               " from before the engine started: after the model loaded, and the highest sample during the"
               " case. It includes the model as the GPU holds it; other apps that wire memory add to it.",
-              "", "Send `result.json` to the coordinator if you want to share the run. It contains the patches"
-              " the model submitted, your Mac's details and local paths."]
+              "", "Share the complete run folder, including requests, responses, execution lock and any review."
+              " For a study, use `field-kit study export ID --out FILE.zip` after close so every referenced run is included."
+              " Evidence contains submitted patches, your Mac's details and local paths."]
     return ("\n".join(lines) + "\n").encode()
 
 
@@ -783,6 +784,9 @@ class BasicCheck:
                              router_ready_seconds=30, log_bytes_max=limits["process_log_bytes_max"])
         row: dict[str, Any] = {"id": case["id"], "status": "unmeasured", "failure": None, "attempted_at": utc_now(),
                                "unrecorded_attempts": sorted(path.name for path in stage.parent.glob(case["id"] + ".unrecorded-*"))}
+        for key in ("input_records", "output_allowance_tokens"):
+            if key in case:
+                row[key] = case[key]
         memory = loaded = None
         resources: dict[str, Any] = {}
         started = time.monotonic()
@@ -899,8 +903,8 @@ class BasicCheck:
 
     def time_limit(self, name: str) -> float:
         maximum = self.protocol["limits"][name]
-        if name == "request_seconds" and self.workload["kind"] == "smoke":
-            maximum = min(maximum, 300)
+        if name == "request_seconds" and self.workload["kind"] in ("smoke", "engine"):
+            maximum = min(maximum, 300 if self.workload["kind"] == "smoke" else 900)
         if self.deadline is not None:
             remaining = self.deadline - time.time()
             if remaining <= 0:

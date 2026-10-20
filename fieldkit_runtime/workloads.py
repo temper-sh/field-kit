@@ -7,7 +7,7 @@ from typing import Any
 
 from .common import Refusal
 
-KINDS = ("smoke", "coding", "context", "cache")
+KINDS = ("smoke", "engine", "coding", "context", "cache")
 
 
 def cases(coding: list[dict[str, Any]], kind: str, *, case_id: str | None = None,
@@ -18,7 +18,7 @@ def cases(coding: list[dict[str, Any]], kind: str, *, case_id: str | None = None
     if type(quality_turns) is not int or quality_turns < 1 or type(quality_seconds) is not int or quality_seconds < 1:
         raise Refusal("quality response and time budgets must be positive integers")
     if kind not in KINDS or type(records) is not int or not 8 <= records <= 32768:
-        raise Refusal("choose smoke, coding, context or cache, with 8–32768 input records")
+        raise Refusal("choose smoke, engine, coding, context or cache, with 8–32768 input records")
     if type(output_tokens) is not int or not 32 <= output_tokens <= 32768:
         raise Refusal("the output allowance must be 32–32768 tokens")
     if kind == "coding":
@@ -37,6 +37,26 @@ def cases(coding: list[dict[str, Any]], kind: str, *, case_id: str | None = None
             "tool_choice": "auto", "max_tokens": output_tokens,
         }
         return [{"id": "smoke", "request": request, "oracle": {"answer": "FIELD_KIT_OK", "tool": True}}]
+    if kind == "engine":
+        if records < 64:
+            raise Refusal("the engine screen needs at least 64 records for its populated-input request")
+        # Same answer and requested work at two input sizes. Each case starts a
+        # fresh engine, so the populated request cannot reuse the short prefix.
+        answers = [f"service-{i:02d}-{hashlib.sha256(f'engine-screen-v1:{i}'.encode()).hexdigest()[:8]}"
+                   for i in range(32)]
+        selected = [i * (records - 1) // 31 for i in range(32)]
+        sparse = dict(zip(selected, answers))
+        result = []
+        for name, indices in (("engine-short", selected), ("engine-populated", range(records))):
+            entries = "\n".join(f"record {i:05d}: {sparse.get(i, f'unselected-service-{i:05d}')}" for i in indices)
+            question = "Return only a JSON array of the values of records " + ", ".join(map(str, selected)) + ", in that order."
+            request = {"messages": [
+                {"role": "system", "content": "Copy the requested service identifiers exactly. Return JSON without explanation."},
+                {"role": "user", "content": entries + "\n" + question}],
+                "temperature": 0, "seed": 17, "max_tokens": output_tokens}
+            result.append({"id": name, "request": request, "oracle": {"answer": answers},
+                           "input_records": len(indices), "output_allowance_tokens": output_tokens})
+        return result
     # Record counts are input sizes, never claimed to be tokenizer counts.
     # Multiple positions and changed-prefix queries catch stale cache answers.
     values = [hashlib.sha256(f"field-kit-context-v1:{i}".encode()).hexdigest()[:16] for i in range(records)]

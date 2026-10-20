@@ -6,6 +6,10 @@ The catalog setting starts the investigation; a first healthy pass is not its
 endpoint.
 The agent chooses experiments; deterministic commands own effects.
 
+For Q4 engine selection on the tester's M5 Pro / 64 GiB, use the
+[focused Q4 campaign](qwen-q4-64.md). It supplies candidate preparation,
+engine measurements before coding quality, and a complete-results export.
+
 ## Prioritize missing evidence
 
 Read hardware facts and existing assessments. Use a cheap current baseline,

@@ -43,7 +43,7 @@ def _source(repository: Path, directory: Path):
     result = load_json(directory / "result.json", 64 * 1024**2)
     if result.get("state") not in ("complete", "cancelled"):
         raise Refusal("finish or close the run before grading; its result is still changing")
-    if result.get("protocol", {}).get("id") != "basic-check" or result["protocol"].get("revision") not in (1, 2, 3):
+    if result.get("protocol", {}).get("id") != "basic-check" or result["protocol"].get("revision") not in (1, 2, 3, 4):
         raise Refusal("this review does not own that run's frozen tasks")
     if result.get("workload") and result["workload"]["kind"] != "coding":
         raise Refusal("source review applies to coding work")

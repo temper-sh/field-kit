@@ -24,7 +24,10 @@ You approve the study once. It continues useful tuning within that scope after
 healthy passes; different weights, engines or templates require another plan.
 An exhausted test budget leaves the upper boundary open.
 
-The workflow is smoke → reviewed quality → diagnosis and tuning → final
+For the tester's M5 Pro / 64 GiB, the [Q4 campaign](docs/experiments/qwen-q4-64.md)
+compares engines first, then assesses and tunes the strongest candidate.
+
+The workflow is smoke → engine measurements → reviewed quality → diagnosis and tuning → final
 confirmation. Quality assessments allow the model to test and repair its code.
 Performance trials use one response, with a review for degradation; they do not
 repeat the full quality run. A submitted patch does not count as successful coding work.

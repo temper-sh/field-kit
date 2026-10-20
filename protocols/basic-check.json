@@ -1,7 +1,7 @@
 {
   "schema": "field-kit-protocol/v1",
   "id": "basic-check",
-  "revision": 3,
+  "revision": 4,
   "question": "Which Qwen configuration delivers useful quality, speed, cache behavior and context on this hardware?",
   "method": "An agent chooses bounded measurements from hardware evidence gaps. Coding quality uses a bounded visible-test and repair workflow followed by independent tests and source review. Coding performance uses one response with no repair feedback, retaining a degradation check against a qualified baseline. Full quality work is reserved for assessment or reassessment, not repeated at every performance point. The runner preserves exact configurations, first attempts, per-request rates, workflow time and loaded/peak memory. Submission alone never establishes quality.",
   "model": "Qwen3.8 27B",

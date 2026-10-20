@@ -17,6 +17,22 @@ PRESET = "qwen3.8-27b-q4xl-mtp"
 
 
 class WorkloadsTest(RepositoryTest):
+    def test_engine_screen_matches_answer_and_samples_the_populated_input(self):
+        short, populated = workloads.cases(self.cases, "engine", records=768, output_tokens=4096)
+        self.assertEqual(short["oracle"], populated["oracle"])
+        self.assertEqual((short["input_records"], populated["input_records"]), (32, 768))
+        self.assertEqual(short["request"]["messages"][-1]["content"].splitlines()[-1],
+                         populated["request"]["messages"][-1]["content"].splitlines()[-1])
+        for case in (short, populated):
+            answer = case["oracle"]["answer"]
+            self.assertEqual(len(answer), 32)
+            self.assertTrue(all(value in case["request"]["messages"][-1]["content"] for value in answer))
+            self.assertTrue(workloads.correct({"message": {"content": json.dumps(answer, indent=2)}}, case["oracle"])[0])
+            self.assertFalse(workloads.correct({"message": {"content": json.dumps(answer[::-1])}}, case["oracle"])[0])
+            self.assertFalse(workloads.correct({"message": {"content": json.dumps(answer[:-1])}}, case["oracle"])[0])
+        with self.assertRaisesRegex(Refusal, "at least 64"):
+            workloads.cases(self.cases, "engine", records=32)
+
     def test_smoke_requires_real_tool_call_and_does_no_coding(self):
         case = workloads.cases(self.cases, "smoke")[0]
         prose = {"message": {"content": 'record_answer({"answer":"FIELD_KIT_OK"})'}}
@@ -142,6 +158,30 @@ class StudyTest(RepositoryTest):
         self.assertFalse(any(args[:2] == ["execution", "prepare"] for args, _ in self.fake.calls))
         self.assertFalse(self.subject.start(self.plan, ask=lambda _: "no"))
         self.assertFalse(self.subject.directory.exists())
+
+    def test_engine_comparison_precedes_quality_but_cannot_qualify_tuning(self):
+        self.start()
+        with self.assertRaisesRegex(Refusal, "smoke pass"):
+            self.measure(kind="engine")
+        self.measure()
+        self.measure(kind="engine", output_tokens=4096)
+        run = json.loads((self.latest() / "run.json").read_text())
+        self.assertEqual(run["case_ids"], ["engine-short", "engine-populated"])
+        self.assertEqual(run["limits"]["request_seconds"], 600)  # the smaller approved ceiling
+        with self.assertRaisesRegex(Refusal, "reviewed baseline"):
+            self.measure(kind="context", purpose="tune")
+        self.measure(kind="coding", coding_mode="quality")
+
+    def test_disabling_approved_draft_is_allowed_but_replacing_it_is_not(self):
+        base = json.loads(self.plan["candidates"][0]["lock"])
+        base["records"]["artifacts"] = {"target": {"sha256": "a"}, "draft": {"sha256": "b"}}
+        variant = copy.deepcopy(base)
+        variant["records"]["artifacts"].pop("draft")
+        variant["records"]["presets"][variant["preset"]]["speculation"] = {"method": "none"}
+        study.validate_variant(base, variant, 131072)
+        variant["records"]["artifacts"]["target"]["sha256"] = "different"
+        with self.assertRaisesRegex(Refusal, "approved weights"):
+            study.validate_variant(base, variant, 131072)
 
     def test_plan_accounts_for_candidates_retained_together(self):
         original = self.fake.plan
