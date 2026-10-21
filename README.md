@@ -50,5 +50,6 @@ installations are preserved. Nothing uploads automatically.
 - [Recover and report problems](docs/REPAIR.md)
 - [Studies](studies/README.md)
 - [Development](docs/DEVELOPMENT.md)
+- [Engine and model adapters](docs/ADAPTERS.md)
 
 Licensed under [0BSD](LICENSE).

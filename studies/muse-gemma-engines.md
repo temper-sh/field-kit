@@ -116,9 +116,10 @@ The [shared brief](64gib-studies.md) defines memory recording, waiting and retur
 - Muse Rapid 0.16.4 inserted a duplicate BOS. A study-local template-argument
   workaround corrected token IDs then; verify the actual installed path before
   reusing it. Unsupported sampling/template settings need diagnosis too.
-- Field Kit's current helper-footprint guard is 2 GiB; the earlier Gemma vLLM
-  frontend legitimately reached 2.10 GiB. Repair the policy here before dispatch
-  of that arm, with an explicit helper allowance inside the machine budget.
+- The earlier Gemma vLLM frontend legitimately reached 2.10 GiB. The engine
+  adapter now proposes a 3 GiB frontend allowance in study preview, retaining
+  2 GiB for its other helpers and the machine's wired/swap guards. Old approvals
+  retain their original limits; review the new preview before dispatch.
   A known artificial guard must not be reported as failure to fit 64 GiB.
 - Historical startup helper timing and vLLM first-start ownership needed fixes.
   Reuse the reports, inspect the installed versions, and report any recurrence

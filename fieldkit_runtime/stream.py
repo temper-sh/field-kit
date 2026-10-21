@@ -7,7 +7,7 @@ import time
 from .probe import ProbeError
 
 
-class CodingStream:
+class ChatStream:
     """Keep partial reasoning and tool arguments when a request is interrupted."""
     def __init__(self, raw_path, *, clock=time.monotonic):
         self.raw_path, self.clock = raw_path, clock
@@ -25,7 +25,7 @@ class CodingStream:
                 line = response.readline(1024 * 1024 + 1)
                 received += len(line)
                 if received > 64 * 1024**2 or len(line) > 1024 * 1024:
-                    raise ProbeError("coding stream exceeded its byte bound")
+                    raise ProbeError("chat stream exceeded its byte bound")
                 if not line:
                     break
                 output.write(line)

@@ -12,6 +12,8 @@ import unittest
 from unittest.mock import Mock, patch
 
 from fieldkit_runtime import execution, jobs, workloads
+from fieldkit_runtime.adapters import engines, models
+from fieldkit_runtime.adapters.engines.base import EngineAdapter
 from fieldkit_runtime.common import Refusal, canonical_json, load_json, digest
 from fieldkit_runtime.export import export_study
 from fieldkit_runtime.material import validate_variant
@@ -163,6 +165,97 @@ class StudyTest(unittest.TestCase):
         self.assertEqual(request["messages"][-2]["content"], '["wrong"]')
         self.assertTrue(all(step["correct"] is False for step in row["steps"]))
 
+    def test_new_engine_adapter_runs_without_a_core_executor_change(self):
+        class FixtureObserver:
+            def capture(self, phase): pass
+            def poll(self): pass
+            def measurements(self): return {"fixture_native": {"peak_bytes": 1234}}
+        class FixtureEngine(EngineAdapter):
+            health_path = "/ready-for-work"
+            helper_limits = {"router": GIB, "helper": 3 * GIB}
+            def metrics(self, response):
+                return {**super().metrics(response), "generation_tokens_per_second": 7}
+            def memory_observer(self, read, preset): return FixtureObserver()
+        candidate = lock("brand-new-model")
+        candidate["records"]["engines"]["engine"]["adapter"] = "fixture/v1"
+        self.source.write_bytes(canonical_json(candidate))
+        with patch.dict(engines.ADAPTERS, {"fixture/v1": FixtureEngine}):
+            study = Study(self.root, "new-engine")
+            study.initialize(preview(self.temper, [self.source], self.brief, hours=1, download_gib=1))
+            directory = study.reserve("brand-new-model", self.workload, "Exercise adapter integration")
+            seen = []
+            def call(probe, path, payload, timeout, **kwargs):
+                seen.append(path)
+                if kwargs.get("method") == "GET":
+                    return {}
+                return {"message": {"content": "FIELD_KIT_OK"}, "stream_complete": True, "finish_reason": "stop"}
+            with patch.object(execution, "ManagedProbe", FakeProbe), patch.object(execution, "monitored_call", side_effect=call), \
+                 patch.object(execution.watcher, "sample_macos", return_value={"wired_bytes": GIB, "roles": {}}):
+                execution.execute(study, directory)
+            result = load_json(directory / "result.json")
+            self.assertEqual(result["engine_adapter"], "fixture/v1")
+            self.assertEqual(result["model_adapter"], models.DEFAULT)
+            self.assertEqual(seen, ["/upstream/brand-new-model/ready-for-work", "/v1/chat/completions"])
+            session = result["sessions"][0]
+            self.assertEqual(session["steps"][0]["generation_tokens_per_second"], 7)
+            self.assertTrue(session["steps"][0]["correct"])
+            self.assertEqual(session["memory"]["fixture_native"]["peak_bytes"], 1234)
+            self.assertTrue(result["safe_to_cleanup"])
+
+    def test_flint_replay_preserves_reasoning_and_rejected_call_identity(self):
+        call = {"id": "first-call", "type": "function", "function": {"name": "repair", "arguments": "{}"}}
+        work = {"question": "Continue after an unsuccessful tool call", "model_adapter": "overridden/v1", "steps": [
+            {"id": "first", "request": {"messages": [{"role": "user", "content": "Repair this function"}]}},
+            {"id": "feedback", "append_previous": True, "request": {"messages": [
+                {"role": "tool", "tool_call_id": "first-call", "content": "Missing required edits"}]}}]}
+        self.workload.write_bytes(canonical_json(work))
+        directory = self.study.reserve("research-model", self.workload, "Check Flint replay", model_adapter="flint/v1")
+        seen = []
+        def request(probe, path, payload, timeout, **kwargs):
+            if kwargs.get("method") == "GET":
+                return {}
+            seen.append(copy.deepcopy(payload))
+            return {"message": {"content": "", "reasoning": "Keep this thought", "tool_calls": [call]},
+                    "finish_reason": "tool_calls", "stream_complete": True}
+        with patch.object(execution, "ManagedProbe", FakeProbe), patch.object(execution, "monitored_call", side_effect=request), \
+             patch.object(execution.watcher, "sample_macos", return_value={"wired_bytes": GIB, "roles": {}}):
+            execution.execute(self.study, directory)
+        result = load_json(directory / "result.json")
+        self.assertEqual(result["model_adapter"], "flint/v1")
+        self.assertEqual(load_json(directory / "workload.json")["model_adapter"], "flint/v1")
+        replay, feedback = seen[1]["messages"][-2:]
+        self.assertEqual(replay["reasoning_content"], "Keep this thought")
+        self.assertEqual(replay["tool_calls"], [call])
+        self.assertEqual(feedback["tool_call_id"], call["id"])
+        self.assertTrue(result["safe_to_cleanup"])
+
+    def test_bad_format_does_not_erase_metrics_or_block_an_independent_step(self):
+        work = {"question": "Keep format failures separate from performance", "model_adapter": "flint/v1", "steps": [
+            {"id": name, "request": {"messages": [{"role": "user", "content": "Return an answer"}]},
+             "expect": {"text": "OK"}} for name in ("first", "independent")]}
+        self.workload.write_bytes(canonical_json(work))
+        directory = self.reserve()
+        self.execute_requests(directory, content="<tool_call>unfinished", finish="stop")
+        result = load_json(directory / "result.json")
+        steps = result["sessions"][0]["steps"]
+        self.assertEqual(len(steps), 2)
+        for step in steps:
+            self.assertEqual(step["model_format"]["state"], "invalid")
+            self.assertIsNone(step["correct"])
+            self.assertIsNone(step["failure"])
+            self.assertEqual(step["generation_tokens_per_second"], 100)
+        self.assertTrue(result["safe_to_cleanup"])
+
+    def test_unknown_adapter_refused_before_reserving_or_preparing_a_trial(self):
+        with self.assertRaisesRegex(Refusal, "model adapter"):
+            self.study.reserve("research-model", self.workload, "Invalid selection", model_adapter="unknown/v1")
+        self.assertEqual(self.study.load()["runs"], [])
+        candidate = lock()
+        candidate["records"]["engines"]["engine"]["adapter"] = "llama-server/v999"
+        self.source.write_bytes(canonical_json(candidate))
+        with self.assertRaisesRegex(Refusal, "engine adapter"):
+            preview(self.temper, [self.source], self.brief)
+
     def test_settings_variant_allowed_but_new_weights_and_template_are_not(self):
         original = lock()
         variant = copy.deepcopy(original)
@@ -231,8 +324,8 @@ class StudyTest(unittest.TestCase):
 
     def test_finished_task_uses_existing_command_and_preserves_nonzero_outcome(self):
         script = self.root / "harness.py"
-        script.write_text("import os, pathlib, sys\np=pathlib.Path(os.environ['FIELD_KIT_OUTPUT_DIR'])/'candidate'\np.mkdir()\n(p/'tests.log').write_text('1 failed')\nprint(os.environ['FIELD_KIT_MODEL'])\nsys.exit(1)\n")
-        self.workload.write_bytes(canonical_json({"question": "Evaluate a finished task", "command": [sys.executable, str(script)],
+        script.write_text("import os, pathlib, sys\np=pathlib.Path(os.environ['FIELD_KIT_OUTPUT_DIR'])/'candidate'\np.mkdir()\n(p/'tests.log').write_text('1 failed')\n(p/'adapter.txt').write_text(os.environ['FIELD_KIT_MODEL_ADAPTER'])\nprint(os.environ['FIELD_KIT_MODEL'])\nsys.exit(1)\n")
+        self.workload.write_bytes(canonical_json({"question": "Evaluate a finished task", "model_adapter": "flint/v1", "command": [sys.executable, str(script)],
                                                   "cwd": str(self.root)}))
         directory = self.reserve()
         with patch.object(execution, "ManagedProbe", FakeProbe), patch.object(execution, "monitored_call", return_value={}), \
@@ -243,6 +336,8 @@ class StudyTest(unittest.TestCase):
         self.assertEqual(row["sessions"][0]["memory"]["engine_peak_wired_bytes"], 20 * GIB)
         self.assertEqual((directory / "sessions/task/output/candidate/tests.log").read_text(), "1 failed")
         self.assertEqual((directory / "sessions/task/stdout.txt").read_text().strip(), "research-model")
+        self.assertEqual((directory / "sessions/task/output/candidate/adapter.txt").read_text(), "flint/v1")
+        self.assertEqual(row["model_adapter_scope"], "external-harness")
         self.reserve()
 
     def test_close_is_repeatable_and_preserves_user_and_evidence_material(self):

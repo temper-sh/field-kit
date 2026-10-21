@@ -42,6 +42,7 @@ def parser():
     run.add_argument("id")
     run.add_argument("--candidate", required=True)
     run.add_argument("--workload", type=Path, required=True)
+    run.add_argument("--model-adapter", help="format/replay adapter, e.g. flint/v1; overrides the workload")
     run.add_argument("--reason", required=True)
     run.add_argument("--lock", type=Path, help="Temper-compiled settings variant of this candidate")
     run.add_argument("--temper", type=Path)
@@ -128,7 +129,7 @@ def main(argv=None):
                     result = {"study": str(study.directory), "state": "open"}
             elif arguments.action == "run":
                 directory = study.reserve(arguments.candidate, arguments.workload, arguments.reason,
-                                          arguments.lock, arguments.temper)
+                                          arguments.lock, arguments.temper, model_adapter=arguments.model_adapter)
                 if arguments.background:
                     worker = jobs.start(REPOSITORY, arguments.id, directory.name)
                     result = {"run": directory.name, "pid": worker.pid, "state": "queued",

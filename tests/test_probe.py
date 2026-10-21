@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 from types import SimpleNamespace
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from fieldkit_runtime.probe import ManagedProbe, ProbeError, split_listen, summarize_watch
 from tests.test_watcher import watch_spec, binding
@@ -60,6 +60,32 @@ class ProbeBoundaryTest(unittest.TestCase):
         with self.assertRaises(ProbeError): self.probe.validate_owned_boundary()
         self.status["updated_at"] = "2000-01-01T00:00:00+00:00"; self.publish()
         with self.assertRaisesRegex(ProbeError, "stale"): self.probe._status()
+
+    def test_partial_startup_keeps_router_watch_until_all_helper_roles_are_bound(self):
+        self.status.update(state="running", listeners_verified=True, safe_to_cleanup=False)
+        self.probe.watch_spec["roles"].insert(1, {**self.probe.watch_spec["roles"][1], "id": "frontend"})
+        complete_roles = [self.status["roles"][0],
+                          {"id": "frontend", "pid": 103, "pgid": 900, "ps_lstart": "frontend-start"},
+                          self.status["roles"][1]]
+        router_watch = Mock()
+        self.probe.router_watch = router_watch
+        # The same ordering applies to MLX: an engine can be published before
+        # its remaining helper roles. A missing role is not yet a bad identity.
+        self.status["roles"] = [role for role in complete_roles if role["id"] != "frontend"]
+        self.publish()
+        self.assertFalse(self.probe.observe_engine())
+        self.assertIsNone(self.probe.full_watch)
+        router_watch.finish.assert_not_called()
+        self.status["roles"] = complete_roles
+        self.publish()
+        with patch("fieldkit_runtime.probe._WatchHandle"), patch("fieldkit_runtime.probe.watcher.CoordinatedWatcher"):
+            self.assertTrue(self.probe.observe_engine())
+        self.assertIsNone(self.probe.router_watch)
+        self.assertEqual(self.probe.full_binding, {**binding(), "roles": complete_roles})
+        self.status["roles"][0]["ps_lstart"] = "rebound helper"
+        self.publish()
+        with self.assertRaises(ProbeError):
+            self.probe.validate_owned_boundary()
 
     def test_go_status_fractional_seconds_are_accepted(self):
         # Go's RFC3339Nano omits trailing zeros, producing any precision 0–9.

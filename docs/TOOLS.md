@@ -31,6 +31,8 @@ throttling or 512 MiB swap growth, and limits wired growth to the smaller of
 87.5% of RAM and the machine's reported wired limit. These are disclosed
 experiment stop policies, not measured preset limits. A sampled peak can miss
 short transients. No coding evaluator is required to initialize a study.
+Preview also lists each engine's helper-process limits. These are frozen with
+the approval; changing an adapter cannot enlarge an existing study's limits.
 
 ## Smoke and cache measurements
 
@@ -73,6 +75,13 @@ Omit it for source/deliverable review. Field Kit supplies model and streaming
 controls. A workload can contain steps in one process, or named sessions with
 their own steps and fresh processes. Generated files are examples of those forms.
 
+Formats default to `openai/v1`. For Flint, add `"model_adapter": "flint/v1"`
+at the workload's top level or pass `--model-adapter flint/v1` to `study run`.
+The choice is retained with the exact attempt. `append_previous` then preserves
+Flint reasoning and tool-call envelopes. Parse issues remain separate from
+quality, rate and memory observations. See [adapters](ADAPTERS.md) for supported
+formats and adding another one.
+
 ## Finished tasks with an existing harness
 
 A command workload runs the installed harness under the same engine/resource
@@ -88,8 +97,10 @@ documented command; this is a format example, not a bundled harness:
 ```
 
 Relative cwd resolves beside the workload file. The command is an argv list,
-executed without a shell. It receives FIELD_KIT_BASE_URL, FIELD_KIT_MODEL and
-FIELD_KIT_OUTPUT_DIR. Configure the harness to use that local endpoint/model.
+executed without a shell. It receives FIELD_KIT_BASE_URL, FIELD_KIT_MODEL,
+FIELD_KIT_OUTPUT_DIR and FIELD_KIT_MODEL_ADAPTER. Configure the harness to use
+that local endpoint/model and its selected format. The harness owns its own
+parsing and conversation replay; the adapter variable alone does not change it.
 A small adapter for an actual harness can translate these inputs; reuse it
 across studies. Keep candidate execution confined using that harness's controls.
 

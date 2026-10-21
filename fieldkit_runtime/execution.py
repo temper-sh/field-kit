@@ -9,13 +9,13 @@ import socket
 import subprocess
 import time
 from . import jobs, watcher, workloads
+from .adapters import engines, models
 from .common import Refusal, canonical_json, load_json
-from .measurements import watch_spec, rates, memory_record, classify_failure
+from .measurements import watch_spec, memory_record, classify_failure
 from .probe import ManagedProbe, ProbeError
 from .process import atomic_write, exclusive_lock, file_digest, run_process_progress, run_process_silent, runtime_identity
 from .serving import monitored_call
-from .splash_memory import SplashMemory
-from .stream import CodingStream
+from .stream import ChatStream
 from .temper import Temper
 
 def free_listen():
@@ -35,13 +35,13 @@ def remaining(deadline, maximum):
         raise TimeoutError("approved time budget exhausted")
     return value
 
-def measure_session(directory, run, session, root, deadline, budgets):
+def measure_session(directory, run, session, root, deadline, budgets, engine, model):
     stage = directory / "sessions" / session["id"]
     stage.mkdir(parents=True, exist_ok=False)
     probe = ManagedProbe(temper=Path(run["temper"]["path"]), root=root, installation="field-kit",
         execution_lock=directory / "execution.lock.json", generation=run["preparation"]["generation"],
         listen=free_listen(), log_dir=stage / "process",
-        watch_spec=watch_spec(run["resource_policy"], run["machine"], run["family"]),
+        watch_spec=watch_spec(run["resource_policy"], run["machine"], engine),
         router_ready_seconds=min(30, remaining(deadline, 30)), log_bytes_max=16 * 1024**2)
     atomic_write(stage / "intent.json", canonical_json({"root": str(root), "installation": "field-kit",
         "generation": run["preparation"]["generation"], "listen": probe.listen}))
@@ -51,22 +51,23 @@ def measure_session(directory, run, session, root, deadline, budgets):
     try:
         probe.start()
         preset = run["execution"]["preset"]
-        monitored_call(probe, f"/upstream/{preset}{workloads.health_path(run['family'])}", {},
+        monitored_call(probe, f"/upstream/{preset}{engine.health_path}", {},
                        remaining(deadline, 1800), method="GET")
         if not probe.observe_engine():
             raise ProbeError("engine identity unavailable after readiness")
         row["startup_seconds"] = time.monotonic() - started
         loaded = watcher.sample_macos(probe.full_binding, 15)
-        if run["family"] == "splash":
-            source = f"/upstream/{preset}/status"
-            native = SplashMemory(lambda: monitored_call(probe, source, {}, 2, method="GET"), source, 5)
+        native = engine.memory_observer(
+            lambda path: monitored_call(probe, path, {}, 2, method="GET"), preset)
+        if native:
             native.capture("loaded")
         if "command" in session:
             environment = dict(os.environ)
             output = stage / "output"
             output.mkdir()
             environment.update(FIELD_KIT_BASE_URL=f"http://{probe.listen}/v1",
-                               FIELD_KIT_MODEL=preset, FIELD_KIT_OUTPUT_DIR=str(output))
+                               FIELD_KIT_MODEL=preset, FIELD_KIT_OUTPUT_DIR=str(output),
+                               FIELD_KIT_MODEL_ADAPTER=model.identifier)
             task_started = time.monotonic()
             def observe():
                 probe.ensure_healthy()
@@ -90,12 +91,11 @@ def measure_session(directory, run, session, root, deadline, budgets):
                 folder.mkdir()
                 request = copy.deepcopy(step["request"])
                 if step.get("append_previous"):
-                    message = previous_response["message"]
                     request["messages"] = previous_request["messages"] + [
-                        {"role": "assistant", "content": message["content"]}] + request["messages"]
+                        model.assistant_message(previous_response)] + request["messages"]
                 body = {**request, "model": preset, "stream": True, "stream_options": {"include_usage": True}}
                 atomic_write(folder / "request.json", canonical_json(body))
-                stream = CodingStream(folder / "response.sse")
+                stream = ChatStream(folder / "response.sse")
                 observed = {"id": step["id"], "failure": None}
                 try:
                     response = monitored_call(probe, "/v1/chat/completions", body,
@@ -104,14 +104,15 @@ def measure_session(directory, run, session, root, deadline, budgets):
                 except (Exception, KeyboardInterrupt) as error:
                     observed["failure"] = {"kind": classify_failure(error), "message": str(error)}
                     response = stream.snapshot()
+                response = model.normalize(response, body)
                 atomic_write(folder / "response.json", canonical_json(response))
-                observed.update(rates(response), elapsed_seconds=response.get("service_seconds"),
+                observed.update(engine.metrics(response), elapsed_seconds=response.get("service_seconds"),
                     first_token_seconds=response.get("first_token_seconds"),
                     first_answer_seconds=response.get("first_answer_seconds"),
                     response_complete=response.get("stream_complete"),
                     finish_reason=response.get("finish_reason"),
                     correct=workloads.correct(response, step.get("expect")),
-                    cached_tokens=(response.get("usage") or {}).get("prompt_tokens_details", {}).get("cached_tokens"))
+                    model_format=response["model_format"])
                 row["steps"].append(observed)
                 atomic_write(stage / "observations.json", canonical_json(row))
                 previous_request, previous_response = request, response
@@ -130,7 +131,7 @@ def measure_session(directory, run, session, root, deadline, budgets):
         resources = probe.finish()
         row["resources"] = resources
         row["safe_to_cleanup"] = resources.get("safe_to_cleanup", False)
-        row["memory"] = memory_record(loaded, resources, native.result() if native else None)
+        row["memory"] = memory_record(loaded, resources, native.measurements() if native else None)
         row["memory"]["counter"] = "system-wired-growth"
         row["memory"]["units"] = "bytes"
         row["memory"]["limitations"] = "System wired growth includes other apps; process counters may omit GPU memory. Five-second sampling can miss peaks. Counters overlap."
@@ -153,6 +154,11 @@ def _execute(study, directory):
         state = study.load()
         if file_digest(directory / "execution.lock.json") != run["lock_sha256"] or file_digest(directory / "workload.json") != run["workload_sha256"]:
             raise Refusal("attempt inputs changed")
+        engine = engines.from_lock(load_json(directory / "execution.lock.json", 16 * 1024**2))
+        work = workloads.load(directory / "workload.json")
+        model = models.resolve(work["model_adapter"])
+        if run.get("engine_adapter", engine.identifier) != engine.identifier or run.get("model_adapter", model.identifier) != model.identifier:
+            raise Refusal("attempt adapters differ from its frozen inputs")
         temper = Temper(Path(run["temper"]["path"]))
         if temper.identity() != run["temper"]:
             raise Refusal("Temper changed after this attempt was reserved; prepare a new attempt")
@@ -161,6 +167,8 @@ def _execute(study, directory):
         if cache.is_symlink() or (cache / "hub").is_symlink():
             raise Refusal("study cache was replaced with a symlink; retain it for repair")
         run.update(worker=jobs.process_identity(os.getpid()), field_kit=runtime_identity(),
+                   engine_adapter=engine.identifier, model_adapter=model.identifier,
+                   model_adapter_scope="external-harness" if "command" in work else "request-workload",
                    state="preparing", safe_to_cleanup=False)
         save(directory, run)
     previous = signal.signal(signal.SIGTERM, interrupt)
@@ -183,7 +191,6 @@ def _execute(study, directory):
         run["preparation"] = {"generation": prepared["generation"]}
         run.update(state="measuring", safe_to_cleanup=True)
         save(directory, run)
-        work = workloads.load(directory / "workload.json")
         sessions = [{"id": "task", "command": work["command"], "cwd": work["cwd"]}] if "command" in work else work["sessions"]
         for session in sessions:
             run["safe_to_cleanup"] = False
@@ -193,7 +200,7 @@ def _execute(study, directory):
             try:
                 if "command" in session:
                     os.chdir(session["cwd"])
-                row = measure_session(directory, run, session, root, deadline, state["budgets"])
+                row = measure_session(directory, run, session, root, deadline, state["budgets"], engine, model)
             finally:
                 os.chdir(old_directory)
             run["sessions"].append(row)

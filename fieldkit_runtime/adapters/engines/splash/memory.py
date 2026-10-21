@@ -4,9 +4,9 @@ from __future__ import annotations
 import copy
 import time
 
-from .common import Refusal
-from .probe import ProbeError
-from .serving import HTTPResponseError
+from ....common import Refusal
+from ....probe import ProbeError
+from ....serving import HTTPResponseError
 
 SCHEMA = "field-kit-splash-memory/v1"
 
@@ -93,6 +93,9 @@ class SplashMemory:
     def poll(self):
         if self.clock() >= self.next_poll:
             self.capture("request")
+
+    def measurements(self):
+        return {"splash_native": self.result()}
 
     def result(self):
         return copy.deepcopy({**self.record, "state": state(self.record)})

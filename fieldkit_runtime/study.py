@@ -7,9 +7,10 @@ from pathlib import Path
 import shutil
 import time
 from . import jobs, workloads
+from .adapters import engines
 from .common import IDENTITY, Refusal, canonical_json, digest, load_json, read_regular
 from .material import validate_variant
-from .measurements import POLICY
+from .measurements import policy_for
 from .process import atomic_write, exclusive_lock, runtime_identity
 from .temper import Temper, locate
 
@@ -47,13 +48,11 @@ def candidate(temper, path):
     execution = temper.inspect(path)
     name = identity(execution["preset"])
     selected = lock["records"]["presets"][name]
-    family = lock["records"]["engines"][selected["engine"]]["adapter"].split("/")[0]
-    if family not in ("llama-server", "splash", "rapid-mlx", "vllm-metal"):
-        raise Refusal(f"no process-measurement support for {family}; see docs/REPAIR.md")
+    adapter = engines.from_lock(lock)
     if selected.get("interface") != "chat-completions":
         raise Refusal("this executor measures chat-completions candidates")
     return {"id": name, "lock": raw.decode(), "lock_sha256": digest(raw),
-            "execution": execution, "family": family}
+            "execution": execution, "family": adapter.family, "engine_adapter": adapter.identifier}
 
 def preview(temper, locks, brief, *, hours=8, download_gib=100, max_context=262144,
             request_seconds=1800, trial_seconds=14400):
@@ -72,7 +71,7 @@ def preview(temper, locks, brief, *, hours=8, download_gib=100, max_context=2621
     if known > download_gib * GIB:
         raise Refusal("declared material exceeds the proposed allowance; reuse/narrow candidates or review a larger scope")
     return {"schema": SCHEMA, "brief": text, "temper": temper.identity(), "machine": temper.machine_facts(),
-            "resource_policy": POLICY,
+            "resource_policy": policy_for(engines.resolve(row["engine_adapter"]) for row in candidates),
             "budgets": {"seconds": int(hours * 3600), "download_bytes": int(download_gib * GIB),
                         "context_tokens": max_context, "request_seconds": request_seconds, "trial_seconds": trial_seconds},
             "known_material_bytes": known,
@@ -86,6 +85,7 @@ def summary(document):
         records = json.loads(row["lock"])["records"]
         preset = records["presets"][row["id"]]
         candidates.append({"id": row["id"], "family": row["family"], "lock_sha256": row["lock_sha256"],
+            "engine_adapter": engines.from_lock(json.loads(row["lock"])).identifier,
             "profiles": preset["profiles"], "request_defaults": preset.get("request_defaults"),
             "speculation": preset.get("speculation"),
             "artifacts": list(records.get("artifacts", {})), "templates": list(records.get("templates", {}))})
@@ -143,7 +143,7 @@ class Study:
                 raise Refusal(f"owned runtime path was replaced with a symlink: {path}")
         return root
 
-    def reserve(self, name, workload_path, reason, lock_path=None, temper_path=None):
+    def reserve(self, name, workload_path, reason, lock_path=None, temper_path=None, *, model_adapter=None):
         if not reason.strip():
             raise Refusal("name the question or observation motivating this trial")
         with exclusive_lock(self.directory / ".lock"):
@@ -166,7 +166,8 @@ class Study:
             for key in ("chip", "physical_memory_bytes", "target"):
                 if facts.get(key) != state["machine"].get(key):
                     raise Refusal("machine differs from approved study")
-            work = workloads.load(workload_path)
+            work = workloads.load(workload_path, model_adapter=model_adapter)
+            engine = engines.from_lock(json.loads(chosen["lock"]))
             run_id = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
             directory = self.path_for(run_id)
             directory.mkdir(parents=True)
@@ -177,6 +178,8 @@ class Study:
                    "temper": temper.identity(), "field_kit": runtime_identity(), "machine": facts,
                    "resource_policy": state["resource_policy"],
                    "family": chosen["family"], "execution": chosen["execution"],
+                   "engine_adapter": engine.identifier, "model_adapter": work["model_adapter"],
+                   "model_adapter_scope": "external-harness" if "command" in work else "request-workload",
                    "lock_sha256": chosen["lock_sha256"], "workload_sha256": digest(canonical_json(work)),
                    "safe_to_cleanup": True, "sessions": [], "error": None}
             atomic_write(directory / "run.json", canonical_json(run))

@@ -9,8 +9,8 @@ from types import SimpleNamespace
 
 from fieldkit_runtime.common import Refusal
 from fieldkit_runtime.serving import HTTPResponseError, monitored_call
-from fieldkit_runtime.splash_memory import SplashMemory, review
-from fieldkit_runtime.stream import CodingStream
+from fieldkit_runtime.adapters.engines.splash.memory import SplashMemory, review
+from fieldkit_runtime.stream import ChatStream
 from fieldkit_runtime.probe import ProbeError
 
 GIB = 1024**3
@@ -163,7 +163,7 @@ class SplashMemoryTest(unittest.TestCase):
 
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        reader = CodingStream(Path(temporary.name) / "response.sse")
+        reader = ChatStream(Path(temporary.name) / "response.sse")
         response = monitored_call(probe, "/v1/chat/completions", {}, 3, streaming=True,
                                   stream_reader=reader, observer=memory.poll)
         memory.capture("final")

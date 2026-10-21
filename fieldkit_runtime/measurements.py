@@ -1,6 +1,7 @@
 """Measurements retained independently of task quality or harness completion."""
 from __future__ import annotations
 import subprocess
+from copy import deepcopy
 from typing import Any
 from . import watcher
 from .serving import HTTPResponseError
@@ -17,17 +18,22 @@ POLICY = {
 def engine_budget(facts, fraction):
     return min(int(facts["physical_memory_bytes"] * fraction), facts["wired_limit_mib"] * MIB)
 
-def watch_spec(protocol: dict[str, Any], facts: dict[str, Any], family: str) -> dict[str, Any]:
+def policy_for(adapters):
+    policy = deepcopy(POLICY)
+    policy["process_watch"]["helper_limits_by_adapter"] = {
+        adapter.identifier: dict(adapter.helper_limits) for adapter in adapters}
+    return policy
+
+
+def watch_spec(protocol: dict[str, Any], facts: dict[str, Any], adapter) -> dict[str, Any]:
     limits = protocol["process_watch"]
     engine = int(facts["physical_memory_bytes"] * limits["engine_memory_fraction"])
     helper = limits["helper_bytes_max"]
-    roles = [{"id": "engine", "limit": engine}, {"id": "router", "limit": helper}]
-    if family in ("splash", "vllm-metal"):
-        roles.append({"id": "frontend", "limit": helper})
-    if family == "vllm-metal":
-        roles.append({"id": "resource-tracker", "limit": helper})
-    if family == "rapid-mlx":
-        roles.append({"id": "crash-log", "limit": helper})
+    approved = limits.get("helper_limits_by_adapter", {}).get(adapter.identifier, {})
+    roles = [{"id": "engine", "limit": engine}]
+    # Existing approvals retain their original helper limit. Changed adapter
+    # defaults are prospective and cannot silently enlarge an approved study.
+    roles.extend({"id": role, "limit": approved.get(role, helper)} for role in adapter.helper_limits)
     return {
         "schema": watcher.WATCH_SCHEMA,
         "interval_milliseconds": limits["interval_milliseconds"],
@@ -57,25 +63,6 @@ def classify_failure(error: BaseException) -> str:
     return "runtime-failure"
 
 
-def rates(response: dict[str, Any]) -> dict[str, Any]:
-    """Native engine rates when the engine reports them; never estimated."""
-    timings = response.get("timings") or {}
-
-    def rate(tokens: str, milliseconds: str) -> float | None:
-        count, elapsed = timings.get(tokens), timings.get(milliseconds)
-        if type(count) is int and count > 0 and type(elapsed) in (int, float) and elapsed > 0:
-            return count * 1000 / elapsed
-        return None
-
-    usage = response.get("usage") or {}
-    return {
-        "input_tokens": usage.get("prompt_tokens"),
-        "output_tokens": usage.get("completion_tokens"),
-        "prefill_tokens_per_second": rate("prompt_n", "prompt_ms"),
-        "generation_tokens_per_second": rate("predicted_n", "predicted_ms"),
-    }
-
-
 def memory_record(loaded: dict[str, Any] | None, resources: dict[str, Any], native: dict[str, Any] | None) -> dict[str, Any]:
     engine_loaded = ((loaded or {}).get("roles") or {}).get("engine") or {}
     engine_peak = (resources.get("roles") or {}).get("engine") or {}
@@ -92,5 +79,5 @@ def memory_record(loaded: dict[str, Any] | None, resources: dict[str, Any], nati
         "peak_roles": resources.get("roles"),
     }
     if native is not None:
-        record["splash_native"] = native
+        record.update(native)
     return record

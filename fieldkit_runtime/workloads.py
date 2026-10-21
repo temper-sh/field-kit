@@ -4,10 +4,12 @@ import hashlib
 import json
 from pathlib import Path
 from .common import Refusal, IDENTITY, load_json
+from .adapters import models
 
 def validate(document):
     if not isinstance(document, dict) or not isinstance(document.get("question"), str) or not document["question"].strip():
         raise Refusal("workload needs a question")
+    document = {**document, "model_adapter": models.resolve(document.get("model_adapter", models.DEFAULT)).identifier}
     if "command" in document:
         if any(key in document for key in ("request", "sessions", "steps")):
             raise Refusal("choose a command or requests, not both")
@@ -54,14 +56,16 @@ def validate(document):
                 raise Refusal("expect is one of json, text or tool")
     return {**document, "sessions": sessions}
 
-def load(path):
+def load(path, *, model_adapter=None):
     document = load_json(path, 64 * 1024**2)
+    if model_adapter is not None:
+        document["model_adapter"] = model_adapter
     if "cwd" in document:
         document["cwd"] = str((path.parent / document["cwd"]).resolve())
     return validate(document)
 
 def correct(response, expected):
-    if expected is None:
+    if expected is None or response.get("model_format", {}).get("state") in ("invalid", "partial"):
         return None
     message = response.get("message") or {}
     try:
@@ -126,6 +130,3 @@ def generate(kind, records=256, output_tokens=512):
                       "expect": {"json": [replacement, *expected[1:]]}})
     return validate({"question": "Observe populated input, continuation" + (" and early-edit invalidation." if kind == "cache" else "."),
                      "input_records": records, "steps": steps})
-
-def health_path(family):
-    return "/health/ready" if family == "rapid-mlx" else "/health"

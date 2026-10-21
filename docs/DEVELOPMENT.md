@@ -23,7 +23,7 @@ The process probe, macOS resource watcher, response-stream capture and Splash
 native-memory observer retain their focused tests. New study/execution code
 uses those boundaries. Model-specific planning, coding gates, the fixed Flask
 executor/oracle and per-campaign preparation command were retired from this
-branch. Their history remains on master at 75629ad.
+branch. Their history remains on legacy at 75629ad.
 
 Old active studies keep their original runtime and state. No implicit migration
 or destructive cleanup of those studies is performed here.
@@ -37,15 +37,20 @@ or destructive cleanup of those studies is performed here.
 | material | Comparison of fixed Temper material with settings variants |
 | workloads | Reusable request inputs and narrow semantic answer checks |
 | jobs | Bound worker identity, detached launch, stop and blocking wait |
-| measurements | Native rates and named memory counters |
+| adapters/engines | Readiness, helper roles, native rates and optional native memory observers |
+| adapters/models | Format decoding and assistant-history serialization, independent of engine |
+| measurements | Approved resource limits and common named memory counters |
 | probe / watcher | Temper process binding, shutdown and resource observation |
-| serving / stream / splash_memory | HTTP capture and engine observations |
+| serving / stream | Bounded HTTP and raw chat-completions capture |
 | export | Complete idle-study return, including defects and local patches |
 | temper | Installed public execution commands; no catalog/installer duplication |
 
 A new study should normally add knowledge and workload inputs. Completed work
 uses existing harnesses and project tests. Add an adapter only for a real
-interface gap; do not create a new executor per study.
+interface gap; do not create a new executor per study. The
+[adapter guide](ADAPTERS.md) covers the extension contracts, registration and
+Flint's format/history behavior. Existing formats need only a lock and input;
+each genuinely new engine or format gets one folder and one registry entry.
 
 Versioned briefs and inputs live in studies/. Generated execution state lives
 in .work/studies/ and stays outside version control. Historical runs are not

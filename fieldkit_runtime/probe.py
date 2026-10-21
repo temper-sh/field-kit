@@ -263,7 +263,8 @@ class ManagedProbe:
         if self.full_watch is not None:
             return True
         status = self._status()
-        if not status or not any(r["id"] == "engine" for r in status["roles"]):
+        required = {role["id"] for role in self.watch_spec["roles"]}
+        if not status or not required.issubset({role["id"] for role in status["roles"]}):
             return False
         self.full_binding = self._binding(status, self.watch_spec)
         if self.router_watch is not None:
