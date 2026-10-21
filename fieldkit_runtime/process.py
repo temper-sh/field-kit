@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +27,7 @@ class CommandResult:
     stdout: bytes
     stderr: bytes
     returncode: int
+    stop_reason: str | None = None
 
 
 class CommandFailure(RuntimeError):
@@ -48,8 +50,6 @@ def _copy_stream(source: Any, destination: Any | None, capture: bytearray) -> No
 
 
 def _stop_group(process: subprocess.Popen[bytes]) -> None:
-    if process.poll() is not None:
-        return
     try:
         os.killpg(process.pid, signal.SIGTERM)
         process.wait(timeout=10)
@@ -59,20 +59,45 @@ def _stop_group(process: subprocess.Popen[bytes]) -> None:
         except ProcessLookupError:
             pass
         process.wait(timeout=5)
+    # Reap owned background helpers even when the group leader already exited.
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
 
 
 def _run_process(
     arguments: Sequence[str],
     timeout_seconds: float,
     destinations: tuple[Any | None, Any | None],
-    *, environment: dict[str, str] | None = None,
+    *, environment: dict[str, str] | None = None, identity_path=None, observer=None,
 ) -> CommandResult:
     # Temper needs the caller's HOME, HF cache settings and PATH to locate its
     # download client. Temper owns its runtime isolation.
-    process = subprocess.Popen(
-        list(arguments), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        start_new_session=True, env=environment,
-    )
+    from .common import canonical_json
+    from .jobs import process_identity
+    if identity_path is not None:
+        atomic_write(identity_path, canonical_json({"state": "starting", "argv": list(arguments)}))
+    try:
+        process = subprocess.Popen(
+            list(arguments), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            start_new_session=True, env=environment,
+        )
+    except OSError as error:
+        if identity_path is not None:
+            atomic_write(identity_path, canonical_json({"state": "not-started", "argv": list(arguments), "error": str(error)}))
+        raise
+    try:
+        owned = process_identity(process.pid) if identity_path is not None else None
+    except BaseException:
+        _stop_group(process)
+        process.stdout.close()
+        process.stderr.close()
+        if identity_path is not None:
+            atomic_write(identity_path, canonical_json({"state": "exited", "process": None, "argv": list(arguments)}))
+        raise
+    if identity_path is not None:
+        atomic_write(identity_path, canonical_json({"state": "running", "process": owned, "argv": list(arguments)}))
     assert process.stdout is not None and process.stderr is not None
     stdout = bytearray()
     stderr = bytearray()
@@ -84,8 +109,18 @@ def _run_process(
         thread.start()
     timed_out = False
     interrupted = False
+    failure = None
     try:
-        returncode = process.wait(timeout=timeout_seconds if timeout_seconds > 0 else None)
+        deadline = time.monotonic() + timeout_seconds if timeout_seconds > 0 else float("inf")
+        while True:
+            try:
+                returncode = process.wait(timeout=min(0.2, max(0, deadline - time.monotonic())))
+                break
+            except subprocess.TimeoutExpired:
+                if time.monotonic() >= deadline:
+                    raise
+                if observer is not None:
+                    observer()
     except subprocess.TimeoutExpired:
         timed_out = True
         _stop_group(process)
@@ -94,15 +129,28 @@ def _run_process(
         interrupted = True
         _stop_group(process)
         returncode = 130
+    except Exception as error:
+        failure = error
+        _stop_group(process)
+        returncode = 1
+    _stop_group(process)
     for thread in threads:
-        thread.join()
+        thread.join(timeout=10)
+        if thread.is_alive():
+            raise Refusal("owned command log reader did not stop; retain process evidence")
     process.stdout.close()
     process.stderr.close()
+    if identity_path is not None:
+        atomic_write(identity_path, canonical_json({"state": "exited", "process": owned,
+                     "argv": list(arguments), "returncode": returncode}))
+    if failure is not None:
+        stderr.extend((str(failure) + "\n").encode())
     if timed_out:
         stderr.extend(f"Field Kit stopped the command after {timeout_seconds:.0f} seconds\n".encode())
     if interrupted:
         stderr.extend(b"Field Kit stopped the command after interruption\n")
-    return CommandResult(bytes(stdout), bytes(stderr), returncode)
+    reason = "timeout" if timed_out else "interrupted" if interrupted else str(failure) if failure else None
+    return CommandResult(bytes(stdout), bytes(stderr), returncode, reason)
 
 
 def run_process(arguments: Sequence[str], timeout_seconds: float = 0) -> CommandResult:
@@ -110,14 +158,18 @@ def run_process(arguments: Sequence[str], timeout_seconds: float = 0) -> Command
     return _run_process(arguments, timeout_seconds, (sys.stdout, sys.stderr))
 
 
-def run_process_silent(arguments: Sequence[str], timeout_seconds: float = 0, *, environment=None) -> CommandResult:
+def run_process_silent(arguments: Sequence[str], timeout_seconds: float = 0, *, environment=None,
+                       identity_path=None, observer=None) -> CommandResult:
     """Run one exact argv while reserving stdout for a canonical CLI response."""
-    return _run_process(arguments, timeout_seconds, (None, None), environment=environment)
+    return _run_process(arguments, timeout_seconds, (None, None), environment=environment,
+                        identity_path=identity_path, observer=observer)
 
 
-def run_process_progress(arguments: Sequence[str], timeout_seconds: float = 0, *, environment=None) -> CommandResult:
+def run_process_progress(arguments: Sequence[str], timeout_seconds: float = 0, *, environment=None,
+                         identity_path=None, observer=None) -> CommandResult:
     """Show the command's progress on stderr; keep stdout for its JSON document."""
-    return _run_process(arguments, timeout_seconds, (None, sys.stderr), environment=environment)
+    return _run_process(arguments, timeout_seconds, (None, sys.stderr), environment=environment,
+                        identity_path=identity_path, observer=observer)
 
 
 Runner = Callable[[Sequence[str], float], CommandResult]

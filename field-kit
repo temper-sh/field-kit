@@ -1,44 +1,17 @@
 #!/bin/sh
-# Select Python once. The first run asks the installed Temper for Field Kit's own Python.
+# Reuse installed Python. Reading help and discovery must never install software.
 set -eu
 field_kit_directory=$(CDPATH='' cd "$(dirname "$0")" && pwd -P)
-field_kit_local="$field_kit_directory/.local"
 export PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1
 check_python() {
     [ -n "$1" ] && [ -x "$1" ] && "$1" -B -S -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' 2>/dev/null
 }
-install_python() {
-    temper=$(command -v temper 2>/dev/null || true)
-    [ -n "$temper" ] || {
-        printf '%s\n' 'field-kit: Field Kit needs Temper 0.3.1 or newer. Install it with: brew install temper-sh/temper/temper' >&2
-        exit 1
-    }
-    [ ! -L "$field_kit_local" ] || { printf '%s\n' 'field-kit: refusing a symlink at .local' >&2; exit 1; }
-    mkdir -p "$field_kit_local"
-    lock="$field_kit_directory/runtime/python-macos-arm64.lock.yaml"
-    printf '%s\n' "field-kit: installing Field Kit's own Python through Temper (about 27 MB, once) ..." >&2
-    # Temper checks archive modes; keep their group and other bits during extraction.
-    output=$(umask 022 && "$temper" software install --root "$field_kit_local/python" --installation field-kit-python \
-        --lock "$lock" 2>&1) || { printf '%s\n' "$output" 'field-kit: Temper could not install Python.' >&2; exit 1; }
-    check=$("$temper" software check --root "$field_kit_local/python" --installation field-kit-python --lock "$lock" --json) || true
-    [ "$(printf '%s' "$check" | plutil -extract status raw -o - - 2>/dev/null)" = exact ] || {
-        printf '%s\n' 'field-kit: Temper could not verify the Python installation.' >&2; exit 1;
-    }
-    candidate="$(printf '%s' "$check" | plutil -extract units.0.location raw -o - -)/bin/python3"
-    check_python "$candidate" || { printf '%s\n' 'field-kit: Temper did not return a working Python.' >&2; exit 1; }
-    printf '%s\n' "$candidate" > "$field_kit_local/.python-path.new"
-    mv "$field_kit_local/.python-path.new" "$field_kit_local/python-path"
-}
-if [ -n "${FIELD_KIT_PYTHON:-}" ]; then
-    check_python "$FIELD_KIT_PYTHON" || { printf '%s\n' 'field-kit: FIELD_KIT_PYTHON must name a working Python 3.9 or newer' >&2; exit 1; }
-    python_path=$FIELD_KIT_PYTHON
-else
-    [ -f "$field_kit_local/python-path" ] || install_python
-    [ ! -L "$field_kit_local/python-path" ] || { printf '%s\n' 'field-kit: refusing a symlink at .local/python-path' >&2; exit 1; }
-    python_path=$(cat "$field_kit_local/python-path")
-    check_python "$python_path" || {
-        printf '%s\n' "field-kit: Field Kit's Python is unavailable. Remove .local/python-path and run ./field-kit again." >&2
-        exit 1
-    }
+field_kit_python=${FIELD_KIT_PYTHON:-}
+if [ -z "$field_kit_python" ]; then
+    field_kit_python=$(command -v python3 2>/dev/null || true)
 fi
-exec "$python_path" -B -S -u -c 'import sys; sys.path.insert(0, sys.argv.pop(1)); from fieldkit_runtime.cli import main; sys.exit(main())' "$field_kit_directory" "$@"
+if ! check_python "$field_kit_python"; then
+    printf '%s\n' 'field-kit: set FIELD_KIT_PYTHON to an installed Python 3.9+ executable. No software was installed.' >&2
+    exit 1
+fi
+exec "$field_kit_python" -B -S -u -c 'import sys; sys.path.insert(0, sys.argv.pop(1)); from fieldkit_runtime.cli import main; sys.exit(main())' "$field_kit_directory" "$@"

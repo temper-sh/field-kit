@@ -1,54 +1,54 @@
 # Field Kit
 
-Find useful Qwen presets for your Mac: quality that holds up under review,
-speed, memory use, cache behavior and a context size tested with real input.
+Find useful local-AI presets for your Mac and return evidence that improves
+Temper's catalog.
 
-An AI agent checks the hardware, chooses unanswered questions this Mac can
-help with, and runs a bounded study. Larger Macs can fill engine and context
-gaps left by the reference M5 / 32 GiB.
+Your agent researches options, measures promising configurations, reviews their
+work and follows the evidence toward useful quality, speed, memory and context
+tradeoffs. Field Kit supplies supervised execution, measurements and recovery.
 
-## Current experiments
+The runner supports Apple Silicon, installed Temper 0.3.0+ and Python 3.9+.
+This rebuild has offline verification; native execution still needs an approved
+trial. Earlier studies keep their original runtime.
 
-| Experiment | Question | Requirements | Status |
-|---|---|---|---|
-| [Qwen hardware study](docs/experiments/qwen-hardware.md) | Which Qwen quant, engine and settings work best on this hardware? | Apple Silicon; Temper 0.3.1+ and hf; an AI coding agent; enough memory/disk for selected candidates; a grading Python environment. | Available for local validation. Complete hardware studies are still needed before new catalog claims. |
+## Start with your agent
 
-## Start with one message
+> Help me find the best supported presets for this Mac using Field Kit.
+> Read AGENTS.md and docs/ASSISTANT.md. Use my installed Temper unless I
+> specify another version. Start from relevant catalog evidence, agree the
+> scope, investigate promising candidates, recover from tool problems and
+> include problems and repairs in the return.
 
-```text
-Help me find the maximum usable Qwen presets for this Mac. Use my Field Kit folder if I have one, or clone https://github.com/temper-sh/field-kit into ~/field-kit, then follow docs/ASSISTANT.md. Prioritize evidence missing from the catalog, plan useful extensions after healthy passes, investigate results that conflict with expectations, review coding quality during the study, and clean up owned resources afterwards.
-```
-
-The agent prepares candidates and explains the downloads, time and limits.
-You approve the study once. It continues useful tuning within that scope after
-healthy passes; different weights, engines or templates require another plan.
-An exhausted test budget leaves the upper boundary open.
-
-For the tester's M5 Pro / 64 GiB, the [Q4 campaign](docs/experiments/qwen-q4-64.md)
-compares engines first, then assesses and tunes the strongest candidate.
-
-The workflow is smoke → engine measurements → reviewed quality → diagnosis and tuning → final
-confirmation. Quality assessments allow the model to test and repair its code.
-Performance trials use one response, with a review for degradation; they do not
-repeat the full quality run. A submitted patch does not count as successful coding work.
-
-## What stays on your Mac
-
-Every trial stops its engine. Study-owned downloads and software are reused
-across trials and removed when the study closes. Your existing caches and
-installations are preserved. Results, patches, reviews, exact configurations
-and important failures stay available for inspection and optional sharing.
-Nothing uploads automatically.
-
-A short standalone check is also available:
+For a first read-only check:
 
 ```sh
-./field-kit check --preview
-./field-kit check
+./field-kit doctor
 ```
 
-This defaults to a Qwen smoke test. The [run guide](docs/START.md) covers setup,
-stopping, recovery and cleanup. The [measurement reference](docs/experiments/basic-check.md)
-defines the evidence. [Development](docs/DEVELOPMENT.md) covers offline checks.
+The agent prepares a brief and exact candidates. You approve material and
+resource limits once; the agent chooses useful trials within that scope.
+New studies usually need prose and workload inputs rather than another runner.
+
+## What comes back
+
+Measurements retain exact configurations, hardware, request sizes, native rates
+where available, elapsed time, loaded/peak memory and limitations. The agent
+adds comparative quality review, chosen presets, open questions and reports of
+defects encountered, including successful local repairs.
+
+Results owns maintained public comparisons. Temper owns the installable catalog.
+Field Kit returns evidence and proposals. Sharing and publication are explicit.
+
+Study-owned software and weights are reused across trials. Close removes them
+after verified shutdown, retaining evidence and repair reports. Existing user
+installations are preserved. Nothing uploads automatically.
+
+- [Guide the investigation](docs/ASSISTANT.md)
+- [Research method](docs/METHOD.md)
+- [Temper operations](docs/TEMPER.md)
+- [Field Kit tools](docs/TOOLS.md)
+- [Recover and report problems](docs/REPAIR.md)
+- [Studies](studies/README.md)
+- [Development](docs/DEVELOPMENT.md)
 
 Licensed under [0BSD](LICENSE).

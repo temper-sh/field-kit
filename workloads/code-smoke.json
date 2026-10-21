@@ -1,0 +1,12 @@
+{
+  "question": "One-shot coding screen: inspect the proposed code and tests; no automatic qualification.",
+  "request": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "Implement a Python function merge_intervals(intervals) for half-open integer intervals [start, end). Reject reversed intervals. Ignore empty intervals. Merge overlapping or adjacent intervals, preserve negative endpoints, return sorted non-overlapping tuples, and do not mutate the input. Include a small set of tests that distinguish these cases. Return code and tests."
+      }
+    ],
+    "max_tokens": 2048
+  }
+}
