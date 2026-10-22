@@ -45,7 +45,8 @@ def status(directory):
     result["observations"] = [{"session": row["id"], "steps": row.get("steps", []),
         "command": row.get("command"),
         "requests": {key: (row.get("requests") or {}).get(key) for key in
-                     ("requests", "models", "other_models", "errors", "input_tokens", "output_tokens")}
+                     ("requests", "models", "other_models", "errors", "input_tokens", "output_tokens",
+                      "usage_missing", "observed_output_tokens")}
                     if row.get("requests") else None,
         "memory": {key: row.get("memory", {}).get(key) for key in
                    ("counter", "units", "engine_loaded_wired_bytes", "engine_peak_wired_bytes", "swap_growth_bytes")},

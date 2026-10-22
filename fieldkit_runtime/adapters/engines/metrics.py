@@ -38,6 +38,14 @@ def llama_timings(response):
     """
     result = chat_usage(response)
     timings = mapping(response.get("timings"))
+    # An interrupted stream reports no usage; the engine's last streamed timings still count what it did.
+    observed_output, newly_read, cached = (count(timings.get(key)) for key in ("predicted_n", "prompt_n", "cache_n"))
+    if result["output_tokens"] is None and observed_output is not None:
+        result["observed_output_tokens"] = observed_output
+    if result["input_tokens"] is None and newly_read is not None and cached is not None:
+        result["observed_input_tokens"] = newly_read + cached
+    if "observed_output_tokens" in result or "observed_input_tokens" in result:
+        result["observed_token_source"] = "native timings, last streamed value; usage was not reported, so partial"
     for label, prefix in (("prefill", "prompt"), ("generation", "predicted")):
         field = prefix + "_per_second"
         rate, source = number(timings.get(field)), None

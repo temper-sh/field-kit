@@ -198,9 +198,17 @@ class Relay:
         for row in rows:
             if row["model"] is not None:
                 models[row["model"]] = models.get(row["model"], 0) + 1
-        total = lambda key: sum(row.get(key) or 0 for row in rows)
-        return {"requests": len(rows), "models": models,
+        generations = [row for row in rows if row["path"].split("?")[0].endswith("completions")]
+        def total(key, partial=None):
+            """A sum only when every generation request reported it; unknown stays unknown."""
+            values = [row.get(key) if row.get(key) is not None else row.get(partial) if partial else None for row in generations]
+            return sum(values) if all(value is not None for value in values) else None
+        missing = sum(1 for row in generations if row.get("output_tokens") is None)
+        return {"requests": len(rows), "generation_requests": len(generations), "models": models,
                 "other_models": sorted(name for name in models if name != self.preset),
                 "errors": sum(1 for row in rows if row["error"] or (row["status"] or 0) >= 400),
                 "input_tokens": total("input_tokens"), "output_tokens": total("output_tokens"),
+                "usage_missing": missing,
+                "observed_output_tokens": total("output_tokens", "observed_output_tokens"),
+                "observed_output_complete": missing == 0,
                 "rows": rows}

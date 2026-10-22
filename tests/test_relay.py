@@ -54,6 +54,9 @@ class Engine:
                     self.reply(200, "text/event-stream", STREAM, chunks=5)
                 elif self.path == "/json":
                     self.reply(200, "application/json", json.dumps({"usage": {"prompt_tokens": 7}, "data": []}).encode())
+                elif self.path == "/upstream/preset-a/v1/chat/completions":
+                    self.reply(200, "text/event-stream", b"data: " + json.dumps({"choices": [{"index": 0, "delta": {"content": "x"}}],
+                               "timings": {"prompt_n": 100, "cache_n": 800, "predicted_n": 3600, "predicted_per_second": 30.0}}).encode() + b"\n\n")
                 elif self.path == "/garbage":
                     self.reply(200, "text/event-stream", b"data: {not json\n\n" + STREAM)
                 elif self.path == "/forever":
@@ -141,6 +144,16 @@ class RelayTest(unittest.TestCase):
             self.assertEqual(connection.getresponse().status, 502)
             connection.close()
         self.assertIn("ConnectionRefusedError", relay.summary()["rows"][0]["error"])
+
+    def test_an_interrupted_stream_keeps_its_totals_unknown_and_its_native_count(self):
+        status, _, data = self.send("POST", "/upstream/preset-a/v1/chat/completions", {"model": "preset-a", "stream": True})
+        self.send("POST", "/v1/chat/completions", {"model": "preset-a", "stream": True})
+        row = self.row(1)
+        self.assertEqual((row["output_tokens"], row["observed_output_tokens"], row["observed_input_tokens"]), (None, 3600, 900))
+        self.assertIn("partial", row["observed_token_source"])
+        summary = json.loads((self.folder / "index.json").read_text())
+        self.assertEqual((summary["output_tokens"], summary["input_tokens"], summary["usage_missing"]), (None, None, 1))
+        self.assertEqual((summary["observed_output_tokens"], summary["observed_output_complete"]), (3602, False))
 
     def test_a_broken_event_never_breaks_forwarding(self):
         status, _, data = self.send("POST", "/garbage", {"model": "preset-a", "stream": True})

@@ -99,8 +99,12 @@ them. Plan paths resolve beside the plan file:
    "reason": "Same task on Flint", "engine": "flint-65536.json", "model_adapter": "flint/v1"}]}
 ```
 
-`./field-kit study queue my-study --plan plan.json` checks the whole plan first,
-then runs each attempt like `study run`. It stops after any attempt that did not
+`./field-kit study queue my-study --plan plan.json` first validates every
+attempt against its candidate (the workload against the preset's interface, each
+variant against the approved material) and freezes copies of the workloads,
+locks and engine declarations in the queue's folder. Every attempt then runs
+from its frozen copy, so editing a file during the queue cannot change a matched
+comparison. It runs each attempt like `study run`. It stops after any attempt that did not
 complete: it failed, was interrupted, was stopped by the resource watch or could
 not prove its shutdown. A harness's own exit status is evidence, not a stop. Create
 `STOP` in the study folder to stop after the current attempt; `study stop`
@@ -216,8 +220,11 @@ request and response through unchanged and keeps each exchange in the session's
 path, status, wall time, first byte and first token, finish reason, usage and
 the engine's native prefill/generation rates where it reports them. The session
 row's `requests` lists them and names every model the harness asked for;
-`other_models` shows any that differ from the preset. Do not fabricate
-aggregates from them. A harness that ignores the supplied endpoints bypasses
+`other_models` shows any that differ from the preset. A total stays unknown
+when any generation request lacks usage, as an interrupted one does;
+`usage_missing` counts those. Where the engine's streamed timings still counted
+the work, `observed_output_tokens` reports it as partial, with its source.
+Do not fabricate aggregates from them. A harness that ignores the supplied endpoints bypasses
 the relay, so check `requests` before drawing a model-quality conclusion.
 
 Use ordinary project tests and comparative source review. The agent writes

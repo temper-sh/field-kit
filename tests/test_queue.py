@@ -55,6 +55,35 @@ class QueueTest(unittest.TestCase):
         self.assertEqual([row["run"] for row in result["attempts"]], self.study.load()["runs"])
         self.assertEqual(load_json(Path(result["record"]))["attempts"], result["attempts"])
 
+    def test_inputs_are_frozen_before_the_first_attempt(self):
+        original = (self.root / "smoke.json").read_bytes()
+        def edit_between(study, directory):
+            attempt.execute(study, directory)
+            changed = workloads.generate("smoke")
+            changed["request"]["messages"][0]["content"] = "A different prompt"
+            (self.root / "smoke.json").write_bytes(canonical_json(changed))
+        self.study.context = fake_context(answer)
+        result = attempt_queue.run(self.study, self.plan({}, {}), edit_between)
+        self.assertEqual([row["state"] for row in result["attempts"]], ["complete", "complete"])
+        sent = [load_json(self.study.directory / "runs" / row["run"] / "workload.json") for row in result["attempts"]]
+        self.assertEqual(sent[0], sent[1])
+        self.assertNotIn("A different prompt", canonical_json(sent[1]).decode())
+        self.assertNotEqual((self.root / "smoke.json").read_bytes(), original)
+        self.assertEqual(len(result["frozen_inputs"]), 2)
+
+    def test_a_workload_or_variant_that_cannot_run_is_refused_before_anything_runs(self):
+        (self.root / "rerank.json").write_bytes(canonical_json({"question": "Rank", "steps": [
+            {"id": "one", "request": {"query": "q", "documents": ["a"]}}]}))
+        changed = lock()
+        changed["records"]["engines"]["engine"]["release"] = "another"
+        (self.root / "other.lock.json").write_bytes(canonical_json(changed))
+        for extra, message in (({"workload": "rerank.json"}, "chat-completions"),
+                               ({"lock": "other.lock.json"}, "new study plan")):
+            with self.subTest(message=message), self.assertRaisesRegex(Refusal, "queue attempt 2: .*" + message):
+                self.run_queue(self.plan({}, extra))
+        self.assertEqual(self.study.load()["runs"], [])
+        self.assertFalse(any((self.study.directory / "queues").glob("*/inputs")))
+
     def test_a_stop_file_ends_the_queue_before_the_next_attempt(self):
         (self.study.directory / "STOP").touch()
         result = self.run_queue(self.plan({}, {}))
