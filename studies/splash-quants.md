@@ -56,7 +56,10 @@ which candidate has better design. The old Flask task machinery is not a
 dependency of this study.
 
 Use one existing coding harness and version, with identical instructions,
-tools, dependencies and prospective repair/time allowances. Each candidate
+tools, dependencies and prospective repair/time allowances. Field Kit's bundled
+[coding harness](../harnesses/coding/README.md) supplies the tool protocol,
+sandboxed grading and three historical tasks; those count only as labelled
+regressions here. Each candidate
 starts from a clean copy of the same source. Feed it its own test results and
 allow it to finish the task within that scope. Preserve first and final states.
 A fixed eight-response stop is not a definition of finished work. The harness

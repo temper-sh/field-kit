@@ -1,0 +1,15 @@
+{
+  "files": {
+    "tasks/flask/THIRD-PARTY.md": "3bd5cc3656f4d188f7e2581d611ff56864f4cba372e27328e488034e722b5afd",
+    "tasks/flask/cases.json": "5613ae67c1f80f2952c82dcae400351e4675539020e8ae5d02ed3ef795f6a203",
+    "tasks/flask/flask.tar.gz": "6edd2012babb7ff2fc6d2de562feb562861c513d89e42a5f12de3c2fdb185e87",
+    "tasks/flask/reference/async-stream.json": "ffed302b3545adc2e8e5096c26abe2550200dd61bffa0883890d59081d7eecd4",
+    "tasks/flask/reference/template-decorators.json": "2617a1d4bf2ada22d7f3d77951cf903c10b5b891f2cd78c53f972d6347d4ba4b",
+    "tasks/flask/review/async-stream/test_context_guards.py": "2d0c87ef2b1e26e2ff446932c2fde18ed8d8e4951a1a49281c38cff6847254f6",
+    "tasks/flask/review/template-decorators/test_blueprint_delegation.py": "9aab7a1c8be811d96770e141b0924c020d8dbe14d0c28475a18afa750cb810e5",
+    "tasks/flask/review/template-decorators/test_decorator_arguments.py": "4f736b441455ac839bd52ccf5c9c13a35389b9a0bc37095b8b6f70026f920260",
+    "tasks/pagination/cases.json": "82adc5f59e43f8682980e07fa38ab2157decdaf0cee8e8889111262bc72d5153",
+    "tasks/pagination/fixture.tar.gz": "a19b5f172f1d867bf1187b2e711fe21ab93e0bc63a4d9b2173451f260022195e",
+    "tasks/pagination/reference/pagination-repair.json": "cffc7460462979283d974889410ec00294d55a62e6e7dedb6b54abafc336dd25"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "cases": [
+    {
+      "id": "pagination-repair",
+      "original_tests": [
+        "tests/test_pagination.py"
+      ],
+      "candidate_test_prefix": "tests/test_candidate_",
+      "oracle": "oracle/test_acceptance.py",
+      "edit_scope": {
+        "existing_files": [
+          "pagination.py"
+        ],
+        "new_file_prefixes": [
+          "tests/test_candidate_"
+        ]
+      },
+      "request": {
+        "messages": [
+          {
+            "role": "system",
+            "content": ""
+          },
+          {
+            "role": "user",
+            "content": "Repair collect_pages(fetch_page, query) in pagination.py.\n\nThe endpoint can return an empty items list while still having another page.\nOnly missing next_cursor or next_cursor=None ends pagination. All other cursors\nare opaque strings, including the empty string. Preserve item order and duplicates.\nFollow the initial cursor in query when supplied. Detect a repeated cursor before\nfetching that cursor again, including a repeat of the initial cursor, and raise\nthe existing PaginationCycleError. Propagate fetch exceptions unchanged.\nDo not mutate the caller's query. Give each fetch a distinct parameter dictionary\nso previously captured requests stay unchanged. fetch_page itself does not mutate\nits arguments. Pages have an items list and optional string-or-None next_cursor;\nvalidation of other response shapes and asynchronous fetching are outside scope.\n\nPreserve the public function signature and exception class. Add useful regression\ntests using unittest in tests/test_candidate_*.py. Only pagination.py and those\nnew tests may change. Existing tests are supplied below and run from their frozen\noriginal copy. All source needed for the task is included; no inspection tool exists.\n\n\nFILE pagination.py\n```python\n\"\"\"Collect a cursor-paginated endpoint using an injected fetch function.\"\"\"\n\n\nclass PaginationCycleError(RuntimeError):\n    pass\n\n\ndef collect_pages(fetch_page, query):\n    items = []\n    params = dict(query)\n    while True:\n        page = fetch_page(params)\n        items.extend(page[\"items\"])\n        cursor = page.get(\"next_cursor\")\n        if not page[\"items\"] or not cursor:\n            return items\n        params[\"cursor\"] = cursor\n```\n\n\nFILE tests/test_pagination.py\n```python\nimport unittest\nfrom pagination import collect_pages\n\n\nclass PaginationTests(unittest.TestCase):\n    def test_single_page(self):\n        self.assertEqual(collect_pages(lambda _: {\"items\": [1, 2]}, {}), [1, 2])\n\n    def test_normal_two_pages_and_query(self):\n        queries = []\n        def fetch(params):\n            queries.append(dict(params))\n            if \"cursor\" not in params:\n                return {\"items\": [1], \"next_cursor\": \"second\"}\n            return {\"items\": [2], \"next_cursor\": None}\n        query = {\"status\": \"open\"}\n        self.assertEqual(collect_pages(fetch, query), [1, 2])\n        self.assertEqual(query, {\"status\": \"open\"})\n        self.assertEqual(queries, [{\"status\": \"open\"}, {\"status\": \"open\", \"cursor\": \"second\"}])\n\n    def test_fetch_failure_is_propagated(self):\n        error = OSError(\"endpoint unavailable\")\n        def fetch(_):\n            raise error\n        with self.assertRaises(OSError) as caught:\n            collect_pages(fetch, {})\n        self.assertIs(caught.exception, error)\n```\n"
+          }
+        ],
+        "tool_choice": "auto",
+        "parallel_tool_calls": false
+      }
+    }
+  ]
+}

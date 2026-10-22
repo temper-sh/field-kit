@@ -5,10 +5,10 @@ import json
 from pathlib import Path
 import shutil
 import sys
-from . import __version__, context as runtime, jobs, machine, storage, workloads
+from . import __version__, context as runtime, grading, jobs, machine, storage, workloads
 from .approval import preview, summary
 from .common import Refusal, canonical_json
-from .process import CommandFailure, atomic_write
+from .process import CommandFailure, atomic_write, capture_process
 from .study import Study
 from .temper import locate
 
@@ -73,6 +73,7 @@ def parser():
     repair.add_argument("--report", type=Path, required=True)
     repair.add_argument("--patch", type=Path)
     commands.add_parser("verify", help="verify bundled workload inputs without a model")
+    commands.add_parser("grading", help="install the coding harness's Flask test packages into .local/grading, once")
     commands.add_parser("version")
     worker = commands.add_parser("_worker", help=argparse.SUPPRESS)
     worker.add_argument("id")
@@ -91,6 +92,7 @@ def doctor(path):
             "capabilities": commands, "python": sys.version.split()[0],
             "hf": shutil.which("hf"), "user_layout": machine.observe(temper, None),
             "weights_cache": storage.describe(storage.default_cache()), "instruction": machine.INSTRUCTION,
+            "coding_grading": grading.describe(REPOSITORY),
             "effects": "read-only",
             "next": "Read docs/ASSISTANT.md; use installed capabilities before considering setup changes."}
 
@@ -106,7 +108,13 @@ def main(argv=None):
                 workloads.generate(kind)
             for path in (REPOSITORY / "workloads").glob("*.json"):
                 workloads.load(path)
-            result = {"verified": True, "version": __version__, "native_inference": False}
+            harness = capture_process([sys.executable, "-B", str(REPOSITORY / "harnesses/coding/harness.py"), "verify"], 120)
+            if harness.returncode:
+                raise CommandFailure(["coding harness verify"], harness)
+            result = {"verified": True, "version": __version__, "native_inference": False,
+                      "coding_harness": json.loads(harness.stdout)["tasks"]}
+        elif arguments.command == "grading":
+            result = grading.prepare(REPOSITORY)
         elif arguments.command == "workload":
             if arguments.out.exists() or arguments.out.is_symlink():
                 raise Refusal("workload output exists; choose a new file")

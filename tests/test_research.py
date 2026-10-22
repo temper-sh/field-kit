@@ -409,7 +409,7 @@ class StudyTest(unittest.TestCase):
 
     def test_finished_task_uses_existing_command_and_preserves_nonzero_outcome(self):
         script = self.root / "harness.py"
-        script.write_text("import os, pathlib, sys\np=pathlib.Path(os.environ['FIELD_KIT_OUTPUT_DIR'])/'candidate'\np.mkdir()\n(p/'tests.log').write_text('1 failed')\n(p/'adapter.txt').write_text(os.environ['FIELD_KIT_MODEL_ADAPTER'])\n(p/'native.txt').write_text(os.environ['FIELD_KIT_NATIVE_URL'])\nprint(os.environ['FIELD_KIT_MODEL'])\nsys.exit(1)\n")
+        script.write_text("import os, pathlib, sys\np=pathlib.Path(os.environ['FIELD_KIT_OUTPUT_DIR'])/'candidate'\np.mkdir()\n(p/'tests.log').write_text('1 failed')\n(p/'adapter.txt').write_text(os.environ['FIELD_KIT_MODEL_ADAPTER'])\n(p/'native.txt').write_text(os.environ['FIELD_KIT_NATIVE_URL'])\n(p/'window.txt').write_text(os.environ['FIELD_KIT_CONTEXT_WINDOW_TOKENS'])\nprint(os.environ['FIELD_KIT_MODEL'])\nsys.exit(1)\n")
         self.workload.write_bytes(canonical_json({"question": "Evaluate a finished task", "model_adapter": "flint/v1", "command": ["{python}", str(script)],
                                                   "cwd": str(self.root)}))
         directory = self.reserve()
@@ -422,6 +422,7 @@ class StudyTest(unittest.TestCase):
         self.assertEqual((directory / "sessions/task/output/candidate/adapter.txt").read_text(), "flint/v1")
         self.assertRegex((directory / "sessions/task/output/candidate/native.txt").read_text(),
                          r"^http://127\.0\.0\.1:\d+/upstream/research-model$")
+        self.assertEqual((directory / "sessions/task/output/candidate/window.txt").read_text(), "4096")
         self.assertEqual(row["sessions"][0]["command"]["argv"][0], sys.executable)
         self.assertEqual(load_json(directory / "workload.json")["command"][0], "{python}")
         self.assertEqual(row["model_adapter_scope"], "external-harness")

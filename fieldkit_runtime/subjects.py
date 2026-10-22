@@ -133,6 +133,11 @@ class TemperSubject:
     def health_path(self, engine):
         return self.native_prefix + engine.health_path
 
+    def context_window(self):
+        """The window Temper serves, when the lock holds one profile (as a compiled lock does)."""
+        windows = lockview.context_windows(self.attempt.lock)
+        return windows[0] if len(windows) == 1 else None
+
     def ready(self, session):
         # Temper's router starts the engine on demand and answers once it is ready.
         session.context.call(session.probe, self.health_path(session.engine), {}, self.attempt.remaining(1800), method="GET")
@@ -185,6 +190,9 @@ class LocalSubject:
 
     def health_path(self, engine):
         return self.native_prefix + engine.health_path
+
+    def context_window(self):
+        return self.spec.get("context_window_tokens")
 
     def ready(self, session):
         """A direct engine refuses connections before it binds and answers 503 while loading."""

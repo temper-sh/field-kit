@@ -36,7 +36,8 @@ apps. Point them to the study's restore.md for returning to normal work.
 ## Investigate
 
 Follow [the method](METHOD.md). Generate or write workloads and give every trial
-a reason tied to the question. Use established harnesses for finished tasks;
+a reason tied to the question. Use established harnesses for finished tasks,
+such as the bundled [coding harness](../harnesses/coding/README.md);
 inspect patches, tests and deliverables. Exit status alone is not quality.
 
 Keep the brief's decisions and next question current after meaningful results.

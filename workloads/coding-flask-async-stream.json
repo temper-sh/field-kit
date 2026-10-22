@@ -1,0 +1,11 @@
+{
+  "question": "Complete the frozen Flask async-stream change with visible test feedback; independent tests and review checks grade it.",
+  "command": [
+    "{python}",
+    "-B",
+    "harness.py",
+    "run",
+    "flask-async-stream"
+  ],
+  "cwd": "../harnesses/coding"
+}

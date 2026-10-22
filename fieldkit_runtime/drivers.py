@@ -48,10 +48,12 @@ class Harness:
         environment = dict(os.environ)
         environment.update(FIELD_KIT_BASE_URL=engine.base_url, FIELD_KIT_NATIVE_URL=engine.native_url,
                            FIELD_KIT_MODEL=engine.preset, FIELD_KIT_OUTPUT_DIR=str(files.output))
-        if self.model:
-            environment["FIELD_KIT_MODEL_ADAPTER"] = self.model.identifier
-        else:
-            environment.pop("FIELD_KIT_MODEL_ADAPTER", None)
+        for name, value in (("FIELD_KIT_MODEL_ADAPTER", self.model.identifier if self.model else None),
+                            ("FIELD_KIT_CONTEXT_WINDOW_TOKENS", engine.subject.context_window())):
+            if value:
+                environment[name] = str(value)
+            else:
+                environment.pop(name, None)
         # A workload names Field Kit's own Python as {python}, so it stays portable between checkouts.
         argv = [sys.executable if value == "{python}" else value for value in self.command]
         started = time.monotonic()

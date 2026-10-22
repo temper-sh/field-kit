@@ -1,0 +1,11 @@
+{
+  "question": "Repair the frozen pagination function with visible test feedback; independent tests grade the final proposal.",
+  "command": [
+    "{python}",
+    "-B",
+    "harness.py",
+    "run",
+    "pagination-repair"
+  ],
+  "cwd": "../harnesses/coding"
+}

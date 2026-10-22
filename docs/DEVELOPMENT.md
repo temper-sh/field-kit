@@ -27,7 +27,9 @@ The process probe, macOS resource watcher, response-stream capture and Splash
 native-memory observer retain their focused tests. New study/execution code
 uses those boundaries. Model-specific planning, coding gates, the fixed Flask
 executor/oracle and per-campaign preparation command were retired from this
-branch. Their history remains on legacy at 75629ad.
+branch. Their history remains on legacy at 75629ad. The Flask tasks returned on
+22 October 2026 as inputs of the bundled coding harness, a command workload
+like any other, not as a gate.
 
 Old active studies keep their original runtime and state. No implicit migration
 or destructive cleanup of those studies is performed here. Study schema v3 (one
@@ -76,6 +78,8 @@ cli ─► study ─► attempt: begin → prepare → measure each session → 
 | serving / stream | Bounded HTTP and raw chat-completions capture |
 | export | Complete idle-study return, including defects and local patches |
 | temper | Installed public execution commands; no catalog/installer duplication |
+| grading | The coding harness's test environment: Field Kit's Python plus hash-pinned wheels in .local/grading |
+| harnesses/coding | A bundled command-workload harness and its frozen tasks; it uses this checkout's stream and model formats |
 
 A new study should normally add knowledge and workload inputs. Completed work
 uses existing harnesses and project tests. Add an adapter only for a real

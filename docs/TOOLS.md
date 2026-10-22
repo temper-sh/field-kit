@@ -142,9 +142,15 @@ workload.
 
 ## Finished tasks with an existing harness
 
-A command workload runs the installed harness under the same engine/resource
+Field Kit bundles one: the [coding harness](../harnesses/coding/README.md) for
+supplied-source repairs, with sandboxed visible, independent and review tests.
+Run `./field-kit grading` once for its Flask test packages, then use
+`workloads/coding-pagination-repair.json`, `workloads/coding-flask-async-stream.json`
+or `workloads/coding-flask-template-decorators.json` like any other workload.
+
+A command workload runs any installed harness under the same engine/resource
 supervision. Replace the following paths/arguments with the harness's real,
-documented command; this is a format example, not a bundled harness:
+documented command; this is a format example:
 
 ```json
 {
@@ -160,9 +166,10 @@ Kit's own Python, so the workload does not name a checkout-specific path; the
 attempt records the actual argv. The harness receives FIELD_KIT_BASE_URL (the
 OpenAI-compatible `/v1` root), FIELD_KIT_NATIVE_URL (the engine's own routes,
 such as props, template and tokenize; behind Temper's router or direct for a
-local engine), FIELD_KIT_MODEL, FIELD_KIT_OUTPUT_DIR and
-FIELD_KIT_MODEL_ADAPTER. Use these rather than deriving routes from the
-subject kind. Configure the harness to use
+local engine), FIELD_KIT_MODEL, FIELD_KIT_OUTPUT_DIR,
+FIELD_KIT_MODEL_ADAPTER (chat presets) and FIELD_KIT_CONTEXT_WINDOW_TOKENS (when
+the lock or local declaration names one window). Use these rather than deriving
+routes or limits from the subject kind. Configure the harness to use
 that local endpoint/model and its selected format. The harness owns its own
 parsing and conversation replay; the adapter variable alone does not change it.
 A small adapter for an actual harness can translate these inputs; reuse it

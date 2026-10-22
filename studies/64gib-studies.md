@@ -107,8 +107,9 @@ is an expectation, not local evidence.
 ## Preparation still owned here
 
 These are study briefs. Before dispatch, resolve candidate locks and material
-sizes, bind the chosen existing coding harness to the local endpoint, and
-freeze the common completed-task inputs. There is no new per-study runner.
+sizes and freeze the common completed-task inputs. The bundled
+[coding harness](../harnesses/coding/README.md) reads Field Kit's endpoint, model
+format and context window itself. There is no new per-study runner.
 The briefs identify missing Splash SSD-cache control, Rapid's separate DFlash
 lifecycle and the vLLM helper allowance, so they can be addressed here instead
 of rediscovered by the tester. No study has been launched.

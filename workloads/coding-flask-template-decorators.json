@@ -1,0 +1,11 @@
+{
+  "question": "Complete the frozen Flask template-decorators change with visible test feedback; independent tests and review checks grade it.",
+  "command": [
+    "{python}",
+    "-B",
+    "harness.py",
+    "run",
+    "flask-template-decorators"
+  ],
+  "cwd": "../harnesses/coding"
+}

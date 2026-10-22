@@ -1,0 +1,19 @@
+{
+  "provenance": "Reference control of the focused pagination repair, retained with the 22 October 2026 Flint/Qwen/Muse comparison (focused harness reference-control.json); it passes the original, independent and its own tests.",
+  "proposal": {
+    "explanation": "Retained evaluator control",
+    "edits": [
+      {
+        "path": "pagination.py",
+        "old_text": "\"\"\"Collect a cursor-paginated endpoint using an injected fetch function.\"\"\"\n\n\nclass PaginationCycleError(RuntimeError):\n    pass\n\n\ndef collect_pages(fetch_page, query):\n    items = []\n    params = dict(query)\n    while True:\n        page = fetch_page(params)\n        items.extend(page[\"items\"])\n        cursor = page.get(\"next_cursor\")\n        if not page[\"items\"] or not cursor:\n            return items\n        params[\"cursor\"] = cursor\n",
+        "new_text": "class PaginationCycleError(RuntimeError):\n    pass\n\ndef collect_pages(fetch_page, query):\n    items = []\n    params = dict(query)\n    seen = set()\n    initial = params.get(\"cursor\")\n    if initial is not None:\n        seen.add(initial)\n    while True:\n        page = fetch_page(dict(params))\n        items.extend(page[\"items\"])\n        cursor = page.get(\"next_cursor\")\n        if cursor is None:\n            return items\n        if cursor in seen:\n            raise PaginationCycleError(cursor)\n        seen.add(cursor)\n        params[\"cursor\"] = cursor\n"
+      }
+    ],
+    "new_files": [
+      {
+        "path": "tests/test_candidate_pagination.py",
+        "content": "import unittest\nfrom pagination import collect_pages\nclass Regression(unittest.TestCase):\n    def test_empty_page_continues(self):\n        pages = iter([{\"items\": [], \"next_cursor\": \"next\"}, {\"items\": [7]}])\n        self.assertEqual(collect_pages(lambda _: next(pages), {}), [7])\n"
+      }
+    ]
+  }
+}

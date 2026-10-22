@@ -120,7 +120,8 @@ class LocalEngineTest(unittest.TestCase):
         script = self.root / "harness.py"
         script.write_text("import os, pathlib\np=pathlib.Path(os.environ['FIELD_KIT_OUTPUT_DIR'])\n"
                           "(p/'native.txt').write_text(os.environ['FIELD_KIT_NATIVE_URL'])\n"
-                          "(p/'base.txt').write_text(os.environ['FIELD_KIT_BASE_URL'])\n")
+                          "(p/'base.txt').write_text(os.environ['FIELD_KIT_BASE_URL'])\n"
+                          "(p/'window.txt').write_text(os.environ['FIELD_KIT_CONTEXT_WINDOW_TOKENS'])\n")
         harness = self.root / "harness.json"
         harness.write_bytes(canonical_json({"question": "Coding task", "command": ["{python}", str(script)], "cwd": "."}))
         study = self.open_study()
@@ -130,6 +131,7 @@ class LocalEngineTest(unittest.TestCase):
         output = directory / "sessions/task/output"
         self.assertEqual((output / "native.txt").read_text(), "http://" + self.probes[0]["listen"])
         self.assertEqual((output / "base.txt").read_text(), "http://" + self.probes[0]["listen"] + "/v1")
+        self.assertEqual((output / "window.txt").read_text(), "32768")
 
     def test_a_local_splash_engine_reads_its_native_memory_directly(self):
         self.calls = []

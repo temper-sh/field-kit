@@ -1,0 +1,79 @@
+{
+  "provenance": "Flint Q4 response two in Field Kit study flint-tuning-2026-10-22, run 20261022T112301642407Z (unified patch SHA-256 84e31d1789da19ded3d6bfee44e2e7c4e87015bd66c62225b150e2a305751e1b). It passed all 92 original, 57 independent and 14 authored tests and all 21 review checks; its API docstrings are unchanged, so it is a positive control for the harness, not an accepted Flask change.",
+  "proposal": {
+    "explanation": "Implement bare decorator support for all six template decorator APIs, plus regression tests.",
+    "edits": [
+      {
+        "path": "src/flask/sansio/app.py",
+        "old_text": "    def template_filter(\n        self, name: str | None = None\n    ) -> t.Callable[[T_template_filter], T_template_filter]:",
+        "new_text": "    def template_filter(\n        self, name: str | ft.TemplateFilterCallable | None = None\n    ) -> t.Callable[[T_template_filter], T_template_filter] | T_template_filter:"
+      },
+      {
+        "path": "src/flask/sansio/app.py",
+        "old_text": "        def decorator(f: T_template_filter) -> T_template_filter:\n            self.add_template_filter(f, name=name)\n            return f\n\n        return decorator",
+        "new_text": "        if name is None or isinstance(name, str):\n            def decorator(f: T_template_filter) -> T_template_filter:\n                self.add_template_filter(f, name=name)\n                return f\n\n            return decorator\n\n        # Used as a bare decorator, e.g. ``@app.template_filter``. The\n        # argument is the function to register.\n        f = t.cast(T_template_filter, name)\n        self.add_template_filter(f)\n        return f"
+      },
+      {
+        "path": "src/flask/sansio/app.py",
+        "old_text": "    def template_test(\n        self, name: str | None = None\n    ) -> t.Callable[[T_template_test], T_template_test]:",
+        "new_text": "    def template_test(\n        self, name: str | ft.TemplateTestCallable | None = None\n    ) -> t.Callable[[T_template_test], T_template_test] | T_template_test:"
+      },
+      {
+        "path": "src/flask/sansio/app.py",
+        "old_text": "        def decorator(f: T_template_test) -> T_template_test:\n            self.add_template_test(f, name=name)\n            return f\n\n        return decorator",
+        "new_text": "        if name is None or isinstance(name, str):\n            def decorator(f: T_template_test) -> T_template_test:\n                self.add_template_test(f, name=name)\n                return f\n\n            return decorator\n\n        # Used as a bare decorator, e.g. ``@app.template_test``. The\n        # argument is the function to register.\n        f = t.cast(T_template_test, name)\n        self.add_template_test(f)\n        return f"
+      },
+      {
+        "path": "src/flask/sansio/app.py",
+        "old_text": "    def template_global(\n        self, name: str | None = None\n    ) -> t.Callable[[T_template_global], T_template_global]:",
+        "new_text": "    def template_global(\n        self, name: str | ft.TemplateGlobalCallable | None = None\n    ) -> t.Callable[[T_template_global], T_template_global] | T_template_global:"
+      },
+      {
+        "path": "src/flask/sansio/app.py",
+        "old_text": "        def decorator(f: T_template_global) -> T_template_global:\n            self.add_template_global(f, name=name)\n            return f\n\n        return decorator",
+        "new_text": "        if name is None or isinstance(name, str):\n            def decorator(f: T_template_global) -> T_template_global:\n                self.add_template_global(f, name=name)\n                return f\n\n            return decorator\n\n        # Used as a bare decorator, e.g. ``@app.template_global``. The\n        # argument is the function to register.\n        f = t.cast(T_template_global, name)\n        self.add_template_global(f)\n        return f"
+      },
+      {
+        "path": "src/flask/sansio/blueprints.py",
+        "old_text": "    def app_template_filter(\n        self, name: str | None = None\n    ) -> t.Callable[[T_template_filter], T_template_filter]:",
+        "new_text": "    def app_template_filter(\n        self, name: str | ft.TemplateFilterCallable | None = None\n    ) -> t.Callable[[T_template_filter], T_template_filter] | T_template_filter:"
+      },
+      {
+        "path": "src/flask/sansio/blueprints.py",
+        "old_text": "        def decorator(f: T_template_filter) -> T_template_filter:\n            self.add_app_template_filter(f, name=name)\n            return f\n\n        return decorator",
+        "new_text": "        if name is None or isinstance(name, str):\n            def decorator(f: T_template_filter) -> T_template_filter:\n                self.add_app_template_filter(f, name=name)\n                return f\n\n            return decorator\n\n        # Used as a bare decorator, e.g. ``@bp.app_template_filter``. The\n        # argument is the function to register, deferred until the\n        # blueprint is registered on an application.\n        f = t.cast(T_template_filter, name)\n        self.add_app_template_filter(f)\n        return f"
+      },
+      {
+        "path": "src/flask/sansio/blueprints.py",
+        "old_text": "    def app_template_test(\n        self, name: str | None = None\n    ) -> t.Callable[[T_template_test], T_template_test]:",
+        "new_text": "    def app_template_test(\n        self, name: str | ft.TemplateTestCallable | None = None\n    ) -> t.Callable[[T_template_test], T_template_test] | T_template_test:"
+      },
+      {
+        "path": "src/flask/sansio/blueprints.py",
+        "old_text": "        def decorator(f: T_template_test) -> T_template_test:\n            self.add_app_template_test(f, name=name)\n            return f\n\n        return decorator",
+        "new_text": "        if name is None or isinstance(name, str):\n            def decorator(f: T_template_test) -> T_template_test:\n                self.add_app_template_test(f, name=name)\n                return f\n\n            return decorator\n\n        # Used as a bare decorator, e.g. ``@bp.app_template_test``. The\n        # argument is the function to register, deferred until the\n        # blueprint is registered on an application.\n        f = t.cast(T_template_test, name)\n        self.add_app_template_test(f)\n        return f"
+      },
+      {
+        "path": "src/flask/sansio/blueprints.py",
+        "old_text": "    def app_template_global(\n        self, name: str | None = None\n    ) -> t.Callable[[T_template_global], T_template_global]:",
+        "new_text": "    def app_template_global(\n        self, name: str | ft.TemplateGlobalCallable | None = None\n    ) -> t.Callable[[T_template_global], T_template_global] | T_template_global:"
+      },
+      {
+        "path": "src/flask/sansio/blueprints.py",
+        "old_text": "        def decorator(f: T_template_global) -> T_template_global:\n            self.add_app_template_global(f, name=name)\n            return f\n\n        return decorator",
+        "new_text": "        if name is None or isinstance(name, str):\n            def decorator(f: T_template_global) -> T_template_global:\n                self.add_app_template_global(f, name=name)\n                return f\n\n            return decorator\n\n        # Used as a bare decorator, e.g. ``@bp.app_template_global``. The\n        # argument is the function to register, deferred until the\n        # blueprint is registered on an application.\n        f = t.cast(T_template_global, name)\n        self.add_app_template_global(f)\n        return f"
+      },
+      {
+        "path": "docs/templating.rst",
+        "old_text": "    @app.template_filter('reverse')\n    def reverse_filter(s):\n        return s[::-1]\n\n    def reverse_filter(s):\n        return s[::-1]\n    app.jinja_env.filters['reverse'] = reverse_filter",
+        "new_text": "    @app.template_filter('reverse')\n    def reverse_filter(s):\n        return s[::-1]\n\n    def reverse_filter(s):\n        return s[::-1]\n    app.jinja_env.filters['reverse'] = reverse_filter\n\nThe decorator can also be used without parentheses, in which case the\nfunction name is used as the filter name::\n\n    @app.template_filter\n    def reverse_filter(s):\n        return s[::-1]"
+      }
+    ],
+    "new_files": [
+      {
+        "path": "tests/test_candidate_template_decorators.py",
+        "content": "import flask\n\n\ndef test_app_template_filter_bare_decorator(app):\n    @app.template_filter\n    def reverse_text(value):\n        return value[::-1]\n\n    assert app.jinja_env.filters[\"reverse_text\"] is reverse_text\n    assert app.jinja_env.filters[\"reverse_text\"](\"abcd\") == \"dcba\"\n\n\ndef test_app_template_filter_bare_decorator_returns_original(app):\n    def reverse_text(value):\n        return value[::-1]\n\n    assert app.template_filter(reverse_text) is reverse_text\n    assert app.jinja_env.filters[\"reverse_text\"] is reverse_text\n\n\ndef test_app_template_filter_without_parentheses(app):\n    @app.template_filter()\n    def upper_text(value):\n        return value.upper()\n\n    assert app.jinja_env.filters[\"upper_text\"] is upper_text\n    assert app.jinja_env.filters[\"upper_text\"](\"abc\") == \"ABC\"\n\n\ndef test_app_template_filter_with_none_name(app):\n    @app.template_filter(None)\n    def lower_text(value):\n        return value.lower()\n\n    assert app.jinja_env.filters[\"lower_text\"] is lower_text\n\n\ndef test_app_template_filter_with_positional_name(app):\n    @app.template_filter(\"public_name\")\n    def reverse_text(value):\n        return value[::-1]\n\n    assert app.jinja_env.filters[\"public_name\"] is reverse_text\n    assert app.jinja_env.filters[\"public_name\"](\"abcd\") == \"dcba\"\n\n\ndef test_app_template_filter_with_keyword_name(app):\n    @app.template_filter(name=\"public_name\")\n    def reverse_text(value):\n        return value[::-1]\n\n    assert app.jinja_env.filters[\"public_name\"] is reverse_text\n    assert app.jinja_env.filters[\"public_name\"](\"abcd\") == \"dcba\"\n\n\ndef test_app_template_test_bare_decorator(app):\n    @app.template_test\n    def is_even(value):\n        return value % 2 == 0\n\n    assert app.jinja_env.tests[\"is_even\"] is is_even\n    assert app.jinja_env.tests[\"is_even\"](2)\n\n\ndef test_app_template_test_bare_decorator_returns_original(app):\n    def is_even(value):\n        return value % 2 == 0\n\n    assert app.template_test(is_even) is is_even\n    assert app.jinja_env.tests[\"is_even\"] is is_even\n\n\ndef test_app_template_test_with_positional_name(app):\n    @app.template_test(\"boolean\")\n    def is_boolean(value):\n        return isinstance(value, bool)\n\n    assert app.jinja_env.tests[\"boolean\"] is is_boolean\n    assert app.jinja_env.tests[\"boolean\"](False)\n\n\ndef test_app_template_global_bare_decorator(app):\n    @app.template_global\n    def get_answer():\n        return 42\n\n    assert app.jinja_env.globals[\"get_answer\"] is get_answer\n    assert app.jinja_env.globals[\"get_answer\"]() == 42\n\n\ndef test_app_template_global_bare_decorator_returns_original(app):\n    def get_answer():\n        return 42\n\n    assert app.template_global(get_answer) is get_answer\n    assert app.jinja_env.globals[\"get_answer\"] is get_answer\n\n\ndef test_blueprint_app_template_filter_bare_decorator(app):\n    bp = flask.Blueprint(\"bp\", __name__)\n\n    @bp.app_template_filter\n    def reverse_text(value):\n        return value[::-1]\n\n    # Deferred until the blueprint is registered on an application.\n    assert \"reverse_text\" not in app.jinja_env.filters\n\n    app.register_blueprint(bp, url_prefix=\"/py\")\n    assert app.jinja_env.filters[\"reverse_text\"] is reverse_text\n    assert app.jinja_env.filters[\"reverse_text\"](\"abcd\") == \"dcba\"\n\n\ndef test_blueprint_app_template_test_bare_decorator(app):\n    bp = flask.Blueprint(\"bp\", __name__)\n\n    @bp.app_template_test\n    def is_even(value):\n        return value % 2 == 0\n\n    app.register_blueprint(bp, url_prefix=\"/py\")\n    assert app.jinja_env.tests[\"is_even\"] is is_even\n    assert app.jinja_env.tests[\"is_even\"](2)\n\n\ndef test_blueprint_app_template_global_bare_decorator(app):\n    bp = flask.Blueprint(\"bp\", __name__)\n\n    @bp.app_template_global\n    def get_answer():\n        return 42\n\n    app.register_blueprint(bp, url_prefix=\"/py\")\n    assert app.jinja_env.globals[\"get_answer\"] is get_answer\n    assert app.jinja_env.globals[\"get_answer\"]() == 42\n"
+      }
+    ]
+  }
+}
