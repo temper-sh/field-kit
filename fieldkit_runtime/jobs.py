@@ -2,14 +2,11 @@
 from __future__ import annotations
 import datetime
 import os
-from pathlib import Path
 import signal
 import subprocess
 import time
-from .common import Refusal, load_json, canonical_json
-from .process import atomic_write
-
-TERMINAL = {"complete", "failed", "interrupted", "retained"}
+from .common import Refusal
+from .records import TERMINAL, AttemptFiles
 
 def now():
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -26,15 +23,16 @@ def alive(identity):
     return bool(identity and process_identity(identity["pid"]) == identity)
 
 def start(repository, study, run):
-    directory = repository / ".work" / "studies" / study / "runs" / run
-    with (directory / "worker.log").open("ab") as log:
+    files = AttemptFiles(repository / ".work" / "studies" / study / "runs" / run)
+    with files.worker_log.open("ab") as log:
         process = subprocess.Popen([str(repository / "field-kit"), "_worker", study, run],
             cwd=repository, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
     # The worker writes its own identity before any Temper effect.
     return process
 
 def status(directory):
-    run = load_json(directory / "run.json", 64 * 1024**2)
+    files = AttemptFiles(directory)
+    run = files.load_run()
     worker = run.get("worker")
     running = alive(worker)
     phase = run["state"]
@@ -43,7 +41,7 @@ def status(directory):
     result = {"id": run["id"], "state": phase, "running": running,
             "candidate": run["candidate"], "reason": run["reason"],
             "elapsed_seconds": round(time.time() - run["created_epoch"], 1),
-            "error": run.get("error"), "result": str(directory / "result.json") if (directory / "result.json").exists() else None}
+            "error": run.get("error"), "result": str(files.result) if files.result.exists() else None}
     result["observations"] = [{"session": row["id"], "steps": row.get("steps", []),
         "command": row.get("command"),
         "memory": {key: row.get("memory", {}).get(key) for key in
@@ -63,7 +61,7 @@ def wait(directory, timeout=60):
         time.sleep(min(1, max(0, deadline - time.monotonic())))
 
 def stop(directory):
-    run = load_json(directory / "run.json", 64 * 1024**2)
+    run = AttemptFiles(directory).load_run()
     if run["state"] in TERMINAL:
         return status(directory)
     identity = run.get("worker")

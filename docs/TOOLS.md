@@ -12,6 +12,7 @@ The values below illustrate a bounded study; choose them for the actual work.
 ./field-kit doctor
 ./field-kit study init my-study --brief trials/brief.md \
   --lock trials/splash.lock.json --lock trials/llama.lock.json \
+  --authoring-root trials/authoring \
   --hours 8 --download-gib 100 --max-context 262144 \
   --request-seconds 1800 --trial-seconds 14400 --preview
 ```
@@ -22,8 +23,9 @@ weights, templates and software. It does not silently cover new material.
 
 A study stores its brief, approval, exact candidate locks and attempts under
 .work/studies/ID/. Time is wall time from approval. The download allowance bounds
-planned known material, not network transfer/retries; review unlisted dependency
-costs before approval. Requests and whole trials have separate deadlines.
+planned known material: weights not yet in the cache plus engine software. It
+is not a network byte meter; review unlisted dependency costs before approval.
+Requests and whole trials have separate deadlines.
 Cleanup and evidence return remain available after the budget ends.
 
 Resource monitoring samples every five seconds, stops on observed thermal/CPU
@@ -33,6 +35,34 @@ experiment stop policies, not measured preset limits. A sampled peak can miss
 short transients. No coding evaluator is required to initialize a study.
 Preview also lists each engine's helper-process limits. These are frozen with
 the approval; changing an adapter cannot enlarge an existing study's limits.
+
+## The machine, the study root and weights
+
+Preview reads `temper layout status` for the user's Temper root (`--user-root`,
+default `~/.temper`). A running layout is named in the approval. Field Kit stops
+it after approval, stops it again before an attempt if the tester restarted it,
+and starts it again at close. It never starts a layout that was not running,
+never stops an unapproved one and never signals other processes. Preview lists
+large-memory processes read-only. Tell the tester: while Field Kit runs, do not
+use Temper, and close other AI apps. The study's `restore.md` holds the steps
+back to normal work.
+
+All candidates share one Temper root inside the study, which must be on APFS.
+Candidates with the same engine release and router share one installation, so
+their software installs once. Weights go to the user's Hugging Face cache, or to
+`--weights-cache PATH`, for example a research cache on an external SSD. Only
+the hub cache moves; `HF_HOME` and the user's token stay. Files already in the
+cache are reused and kept. With `--weights-cleanup added` (default), close
+removes only the exact files this study added, never a whole repository; `keep`
+leaves them. An exFAT cache can hold full copies instead of links, so preview
+requires up to twice the download there, plus 10 GiB free on the study root's
+disk. Each attempt records its root and cache volumes, including file system
+and internal or USB. A disconnected cache refuses the attempt before Temper
+starts: reconnect it and start a new attempt.
+
+With `--authoring-root`, preview also runs Temper's `preset check` and, when
+installed, `preset plan` for candidates that are user presets there. Temper's
+refusals stop the plan. Otherwise preview shows known file sizes only.
 
 ## Smoke and cache measurements
 
@@ -139,8 +169,9 @@ and preserves it; retries create new attempts. Review [repair instructions](REPA
 when a process is still alive or ownership is uncertain.
 
 Write conclusions.md with selected settings, quality comparisons, limitations
-and open questions. Attach repaired defects too. Close removes only owned
-runtime material after shutdown is verified. Export also works for an idle open
+and open questions. Attach repaired defects too. After shutdown is verified,
+close removes the study's Temper root, removes study-added weights as approved
+and restarts a layout the study stopped. Export also works for an idle open
 or blocked study, retaining its true state. It includes all evidence and repairs,
 including candidate test logs, while excluding the study's private runtime.
 The manifest validates archive membership and file bytes. Nothing uploads.

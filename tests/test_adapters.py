@@ -10,7 +10,7 @@ from fieldkit_runtime.adapters import engines, models
 from fieldkit_runtime.common import Refusal
 from fieldkit_runtime.measurements import POLICY, policy_for, watch_spec
 from fieldkit_runtime.stream import ChatStream
-from fieldkit_runtime.workloads import correct
+from fieldkit_runtime.adapters.interfaces.chat import correct
 from tests.test_research import FACTS
 
 

@@ -1,4 +1,5 @@
 """Explicit mapping from Temper adapter versions to fresh observation adapters."""
+from ... import lockview
 from ...common import Refusal
 from .llama_cpp import LlamaCpp
 from .rapid_mlx import RapidMLX
@@ -21,6 +22,4 @@ def resolve(identifier):
 
 
 def from_lock(lock):
-    records = lock["records"]
-    preset = records["presets"][lock["preset"]]
-    return resolve(records["engines"][preset["engine"]]["adapter"])
+    return resolve(lockview.engine_adapter(lock))

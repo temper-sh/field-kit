@@ -11,14 +11,17 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 
-from fieldkit_runtime import execution, jobs, workloads
+from fieldkit_runtime import attempt, jobs, workloads
+from fieldkit_runtime.adapters.interfaces import chat
+from fieldkit_runtime.approval import preview
+from fieldkit_runtime.context import Context
 from fieldkit_runtime.adapters import engines, models
 from fieldkit_runtime.adapters.engines.base import EngineAdapter
 from fieldkit_runtime.common import Refusal, canonical_json, load_json, digest
 from fieldkit_runtime.export import export_study
 from fieldkit_runtime.material import validate_variant
-from fieldkit_runtime.process import atomic_write, file_digest, run_process_progress
-from fieldkit_runtime.study import Study, preview
+from fieldkit_runtime.process import CommandFailure, CommandResult, atomic_write, file_digest, run_process_progress
+from fieldkit_runtime.study import Study
 from fieldkit_runtime.temper import version_at_least
 
 GIB = 1024**3
@@ -37,6 +40,20 @@ def lock(name="research-model"):
                               "engine_config": {"kind": "llama-server/v1", "kv_cache": "q8"}}]}}}}
 
 class FakeTemper:
+    """Shared fake state: Field Kit constructs a new Temper for each operation."""
+    layout = {"id": None, "busy": False, "fail_activate": False}
+    calls = []
+    check = {"valid": True, "refusals": [], "memory_bytes": GIB, "model_bytes": GIB}
+    plan = {"remaining_download_bytes": 0, "remaining_disk_bytes": 0, "free_disk_bytes": 100 * GIB, "can_prepare": True}
+    plan_supported = True
+
+    @classmethod
+    def reset(cls):
+        cls.layout = {"id": None, "busy": False, "fail_activate": False}
+        cls.calls = []
+        cls.check = {"valid": True, "refusals": [], "memory_bytes": GIB, "model_bytes": GIB}
+        cls.plan_supported = True
+
     def __init__(self, path=Path(sys.executable)):
         self.path = Path(path).resolve()
     def identity(self):
@@ -47,11 +64,51 @@ class FakeTemper:
         preset = load_json(path)["preset"]
         return {"schema": "temper-execution/v1", "preset": preset, "presets": [preset]}
     def prepare(self, path, root, installation, timeout, environment):
+        FakeTemper.calls.append(("prepare", installation, environment.get("HF_HUB_CACHE"), environment.get("HF_HOME")))
         root.mkdir(parents=True, exist_ok=True)
         (root / "installed").write_text("owned")
         return {"generation": "c" * 64, "execution": self.inspect(path)}
     def remove(self, path, root, installation):
+        FakeTemper.calls.append(("remove", installation))
         return {"removed": True}
+    def supports(self, command):
+        return command != ["preset", "plan"] or FakeTemper.plan_supported
+    def check_preset(self, preset, root, environment):
+        FakeTemper.calls.append(("check", preset, str(root), environment.get("HF_HUB_CACHE")))
+        return {"schema": "temper-preset-check/v1", "presets": [{"id": preset, **FakeTemper.check}]}
+    def plan_preset(self, preset, root, environment):
+        FakeTemper.calls.append(("plan", preset, str(root), environment.get("HF_HUB_CACHE")))
+        return {"schema": "temper-preset-plan/v1", "preset": preset, "plan": dict(FakeTemper.plan)}
+    def layout_status(self, root=None):
+        FakeTemper.calls.append(("status", root))
+        layout = FakeTemper.layout["id"]
+        job = {"layout": layout, "name": "Default", "listen": "127.0.0.1:8080"}
+        return {"state": {"schema": "temper-activation/v1", **({"desired": job, "current": job} if layout else {})},
+                "observed": {"exists": bool(layout), "ready": bool(layout), "busy": FakeTemper.layout["busy"]},
+                "pending": False}
+    def layout_stop(self, root=None):
+        FakeTemper.calls.append(("stop", root))
+        if FakeTemper.layout["busy"]:
+            raise CommandFailure(["temper"], CommandResult(b"", b"active work prevents this transition", 1))
+        FakeTemper.layout["id"] = None
+        return {}
+    def layout_activate(self, layout, root=None):
+        FakeTemper.calls.append(("activate", layout, root))
+        if FakeTemper.layout["fail_activate"]:
+            raise CommandFailure(["temper"], CommandResult(b"", b"activation pending", 1))
+        FakeTemper.layout["id"] = layout
+        return {}
+
+def fake_context(call=None, wired=20 * GIB):
+    """The machine as tests see it: fake Temper and probe, scripted HTTP, ample APFS disk."""
+    return Context(temper=FakeTemper, probe=FakeProbe, call=call or (lambda *args, **kwargs: {}),
+                   sample=lambda binding, timeout: {"wired_bytes": wired, "roles": {}}, volume=fake_volume,
+                   keep_awake=False)
+
+def fake_volume(path):
+    """An internal APFS volume with ample space; real volume facts have their own test."""
+    return {"path": str(Path(path).absolute()), "exists": Path(path).exists(), "mount_point": "/", "filesystem": "apfs",
+            "device": "/dev/test", "internal": True, "protocol": "Apple Fabric", "free_bytes": 500 * GIB}
 
 class FakeProbe:
     def __init__(self, **kwargs):
@@ -79,13 +136,19 @@ class StudyTest(unittest.TestCase):
         self.brief.write_text("Find useful presets; compare speed, quality and memory.")
         self.workload = self.root / "workload.json"
         self.workload.write_bytes(canonical_json(workloads.generate("smoke")))
-        self.temper = FakeTemper()
-        self.study = Study(self.root, "research")
-        self.study.initialize(preview(self.temper, [self.source], self.brief, hours=1, download_gib=1))
+        self.cache = self.root / "hf-cache"
+        self.cache.mkdir()
+        FakeTemper.reset()
         self.addCleanup(patch.stopall)
-        patch("fieldkit_runtime.study.Temper", FakeTemper).start()
-        patch("fieldkit_runtime.execution.Temper", FakeTemper).start()
-        patch("fieldkit_runtime.execution.sys_platform_macos", return_value=False).start()
+        self.temper = FakeTemper()
+        self.study = Study(self.root, "research", fake_context())
+        self.study.initialize(preview(self.temper, [self.source], self.brief, hours=1, download_gib=1,
+                                      weights_cache=self.cache, context=self.study.context), self.temper)
+
+    def run_attempt(self, directory, call=None, wired=20 * GIB, study=None):
+        study = study or self.study
+        study.context = fake_context(call, wired)
+        return attempt.execute(study, directory)
 
     def reserve(self, path=None, variant=None):
         return self.study.reserve("research-model", path or self.workload, "Answer the next useful question", variant)
@@ -108,9 +171,7 @@ class StudyTest(unittest.TestCase):
                     "timings": {"prompt_n": 1000, "prompt_ms": 100, "predicted_n": 20, "predicted_ms": 200},
                     "service_seconds": 0.3, "first_token_seconds": 0.1, "first_answer_seconds": 0.1,
                     "finish_reason": finish, "stream_complete": True}
-        with patch.object(execution, "ManagedProbe", FakeProbe), patch.object(execution, "monitored_call", side_effect=call), \
-             patch.object(execution.watcher, "sample_macos", return_value={"wired_bytes": 20 * GIB, "roles": {}}):
-            return execution.execute(self.study, directory)
+        return self.run_attempt(directory, call)
 
     def test_installed_temper_and_any_model_need_no_coding_evaluator(self):
         self.assertTrue(version_at_least("temper 0.3.0"))
@@ -165,6 +226,26 @@ class StudyTest(unittest.TestCase):
         self.assertEqual(request["messages"][-2]["content"], '["wrong"]')
         self.assertTrue(all(step["correct"] is False for step in row["steps"]))
 
+    def test_transport_failure_ends_the_session_and_keeps_the_partial_stream(self):
+        self.workload.write_bytes(canonical_json({"question": "Stop after a broken request", "steps": [
+            {"id": name, "request": {"messages": [{"role": "user", "content": "Answer"}]}} for name in ("first", "second")]}))
+        directory = self.reserve()
+        sent = []
+        def call(probe, path, payload, timeout, **kwargs):
+            if kwargs.get("method") == "GET":
+                return {}
+            sent.append(path)
+            kwargs["stream_reader"].raw_path.write_text("data: partial")
+            raise TimeoutError("request deadline")
+        self.run_attempt(directory, call)
+        result = load_json(directory / "result.json", 64 * 1024**2)
+        self.assertEqual(len(sent), 1)
+        self.assertEqual(result["sessions"][0]["failure"]["kind"], "timeout")
+        self.assertEqual((result["state"], result["error"]["kind"]), ("failed", "timeout"))
+        self.assertEqual((directory / "sessions/session/first/response.sse").read_text(), "data: partial")
+        self.assertTrue((directory / "sessions/session/first/response.json").is_file())
+        self.assertTrue(result["safe_to_cleanup"])
+
     def test_new_engine_adapter_runs_without_a_core_executor_change(self):
         class FixtureObserver:
             def capture(self, phase): pass
@@ -180,8 +261,9 @@ class StudyTest(unittest.TestCase):
         candidate["records"]["engines"]["engine"]["adapter"] = "fixture/v1"
         self.source.write_bytes(canonical_json(candidate))
         with patch.dict(engines.ADAPTERS, {"fixture/v1": FixtureEngine}):
-            study = Study(self.root, "new-engine")
-            study.initialize(preview(self.temper, [self.source], self.brief, hours=1, download_gib=1))
+            study = Study(self.root, "new-engine", fake_context())
+            study.initialize(preview(self.temper, [self.source], self.brief, hours=1, download_gib=1,
+                                     weights_cache=self.cache, context=study.context))
             directory = study.reserve("brand-new-model", self.workload, "Exercise adapter integration")
             seen = []
             def call(probe, path, payload, timeout, **kwargs):
@@ -189,9 +271,7 @@ class StudyTest(unittest.TestCase):
                 if kwargs.get("method") == "GET":
                     return {}
                 return {"message": {"content": "FIELD_KIT_OK"}, "stream_complete": True, "finish_reason": "stop"}
-            with patch.object(execution, "ManagedProbe", FakeProbe), patch.object(execution, "monitored_call", side_effect=call), \
-                 patch.object(execution.watcher, "sample_macos", return_value={"wired_bytes": GIB, "roles": {}}):
-                execution.execute(study, directory)
+            self.run_attempt(directory, call, GIB, study)
             result = load_json(directory / "result.json")
             self.assertEqual(result["engine_adapter"], "fixture/v1")
             self.assertEqual(result["model_adapter"], models.DEFAULT)
@@ -217,9 +297,7 @@ class StudyTest(unittest.TestCase):
             seen.append(copy.deepcopy(payload))
             return {"message": {"content": "", "reasoning": "Keep this thought", "tool_calls": [call]},
                     "finish_reason": "tool_calls", "stream_complete": True}
-        with patch.object(execution, "ManagedProbe", FakeProbe), patch.object(execution, "monitored_call", side_effect=request), \
-             patch.object(execution.watcher, "sample_macos", return_value={"wired_bytes": GIB, "roles": {}}):
-            execution.execute(self.study, directory)
+        self.run_attempt(directory, request, GIB)
         result = load_json(directory / "result.json")
         self.assertEqual(result["model_adapter"], "flint/v1")
         self.assertEqual(load_json(directory / "workload.json")["model_adapter"], "flint/v1")
@@ -254,7 +332,7 @@ class StudyTest(unittest.TestCase):
         candidate["records"]["engines"]["engine"]["adapter"] = "llama-server/v999"
         self.source.write_bytes(canonical_json(candidate))
         with self.assertRaisesRegex(Refusal, "engine adapter"):
-            preview(self.temper, [self.source], self.brief)
+            preview(self.temper, [self.source], self.brief, weights_cache=self.cache, context=self.study.context)
 
     def test_settings_variant_allowed_but_new_weights_and_template_are_not(self):
         original = lock()
@@ -316,7 +394,7 @@ class StudyTest(unittest.TestCase):
     def test_preparation_failure_is_retained_and_retry_is_a_new_attempt(self):
         directory = self.reserve()
         with patch.object(FakeTemper, "prepare", side_effect=Refusal("small setup defect")):
-            execution.execute(self.study, directory)
+            attempt.execute(self.study, directory)
         row = load_json(directory / "result.json")
         self.assertEqual(row["state"], "failed")
         self.assertIn("small setup defect", (directory / "failure.md").read_text())
@@ -328,9 +406,7 @@ class StudyTest(unittest.TestCase):
         self.workload.write_bytes(canonical_json({"question": "Evaluate a finished task", "model_adapter": "flint/v1", "command": [sys.executable, str(script)],
                                                   "cwd": str(self.root)}))
         directory = self.reserve()
-        with patch.object(execution, "ManagedProbe", FakeProbe), patch.object(execution, "monitored_call", return_value={}), \
-             patch.object(execution.watcher, "sample_macos", return_value={"wired_bytes": 20 * GIB, "roles": {}}):
-            execution.execute(self.study, directory)
+        self.run_attempt(directory)
         row = load_json(directory / "result.json", 64 * 1024**2)
         self.assertEqual(row["sessions"][0]["command"]["returncode"], 1)
         self.assertEqual(row["sessions"][0]["memory"]["engine_peak_wired_bytes"], 20 * GIB)
@@ -343,7 +419,7 @@ class StudyTest(unittest.TestCase):
     def test_close_is_repeatable_and_preserves_user_and_evidence_material(self):
         directory = self.reserve()
         self.finish(directory)
-        owned = self.study.runtime("research-model")
+        owned = self.study.runtime()
         owned.mkdir(parents=True)
         (owned / "weight").write_text("temporary")
         external = self.root / "user-cache"
@@ -359,9 +435,7 @@ class StudyTest(unittest.TestCase):
         self.workload.write_bytes(canonical_json({"question": "Run existing harness", "cwd": str(self.root),
             "command": [str(self.root / "missing-harness")]}))
         directory = self.reserve()
-        with patch.object(execution, "ManagedProbe", FakeProbe), patch.object(execution, "monitored_call", return_value={}), \
-             patch.object(execution.watcher, "sample_macos", return_value={"wired_bytes": 20 * GIB, "roles": {}}):
-            execution.execute(self.study, directory)
+        self.run_attempt(directory)
         self.assertEqual(load_json(directory / "sessions/task/command.json")["state"], "not-started")
         self.assertTrue(load_json(directory / "result.json")["safe_to_cleanup"])
         self.reserve()
@@ -374,14 +448,10 @@ class StudyTest(unittest.TestCase):
             import sys
             from pathlib import Path
             sys.path.insert(0, {str(source)!r})
-            from fieldkit_runtime import cli, execution, study
-            from tests.test_research import FakeTemper, FakeProbe, GIB
+            from fieldkit_runtime import cli, context
+            from tests.test_research import fake_context
             cli.REPOSITORY = Path({str(self.root)!r})
-            study.Temper = execution.Temper = FakeTemper
-            execution.ManagedProbe = FakeProbe
-            execution.monitored_call = lambda *args, **kwargs: {{}}
-            execution.watcher.sample_macos = lambda *args: {{"wired_bytes": 20 * GIB, "roles": {{}}}}
-            execution.sys_platform_macos = lambda: False
+            context.DEFAULT = fake_context()
             sys.exit(cli.main())
             '''))
         launcher.chmod(0o755)
@@ -455,8 +525,8 @@ class WorkloadAndJobTest(unittest.TestCase):
         self.assertEqual(memory_record(None, {"samples": 2, "wired_growth_bytes": 0}, None)["engine_peak_wired_bytes"], 0)
 
     def test_semantic_json_and_real_tool_calls(self):
-        self.assertTrue(workloads.correct({"message": {"content": ' [1, 2] '}}, {"json": [1, 2]}))
-        self.assertFalse(workloads.correct({"message": {"content": 'record_answer(...)'}},
+        self.assertTrue(chat.correct({"message": {"content": ' [1, 2] '}}, {"json": [1, 2]}))
+        self.assertFalse(chat.correct({"message": {"content": 'record_answer(...)'}},
                                           {"tool": {"name": "record_answer", "arguments": {"answer": "FIELD_KIT_OK"}}}))
         cache = workloads.generate("cache", records=8)
         steps = cache["sessions"][0]["steps"]

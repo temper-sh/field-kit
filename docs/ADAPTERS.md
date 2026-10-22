@@ -1,9 +1,22 @@
 # Runtime adapters
 
 New models normally need a Temper preset/lock and workload input. Field Kit
-has two independent adapter families: **engine observations** and **model
-conversation formats**. A new format works with every supported engine that
-exposes chat completions. There is no engine × model class matrix.
+has three small adapter families: **preset interfaces** (what a Temper preset
+serves), **engine observations** and, within chat, **model conversation
+formats**. A new format works with every supported engine that exposes chat
+completions. There is no engine × model class matrix.
+
+## Preset interfaces
+
+The lock's preset names its interface. The
+[interface registry](../fieldkit_runtime/adapters/interfaces/__init__.py) maps it
+to one module; today `chat-completions` maps to
+[`chat/v1`](../fieldkit_runtime/adapters/interfaces/chat.py). A module provides
+`validate_request`, the allowed `EXPECT` checks, `build` (the request, including
+history replay), `send` (capture, keeping partial output) and `observe`
+(decoding and measurements). Another Temper interface, such as reranking, adds
+one module and one registry entry; sessions, drivers and custody stay unchanged.
+Presets with other interfaces are refused before any effect.
 
 ## Select a model format
 

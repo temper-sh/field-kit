@@ -24,8 +24,9 @@ Preserve first attempts and return patches and decisive reproduction evidence.
 Keep a concise brief with decisions, reasons and open questions. Use foreground
 job completion or blocking wait; repeated agent polling wastes tokens.
 Approval covers ordinary trials and repairs within the stated material/limits.
-New effects outside it require a concrete extension. Do not alter active user
-layouts or publish as part of a study.
+New effects outside it require a concrete extension. Stop and restore a user
+layout only as the study approval states; do not otherwise alter it. Do not
+publish as part of a study.
 
 ## Changing Field Kit
 

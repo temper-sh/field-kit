@@ -20,8 +20,15 @@ open questions, comparisons, material/resource budget and evidence destination.
 Prepare Temper presets and exact locks. Include useful drafts/variants within
 approval. Review installation requirements and unknown costs.
 
-Use study init --preview to prepare a concrete review. Obtain approval once,
+Use study init --preview to prepare a concrete review. Pass --authoring-root
+when candidates are user presets there, so Temper checks them. Choose the
+weights cache: the user's default, or a research cache on another disk with
+--weights-cache, usually with --weights-cleanup keep. The preview names any
+running layout that Field Kit will stop and restore. Obtain approval once,
 then initialize with --yes. Choose limits for the actual investigation.
+
+Tell the tester: while Field Kit runs, do not use Temper, and close other AI
+apps. Point them to the study's restore.md for returning to normal work.
 
 ## Investigate
 

@@ -20,6 +20,15 @@ Investigate uncertain ownership; never kill by name or delete recovery files.
 Tool changes are attributed per attempt. New weights/templates/engine software
 outside approval require a scoped extension. Use installed Temper by default.
 
+## Return to normal work
+
+The tester's normal work comes first. After any failure, run
+`./field-kit study stop ID`, then the restore command in the study's restore.md,
+for example `temper layout activate default`. If that does not work, restart the
+Mac and run the restore command. Temper starts no layout at login, so nothing
+from the study runs after a restart. Recover and export the study later; its
+evidence stays.
+
 ## Common repairs
 
 | Symptom | Action |
@@ -32,6 +41,11 @@ outside approval require a scoped extension. Use installed Temper by default.
 | Broken grading environment | Repair it in isolation and regrade retained work; record evaluator changes. |
 | Missing counters | Investigate support and report missing data; preserve other valid observations. |
 | Broken export | Repair packaging of retained evidence; check membership, including candidate test logs. Export an idle open study when cleanup is blocked. |
+| Layout cannot be stopped | Its requests are active. Wait, then start the trial again; the approval stands. Never force it. |
+| Unapproved layout running | Ask the tester to stop it; a different layout needs a new approval. |
+| Weights cache unavailable | Reconnect the disk, then start a new attempt. Nothing was downloaded; it is not a model failure. |
+| Not enough disk or non-APFS root | Free space, or use a Field Kit checkout on APFS. Nothing was downloaded. |
+| Restore failed at close | Run the command in restore.md; Temper keeps the activation pending. |
 
 ## Report every defect, including repaired ones
 

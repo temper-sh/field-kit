@@ -102,9 +102,13 @@ Field Kit invokes these commands and supervises their processes:
   run the owned engine and publish process/shutdown observations.
 - execution remove with the same owned root/installation/lock: remove software.
 
+Field Kit also reads `preset check` and, where installed, `preset plan` for
+user presets in the authoring root, and uses `layout status`, `layout stop` and
+`layout activate` for the approved user layout only.
+
 Use Field Kit's run/stop/recover/close path to retain measurement and ownership
 evidence. Manual invocation is a diagnostic action requiring the same scope.
-Never manipulate a user's live layout to make a trial work.
+Beyond the approved stop and restore, never manipulate a user's live layout.
 
 The maintained [preset contract](https://github.com/temper-sh/temper/blob/master/docs/contracts/user-presets.md)
 and [execution contract](https://github.com/temper-sh/temper/blob/master/docs/contracts/execution-runtime.md)

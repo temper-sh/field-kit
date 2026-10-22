@@ -54,6 +54,8 @@ def classify_failure(error: BaseException) -> str:
     if isinstance(error, (TimeoutError, subprocess.TimeoutExpired)):
         return "timeout"
     message = str(error).lower()
+    if any(text in message for text in ("not enough free disk", "weights cache is unavailable", "must be on apfs")):
+        return "storage"
     if isinstance(error, HTTPResponseError) and "context" in message:
         return "exceeds-context"
     if any(text in message for text in ("out of memory", "out-of-memory", "insufficient memory", "allocation failed")):
@@ -80,4 +82,7 @@ def memory_record(loaded: dict[str, Any] | None, resources: dict[str, Any], nati
     }
     if native is not None:
         record.update(native)
+    record.update(counter="system-wired-growth", units="bytes", limitations=(
+        "System wired growth includes other apps; process counters may omit GPU memory. "
+        "Five-second sampling can miss peaks. Counters overlap."))
     return record

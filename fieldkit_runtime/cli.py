@@ -5,11 +5,12 @@ import json
 from pathlib import Path
 import shutil
 import sys
-from . import __version__, jobs, workloads
-from .common import Refusal, canonical_json, load_json
+from . import __version__, context as runtime, jobs, machine, storage, workloads
+from .approval import preview, summary
+from .common import Refusal, canonical_json
 from .process import CommandFailure, atomic_write
-from .study import Study, preview, summary
-from .temper import Temper, locate
+from .study import Study
+from .temper import locate
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 
@@ -35,6 +36,11 @@ def parser():
     init.add_argument("--max-context", type=int, default=262144)
     init.add_argument("--request-seconds", type=int, default=1800)
     init.add_argument("--trial-seconds", type=int, default=14400)
+    init.add_argument("--authoring-root", type=Path, help="Temper root holding the candidates' user presets, for Temper's check and plan")
+    init.add_argument("--user-root", type=Path, help="Temper root of the user's layout; default ~/.temper")
+    init.add_argument("--weights-cache", type=Path, help="Hugging Face hub cache, e.g. on an external SSD; default the user's")
+    init.add_argument("--weights-cleanup", choices=("added", "keep"), default="added",
+                      help="at close remove exact study-added weight files, or keep them")
     init.add_argument("--temper", type=Path)
     init.add_argument("--preview", action="store_true")
     init.add_argument("--yes", action="store_true", help="use existing owner approval for the displayed scope")
@@ -71,21 +77,18 @@ def parser():
     return root
 
 def doctor(path):
-    temper = Temper(locate(path))
+    temper = runtime.DEFAULT.temper(locate(path))
     identity = temper.identity()
-    commands = {}
-    for name, argv in (("preset_fields", ["preset", "fields", "--help"]),
-                       ("preset_plan", ["preset", "plan", "--help"]),
-                       ("preset_editor", ["preset", "edit", "--help"])):
-        try:
-            response = temper.runner([str(temper.path), *argv], 30)
-            help_text = (response.stdout + response.stderr).decode(errors="replace")
-            commands[name] = response.returncode == 0 and ("Usage:" in help_text or "usage:" in help_text)
-        except (CommandFailure, Refusal):
-            commands[name] = False
+    commands = {name: temper.supports(argv) for name, argv in (
+        ("preset_fields", ["preset", "fields"]), ("preset_check", ["preset", "check"]),
+        ("preset_plan", ["preset", "plan"]), ("preset_editor", ["preset", "edit"]),
+        ("layout_status", ["layout", "status"]), ("layout_stop", ["layout", "stop"]),
+        ("layout_activate", ["layout", "activate"]))}
     return {"temper": identity, "machine": temper.machine_facts(),
             "capabilities": commands, "python": sys.version.split()[0],
-            "hf": shutil.which("hf"), "effects": "read-only",
+            "hf": shutil.which("hf"), "user_layout": machine.observe(temper, None),
+            "weights_cache": storage.describe(storage.default_cache()), "instruction": machine.INSTRUCTION,
+            "effects": "read-only",
             "next": "Read docs/ASSISTANT.md; use installed capabilities before considering setup changes."}
 
 def main(argv=None):
@@ -107,26 +110,35 @@ def main(argv=None):
             atomic_write(arguments.out, canonical_json(workloads.generate(arguments.kind, arguments.records, arguments.output_tokens)))
             result = {"workload": str(arguments.out), "inference": False}
         else:
-            study = Study(REPOSITORY, arguments.id)
+            study = Study(REPOSITORY, arguments.id, runtime.DEFAULT)
             if arguments.command == "repair":
                 study.load()
                 result = study.repair(arguments.report, arguments.patch)
             elif arguments.command == "_worker":
-                from .execution import execute
+                from .attempt import execute
                 result = execute(study, study.path_for(arguments.run))
             elif arguments.action == "init":
-                document = preview(Temper(locate(arguments.temper)), arguments.lock, arguments.brief,
+                temper = study.context.temper(locate(arguments.temper))
+                document = preview(temper, arguments.lock, arguments.brief,
                     hours=arguments.hours, download_gib=arguments.download_gib,
                     max_context=arguments.max_context, request_seconds=arguments.request_seconds,
-                    trial_seconds=arguments.trial_seconds)
+                    trial_seconds=arguments.trial_seconds, authoring_root=arguments.authoring_root,
+                    user_root=arguments.user_root, weights_cache=arguments.weights_cache,
+                    weights_cleanup=arguments.weights_cleanup, root=study.runtime(), context=study.context)
                 if arguments.preview:
                     result = summary(document)
                 else:
                     print(json.dumps(summary(document), indent=2))
                     if not arguments.yes and input("Approve this scope? Type yes: ").strip().lower() != "yes":
                         return 0
-                    study.initialize(document)
-                    result = {"study": str(study.directory), "state": "open"}
+                    state = study.initialize(document, temper)
+                    layout = state["user_layout"]
+                    result = {"study": str(study.directory), "state": "open",
+                              "user_layout": ("stopped; restored at close" if layout.get("stopped") else
+                                              "stop pending: " + layout["stop_error"] if layout.get("stop_error") else
+                                              "nothing to stop"),
+                              "restore": str(study.directory / "restore.md"),
+                              "restore_command": state["restore_command"], "instruction": state["instruction"]}
             elif arguments.action == "run":
                 directory = study.reserve(arguments.candidate, arguments.workload, arguments.reason,
                                           arguments.lock, arguments.temper, model_adapter=arguments.model_adapter)
@@ -135,7 +147,7 @@ def main(argv=None):
                     result = {"run": directory.name, "pid": worker.pid, "state": "queued",
                               "wait": f"./field-kit study wait {arguments.id} --timeout 3600"}
                 else:
-                    from .execution import execute
+                    from .attempt import execute
                     result = execute(study, directory)
             elif arguments.action == "recover":
                 result = study.recover()

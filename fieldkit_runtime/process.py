@@ -70,7 +70,7 @@ def _run_process(
     arguments: Sequence[str],
     timeout_seconds: float,
     destinations: tuple[Any | None, Any | None],
-    *, environment: dict[str, str] | None = None, identity_path=None, observer=None,
+    *, environment: dict[str, str] | None = None, identity_path=None, observer=None, cwd=None,
 ) -> CommandResult:
     # Temper needs the caller's HOME, HF cache settings and PATH to locate its
     # download client. Temper owns its runtime isolation.
@@ -81,7 +81,7 @@ def _run_process(
     try:
         process = subprocess.Popen(
             list(arguments), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            start_new_session=True, env=environment,
+            start_new_session=True, env=environment, cwd=cwd,
         )
     except OSError as error:
         if identity_path is not None:
@@ -159,10 +159,10 @@ def run_process(arguments: Sequence[str], timeout_seconds: float = 0) -> Command
 
 
 def run_process_silent(arguments: Sequence[str], timeout_seconds: float = 0, *, environment=None,
-                       identity_path=None, observer=None) -> CommandResult:
+                       identity_path=None, observer=None, cwd=None) -> CommandResult:
     """Run one exact argv while reserving stdout for a canonical CLI response."""
     return _run_process(arguments, timeout_seconds, (None, None), environment=environment,
-                        identity_path=identity_path, observer=observer)
+                        identity_path=identity_path, observer=observer, cwd=cwd)
 
 
 def run_process_progress(arguments: Sequence[str], timeout_seconds: float = 0, *, environment=None,

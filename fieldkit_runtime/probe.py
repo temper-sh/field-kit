@@ -16,6 +16,7 @@ from . import watcher
 
 
 SYSTEM_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
+STATUS_FILE = "temper-status.json"
 STATUS_TIMESTAMP = re.compile(
     r"([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})"
     r"(?:\.([0-9]{1,9}))?(Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])"
@@ -177,7 +178,7 @@ class ManagedProbe:
         self.log_dir, self.watch_spec = log_dir, watch_spec
         watcher.validate_watch_spec(watch_spec)
         self.router_ready_seconds, self.log_bytes_max = router_ready_seconds, log_bytes_max
-        self.status_path = log_dir / "temper-status.json"
+        self.status_path = log_dir / STATUS_FILE
         self.process = None
         self.router_binding = self.full_binding = None
         self.router_watch = self.full_watch = None

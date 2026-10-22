@@ -26,20 +26,42 @@ executor/oracle and per-campaign preparation command were retired from this
 branch. Their history remains on legacy at 75629ad.
 
 Old active studies keep their original runtime and state. No implicit migration
-or destructive cleanup of those studies is performed here.
+or destructive cleanup of those studies is performed here. Study schema v3 (one
+Temper root per study, a configured weights cache) refuses v2 studies.
 
 ## Boundaries
 
+Field Kit evaluates presets: each attempt measures one Temper preset served by
+the installed Temper.
+
+```text
+cli ─► study ─► attempt: begin → prepare → measure each session → commit
+                 ├─ session    one Temper serve under watch; always finished
+                 ├─ interface  chosen by the lock's preset (chat/v1 today)
+                 ├─ driver     frozen requests │ an existing harness command
+                 └─ records    the only record shapes and file names
+```
+
 | Module | Owns |
 |---|---|
-| study | Approved material/limits, attempt custody, close and repair attachment |
-| execution | One trial, reusable request sessions or a supplied task harness |
-| material | Comparison of fixed Temper material with settings variants |
-| workloads | Reusable request inputs and narrow semantic answer checks |
+| approval | The read-only approval document: candidates, limits, Temper's check/plan, storage and layout effect |
+| study | Custody: reserve, idle checks, recovery, close and repair attachment |
+| attempt | One attempt's phases, in order, and its committed outcome |
+| session | One Temper serve under resource watch; leaving it always stops the serve and records memory |
+| drivers | What sends the work: frozen request steps or an installed harness |
+| records | Record shapes, states and file names: the stable surface for Workshop and returned studies |
+| recovery | Proof that nothing an attempt owned still runs; never repeats inference |
+| context | Machine-facing collaborators, passed in; tests pass fakes instead of patching modules |
+| lockview | The one reader of Temper lock fields Field Kit uses |
+| machine | Approved stop/restore of the user's layout; read-only large-process listing |
+| storage | Study root and weights cache locations, volume facts, disk checks, exact study-added file cleanup |
+| material | The variant rule: settings may change, approved material may not |
+| workloads | Reusable inputs and their structure; request rules belong to the interface |
 | jobs | Bound worker identity, detached launch, stop and blocking wait |
+| adapters/interfaces | Per Temper preset interface: request rules, capture, decoding and answer checks |
 | adapters/engines | Readiness, helper roles, native rates and optional native memory observers |
 | adapters/models | Format decoding and assistant-history serialization, independent of engine |
-| measurements | Approved resource limits and common named memory counters |
+| measurements | Approved resource limits, failure kinds and the named memory record |
 | probe / watcher | Temper process binding, shutdown and resource observation |
 | serving / stream | Bounded HTTP and raw chat-completions capture |
 | export | Complete idle-study return, including defects and local patches |

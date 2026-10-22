@@ -29,6 +29,11 @@ The agent prepares a brief and exact candidates. You approve material and
 resource limits once; the agent chooses useful trials within that scope.
 New studies usually need prose and workload inputs rather than another runner.
 
+Field Kit needs the Mac to itself while it measures. If a Temper layout runs,
+the approval names it: Field Kit stops it before measuring and starts it again
+at close. **While Field Kit runs, do not use Temper, and close other AI apps.**
+Each study's `restore.md` says how to return to normal work after a failure.
+
 ## What comes back
 
 Measurements retain exact configurations, hardware, request sizes, native rates
@@ -39,9 +44,11 @@ defects encountered, including successful local repairs.
 Results owns maintained public comparisons. Temper owns the installable catalog.
 Field Kit returns evidence and proposals. Sharing and publication are explicit.
 
-Study-owned software and weights are reused across trials. Close removes them
-after verified shutdown, retaining evidence and repair reports. Existing user
-installations are preserved. Nothing uploads automatically.
+Study-owned software is reused across trials and removed at close after
+verified shutdown. Weights use your Hugging Face cache, or one you name, such as
+an external SSD. Files you already had are reused and kept; close removes only
+the exact files the study added, unless you choose to keep them. Evidence and
+repair reports stay. Nothing uploads automatically.
 
 - [Guide the investigation](docs/ASSISTANT.md)
 - [Research method](docs/METHOD.md)

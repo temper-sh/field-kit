@@ -105,3 +105,37 @@ class Temper:
 
     def remove(self, lock: Path, root: Path, installation: str) -> dict[str, Any]:
         return self.document(["execution", "remove", "--lock", lock, "--root", root, "--installation", installation], 600)
+
+    def supports(self, command: list[str]) -> bool:
+        """Whether this installed Temper offers a command, judged by its help."""
+        try:
+            response = self.runner([str(self.path), *command, "--help"], 30)
+        except (CommandFailure, Refusal, OSError):
+            return False
+        text = (response.stdout + response.stderr).decode(errors="replace")
+        return response.returncode == 0 and ("Usage:" in text or "usage:" in text)
+
+    def check_preset(self, preset: str, root: Path, environment: Mapping[str, str]) -> dict[str, Any]:
+        return self.document(["preset", "check", preset, "--root", root], 120, "temper-preset-check/v1",
+                             environment=environment)
+
+    def plan_preset(self, preset: str, root: Path, environment: Mapping[str, str]) -> dict[str, Any]:
+        return self.document(["preset", "plan", preset, "--root", root], 300, "temper-preset-plan/v1",
+                             environment=environment)
+
+    def layout_status(self, root: str | None = None) -> dict[str, Any]:
+        status = self.document(["layout", "status", *root_arguments(root)], 60)
+        if not isinstance(status.get("state"), dict) or not isinstance(status.get("observed"), dict):
+            raise Refusal("Temper printed an unknown layout status")
+        return status
+
+    def layout_stop(self, root: str | None = None) -> dict[str, Any]:
+        return self.document(["layout", "stop", *root_arguments(root)], 300)
+
+    def layout_activate(self, layout: str, root: str | None = None) -> dict[str, Any]:
+        return self.document(["layout", "activate", layout, *root_arguments(root)], 900)
+
+
+def root_arguments(root: str | None) -> list[str]:
+    """No root means Temper's own default, the user's ~/.temper."""
+    return ["--root", root] if root else []

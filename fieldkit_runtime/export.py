@@ -4,8 +4,9 @@ import os
 from pathlib import Path
 import tempfile
 import zipfile
-from .common import Refusal, canonical_json, load_json
+from .common import Refusal, canonical_json
 from .process import exclusive_lock, file_digest
+from .records import AttemptFiles
 
 def evidence_files(directory):
     # Exclude only the owned runtime at the study root. A directory named
@@ -36,14 +37,13 @@ def export_study(study, destination):
         # Returning a blocked study is useful. Only active writers block export.
         from . import jobs
         for run_id in state["runs"]:
-            directory = study.path_for(run_id)
-            row = load_json(directory / "run.json", 64 * 1024**2)
-            if jobs.alive(row.get("worker")) or jobs.status(directory)["state"] == "queued":
+            files = AttemptFiles(study.path_for(run_id))
+            row = files.load_run()
+            if jobs.alive(row.get("worker")) or jobs.status(files.directory)["state"] == "queued":
                 raise Refusal("wait for or stop the active worker before export")
-            for name, expected in (("execution.lock.json", row["lock_sha256"]),
-                                   ("workload.json", row["workload_sha256"])):
-                if file_digest(directory / name) != expected:
-                    raise Refusal(f"attempt input changed: {run_id}/{name}")
+            for path, expected in ((files.lock, row["lock_sha256"]), (files.workload, row["workload_sha256"])):
+                if file_digest(path) != expected:
+                    raise Refusal(f"attempt input changed: {run_id}/{path.name}")
         files = list(evidence_files(study.directory))
         manifest = {str(path.relative_to(study.directory)): {"bytes": path.stat().st_size, "sha256": file_digest(path)}
                     for path in files}

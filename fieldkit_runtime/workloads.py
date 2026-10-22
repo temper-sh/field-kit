@@ -1,12 +1,16 @@
-"""Reusable request inputs; studies need data and knowledge, not new runners."""
+"""Reusable request inputs; studies need data and knowledge, not new runners.
+
+Structure (sessions, steps, a harness command) lives here. What one request
+may contain belongs to the preset's interface.
+"""
 from __future__ import annotations
 import hashlib
-import json
 from pathlib import Path
 from .common import Refusal, IDENTITY, load_json
-from .adapters import models
+from .adapters import interfaces, models
 
-def validate(document):
+def validate(document, interface=None):
+    interface = interface or interfaces.resolve("chat-completions")
     if not isinstance(document, dict) or not isinstance(document.get("question"), str) or not document["question"].strip():
         raise Refusal("workload needs a question")
     document = {**document, "model_adapter": models.resolve(document.get("model_adapter", models.DEFAULT)).identifier}
@@ -43,41 +47,22 @@ def validate(document):
             if not isinstance(name, str) or not IDENTITY.fullmatch(name) or name in names:
                 raise Refusal("steps need unique plain IDs")
             names.add(name)
-            request = step.get("request")
-            if not isinstance(request, dict) or not isinstance(request.get("messages"), list) or not request["messages"]:
-                raise Refusal("step needs a chat-completions request")
-            if "model" in request or "stream" in request or "stream_options" in request:
-                raise Refusal("Field Kit supplies model and streaming controls")
+            interface.validate_request(step.get("request"))
             if step.get("append_previous") and not index:
                 raise Refusal("append_previous needs a preceding response")
             expected = step.get("expect")
             if expected is not None and (not isinstance(expected, dict) or len(expected) != 1
-                                         or next(iter(expected)) not in ("json", "text", "tool")):
-                raise Refusal("expect is one of json, text or tool")
+                                         or next(iter(expected)) not in interface.EXPECT):
+                raise Refusal("expect is one of " + ", ".join(interface.EXPECT))
     return {**document, "sessions": sessions}
 
-def load(path, *, model_adapter=None):
+def load(path, *, model_adapter=None, interface=None):
     document = load_json(path, 64 * 1024**2)
     if model_adapter is not None:
         document["model_adapter"] = model_adapter
     if "cwd" in document:
         document["cwd"] = str((path.parent / document["cwd"]).resolve())
-    return validate(document)
-
-def correct(response, expected):
-    if expected is None or response.get("model_format", {}).get("state") in ("invalid", "partial"):
-        return None
-    message = response.get("message") or {}
-    try:
-        if "json" in expected:
-            return json.loads(message.get("content") or "") == expected["json"]
-        if "text" in expected:
-            return (message.get("content") or "").strip() == expected["text"]
-        calls = message.get("tool_calls") or []
-        return len(calls) == 1 and calls[0]["function"]["name"] == expected["tool"]["name"] and \
-            json.loads(calls[0]["function"]["arguments"]) == expected["tool"]["arguments"]
-    except (ValueError, TypeError, KeyError, IndexError):
-        return False
+    return validate(document, interface)
 
 def generate(kind, records=256, output_tokens=512):
     if not 8 <= records <= 32768 or not 32 <= output_tokens <= 32768:
