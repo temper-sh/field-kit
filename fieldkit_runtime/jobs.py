@@ -44,6 +44,9 @@ def status(directory):
             "error": run.get("error"), "result": str(files.result) if files.result.exists() else None}
     result["observations"] = [{"session": row["id"], "steps": row.get("steps", []),
         "command": row.get("command"),
+        "requests": {key: (row.get("requests") or {}).get(key) for key in
+                     ("requests", "models", "other_models", "errors", "input_tokens", "output_tokens")}
+                    if row.get("requests") else None,
         "memory": {key: row.get("memory", {}).get(key) for key in
                    ("counter", "units", "engine_loaded_wired_bytes", "engine_peak_wired_bytes", "swap_growth_bytes")},
         "resource_issues": row.get("resources", {}).get("issues", []),

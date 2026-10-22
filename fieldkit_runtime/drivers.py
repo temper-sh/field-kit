@@ -7,6 +7,7 @@ import os
 import sys
 import time
 from . import records
+from .relay import Relay
 from .process import atomic_write, run_process_silent
 
 class Requests:
@@ -39,14 +40,23 @@ class Requests:
 
 class Harness:
     """An installed completed-task harness pointed at the served preset. It owns its
-    conversation, tool execution and judgments; Field Kit owns processes and resources."""
+    conversation, tool execution and judgments; Field Kit owns processes and resources,
+    and records every request the harness sends through its relay."""
     def __init__(self, command, cwd, model):
         self.command, self.cwd, self.model = command, cwd, model
 
     def run(self, engine, files, row, attempt):
         files.output.mkdir()
+        relay = Relay(engine.probe.host, engine.probe.port, files.relay, attempt.engine, engine.preset,
+                      attempt.limit("request_seconds"))
+        with relay:
+            self.run_command(engine, files, row, attempt, relay)
+        row["requests"] = relay.summary()
+
+    def run_command(self, engine, files, row, attempt, relay):
         environment = dict(os.environ)
-        environment.update(FIELD_KIT_BASE_URL=engine.base_url, FIELD_KIT_NATIVE_URL=engine.native_url,
+        environment.update(FIELD_KIT_BASE_URL=relay.origin + "/v1",
+                           FIELD_KIT_NATIVE_URL=relay.origin + engine.subject.native_prefix,
                            FIELD_KIT_MODEL=engine.preset, FIELD_KIT_OUTPUT_DIR=str(files.output))
         for name, value in (("FIELD_KIT_MODEL_ADAPTER", self.model.identifier if self.model else None),
                             ("FIELD_KIT_CONTEXT_WINDOW_TOKENS", engine.subject.context_window())):
@@ -62,8 +72,7 @@ class Harness:
         atomic_write(files.stdout, result.stdout)
         atomic_write(files.stderr, result.stderr)
         row["command"] = {"argv": argv, "cwd": self.cwd, "returncode": result.returncode,
-                          "task_seconds": time.monotonic() - started, "quality": "needs source/deliverable review",
-                          "native_rates": None}
+                          "task_seconds": time.monotonic() - started, "quality": "needs source/deliverable review"}
         if result.stop_reason:
             row["failure"] = {"kind": result.stop_reason if result.stop_reason in ("timeout", "interrupted") else "runtime-failure",
                               "message": result.stop_reason}

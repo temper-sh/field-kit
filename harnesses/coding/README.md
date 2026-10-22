@@ -69,9 +69,8 @@ response: the exact request, the raw stream, the decoded response and the token
 budget. Each graded proposal keeps its patch, test invocations, sandbox
 profiles, logs and JUnit results. `result.json` names the task, prompt
 treatment, sampling overrides, harness and task file hashes, Field Kit runtime
-and grading environment. Field Kit adds wall time, rates where available and
-loaded/peak memory. Per-request rates inside the harness come from the
-engine's own timings.
+and grading environment. Field Kit adds wall time and loaded/peak memory, and
+its relay records every request with usage and the engine's native rates.
 
 Tests run inside the macOS sandbox, without network access and with writes only
 in their result folder. This is containment for an experiment, not a defense

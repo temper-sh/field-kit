@@ -70,6 +70,7 @@ class SessionFiles:
         self.status = self.process / STATUS_FILE
         self.command, self.stdout, self.stderr = stage / "command.json", stage / "stdout.txt", stage / "stderr.txt"
         self.output = stage / "output"
+        self.relay = stage / "relay"
 
     def step(self, step_id: str) -> StepFiles:
         return StepFiles(self.stage / step_id)

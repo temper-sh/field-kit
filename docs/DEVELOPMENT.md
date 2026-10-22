@@ -48,7 +48,7 @@ so a local result and its later Temper rerun compare directly.
 cli ─► study ─► attempt: begin → prepare → measure each session → commit
                  ├─ session    one Temper serve under watch; always finished
                  ├─ interface  chosen by the lock's preset: chat/v1 or rerank/v1
-                 ├─ driver     frozen requests │ an existing harness command
+                 ├─ driver     frozen requests │ an existing harness command, through the relay
                  └─ records    the only record shapes and file names
 ```
 
@@ -61,6 +61,7 @@ cli ─► study ─► attempt: begin → prepare → measure each session → 
 | local_probe | One engine Field Kit starts itself: bound, watched, stopped and proven gone without Temper |
 | session | One Temper serve under resource watch; leaving it always stops the serve and records memory |
 | drivers | What sends the work: frozen request steps or an installed harness |
+| relay | A harness's HTTP traffic to the engine, passed unchanged and recorded per request |
 | records | Record shapes, states and file names: the stable surface for Workshop and returned studies |
 | recovery | Proof that nothing an attempt owned still runs; never repeats inference |
 | context | Machine-facing collaborators, passed in; tests pass fakes instead of patching modules |

@@ -178,13 +178,18 @@ across studies. Keep candidate execution confined using that harness's controls.
 Save patches, original/final test output, acceptance notes and required task
 artifacts under FIELD_KIT_OUTPUT_DIR. Record harness/version, task/source
 revision, repair budget and evaluation commands in the workload/brief.
-Field Kit retains stdout/stderr, wall time and loaded/peak memory. Per-request
-rates are missing unless the harness supplies them; do not fabricate aggregates.
-Exit status is recorded independently from the agent's quality review.
+Field Kit retains stdout/stderr, wall time and loaded/peak memory. Exit status
+is recorded independently from the agent's quality review.
 
-Retain the harness's effective endpoint/model configuration and relevant request
-log. Command supervision alone does not prove that the harness used the intended
-local model. Verify that attribution before drawing a model-quality conclusion.
+The harness's endpoints point at Field Kit's recording relay, which passes every
+request and response through unchanged and keeps each exchange in the session's
+`relay/` folder: the request and response bytes, and in `exchange.json` the
+path, status, wall time, first byte and first token, finish reason, usage and
+the engine's native prefill/generation rates where it reports them. The session
+row's `requests` lists them and names every model the harness asked for;
+`other_models` shows any that differ from the preset. Do not fabricate
+aggregates from them. A harness that ignores the supplied endpoints bypasses
+the relay, so check `requests` before drawing a model-quality conclusion.
 
 Use ordinary project tests and comparative source review. The agent writes
 assessment.md beside the run or uses study evidence/ for a shared comparison.

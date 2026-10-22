@@ -129,8 +129,10 @@ class LocalEngineTest(unittest.TestCase):
         attempt.execute(study, directory)
         self.assertEqual(load_json(directory / "result.json", 64 * 1024**2)["state"], "complete")
         output = directory / "sessions/task/output"
-        self.assertEqual((output / "native.txt").read_text(), "http://" + self.probes[0]["listen"])
-        self.assertEqual((output / "base.txt").read_text(), "http://" + self.probes[0]["listen"] + "/v1")
+        native = (output / "native.txt").read_text()  # the relay's own root, with no Temper prefix
+        self.assertRegex(native, r"^http://127\.0\.0\.1:\d+$")
+        self.assertNotEqual(native, "http://" + self.probes[0]["listen"])
+        self.assertEqual((output / "base.txt").read_text(), native + "/v1")
         self.assertEqual((output / "window.txt").read_text(), "32768")
 
     def test_a_local_splash_engine_reads_its_native_memory_directly(self):

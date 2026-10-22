@@ -101,10 +101,13 @@ class CodingHarnessTest(unittest.TestCase):
         with FakeModel(replies, native=native) as fake:
             files = SessionFiles(self.root / task)
             files.stage.mkdir()
-            engine = Mock(base_url=fake.origin + "/v1", native_url=fake.origin + fake.prefix, preset="fake-model")
+            engine = Mock(preset="fake-model")
+            engine.probe.host, engine.probe.port = "127.0.0.1", fake.server.server_port
+            engine.subject.native_prefix = fake.prefix
             engine.subject.context_window.return_value = window
             attempt = Mock()
             attempt.limit.return_value = 600
+            attempt.engine.metrics = lambda response: {"input_tokens": (response.get("usage") or {}).get("prompt_tokens")}
             row = {}
             command = ["{python}", "-B", str(HARNESS / "harness.py"), "run", task, *arguments]
             Harness(command, str(HARNESS), models.resolve(adapter)).run(engine, files, row, attempt)
@@ -130,6 +133,11 @@ class CodingHarnessTest(unittest.TestCase):
         self.assertNotIn("test_acceptance", json.dumps(fake.requests))
         self.assertEqual(fake.requests[0]["seed"], 421)
         self.assertNotIn("temperature", fake.requests[0])  # the preset's own sampling
+        relayed = row["requests"]  # every harness request went through Field Kit's relay
+        chats = [item for item in relayed["rows"] if item["path"] == "/v1/chat/completions"]
+        self.assertEqual((len(chats), relayed["models"], relayed["other_models"]), (3, {"fake-model": 3}, []))
+        self.assertTrue(all(item["stream_complete"] and item["finish_reason"] == "tool_calls" for item in chats))
+        self.assertEqual(relayed["requests"], 3 + len(fake.native_paths))
 
     def test_a_prompt_treatment_changes_only_the_system_text(self):
         case = harness.load_case("pagination-repair")
