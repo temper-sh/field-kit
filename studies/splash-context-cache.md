@@ -7,12 +7,33 @@ qualification are already outside this study's question.
 
 ## Starting point and gap
 
-Use `qwen3.8-27b-q4xl-splash` as the baseline: Unsloth UD-Q4_K_XL,
-Frog v22.5 template, Splash 1.3.2, the Inco DFlash2 sidecar, int8 KV,
-medium thinking, 131,072-token allocation and 48 GiB engine allowance.
-Sampling is temperature 1, top-p .95, top-k 20, neutral penalties.
-The installed catalog may precede this locally prepared 64 GiB profile;
-inspect and author an isolated equivalent rather than assuming publication.
+The baseline is [`locks/q4-64-splash-131072.lock.json`](splash-context-cache/locks/q4-64-splash-131072.lock.json):
+Unsloth UD-Q4_K_XL, Frog v22.5 template, Splash 1.3.2, the Inco DFlash2
+sidecar, int8 KV, medium thinking, 131,072-token allocation and 48 GiB engine
+allowance. The preset's sampling is temperature 1, top-p .95, top-k 20, neutral
+penalties. It is byte-identical to the lock of the returned run
+`20261020T170830465306Z`, so new results pair with that evidence. The
+published catalog (snapshot `a387e73d…`, checked 22 October 2026) still has only
+a 32 GiB profile for this preset (112,000 tokens, 24 GiB); its software, weights,
+draft and template are the same as this lock's.
+
+Prepared settings variants of the same material, each run with
+`study run --candidate q4-64-splash-131072 --lock locks/NAME.lock.json`:
+
+| Lock | Changes | For |
+|---|---|---|
+| `q4-64-splash-131072-bf16` | BF16 KV | Step 3: cache precision at a populated point |
+| `q4-64-splash-262144` | 262,144-token window | Step 5: beyond 128k, toward the native limit |
+| `q4-64-splash-131072-cap36` | 36 GiB engine allowance | Step 6: the 48 GiB projection |
+
+36 GiB is 75% of 48 GiB, the same rule as the catalog's 24 GiB on 32 GiB and the
+48 GiB used on 64 GiB; replace it if the 48 GiB machine's facts say otherwise.
+Author further variants from [`presets/`](splash-context-cache/presets): copy
+the files into an authoring root's `presets.d/` (`temper catalog update --root
+DIR` first), edit one setting, then `temper preset check ID --root DIR
+--memory-gib 64` and `temper catalog compile --root DIR --preset ID --target
+darwin/arm64 --memory-gib 64 --out NAME.lock.json`. Compiling the baseline
+preset this way reproduces the returned lock exactly.
 
 The returned `qwen-q4-64-results.zip` is the owner-held evidence source
 (SHA-256 `a5e3db2381b664516dc1fb584e01e59018dce6d594bab459f1b20df6bd913ec2`).
@@ -54,6 +75,16 @@ different memory counter; do not treat it as a controlled memory-scaling pair.
 6. Repeat only consequential close comparisons. Test a smaller allowance for
    the [48 GiB projection](64gib-studies.md#what-can-transfer-to-48-gib).
 
+Field Kit tools for this study: `workload context` and `workload cache` for
+populated cold/append/edit sequences; `workload replay --from REQUEST` when
+sustained decoding may differ from a short screen; `study queue` for a frozen
+series without agent turns between attempts; and the bundled coding harness
+(`workloads/coding-flask-*.json`) as the realistic growing coding conversation.
+Those Flask tasks are historical, so they measure capacity and continuation here,
+not a new quality verdict. Each session records power source and low-power mode.
+Approve `--max-context 262144` so the long-window variant fits the study, and
+reuse the weights cache from the Q4 campaign with `--weights-cleanup keep`.
+
 Use the selected medium-thinking configuration for catalog memory evidence.
 Thinking-off diagnostics can isolate cache/capacity costs, but label them and
 confirm the intended profile separately. Keep maximum occupied context,
@@ -67,8 +98,8 @@ Different output lengths can hide or exaggerate reuse, so use a matched small
 answer for the cache timing comparison.
 
 Persistent SSD prefix caching is a separate question. Temper's current
-`splash/v2` renderer explicitly disables it and exposes no policy to turn it
-on. Complete in-process/cache-precision work now; report the missing control
+`splash/v2` renderer explicitly disables it (`--max-cache-disk 0`, rechecked
+22 October 2026) and exposes no policy to turn it on. Complete in-process/cache-precision work now; report the missing control
 for repair here. If a reviewed Temper build later exposes it, use a study-owned
 cache and compare restart reuse, early-edit invalidation, disk size and warm
 latency. Do not silently edit generated launch scripts or the user's cache.

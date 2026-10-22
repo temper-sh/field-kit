@@ -1,0 +1,221 @@
+{
+  "schema": "temper-execution-lock/v1",
+  "preset": "q4-64-splash-131072-cap36",
+  "target": {
+    "os": "darwin",
+    "arch": "arm64"
+  },
+  "records": {
+    "schema": "temper-catalog/v1",
+    "date": "2026-10-18",
+    "platform": "apple-silicon",
+    "runtime": {
+      "router": {
+        "package": "llama-swap",
+        "target": {
+          "os": "darwin",
+          "arch": "arm64"
+        },
+        "source": {
+          "repository": "mostlygeek/llama-swap",
+          "asset": "llama-swap_{number}_darwin_arm64.tar.gz",
+          "archive_root": "."
+        },
+        "release": {
+          "version": "v265",
+          "revision": "d1e743fea64324c990e16e951ac2ea1678f02228",
+          "artifact": {
+            "locator": "https://github.com/mostlygeek/llama-swap/releases/download/v265/llama-swap_265_darwin_arm64.tar.gz",
+            "sha256": "01d8d543198973dcfa52fd263e5696230ee1a77fb204f48c5d542761a67623b0",
+            "size": 22043365,
+            "unpacked_size": 40807156,
+            "installed_entries": 4,
+            "format": "tar.gz",
+            "archive_root": "."
+          }
+        },
+        "exclude_versions": [
+          {
+            "range": "\u003c v257",
+            "reason": "needs llama-swap v257 or newer: setParams defaults that keep explicit request settings"
+          }
+        ]
+      }
+    },
+    "artifacts": {
+      "qwen3.8-27b-dflash2": {
+        "sources": [
+          {
+            "hub": "huggingface",
+            "repo": "incoai/Qwen3.8-27B-DFlash2",
+            "revision": "015e795645c74b1a0eeef3b570031fb62e769bc5"
+          }
+        ],
+        "format": "safetensors",
+        "files": [
+          {
+            "path": "config.json",
+            "bytes": 1239,
+            "sha256": "873e3556509b0da06e29654ba00d4944888d4b5e8a33afde25f7eb27d321e980"
+          },
+          {
+            "path": "model.safetensors",
+            "bytes": 3848817896,
+            "sha256": "67fc76d68dc5a9415511a4f394ef744d67510cd20e93b37cc2cc7d28e4bab65c"
+          }
+        ],
+        "license": "Apache-2.0",
+        "presentation": {
+          "model_name": "Qwen3.8 27B DFlash2",
+          "weights_name": "BF16 draft"
+        }
+      },
+      "qwen3.8-27b-q4xl": {
+        "sources": [
+          {
+            "hub": "huggingface",
+            "repo": "unsloth/Qwen3.8-27B-GGUF",
+            "revision": "4ca720788d1e01f1bff70c033e0d0028fd02e502"
+          }
+        ],
+        "format": "gguf",
+        "files": [
+          {
+            "path": "Qwen3.8-27B-UD-Q4_K_XL.gguf",
+            "bytes": 17559178144,
+            "sha256": "3f227079003add2511437e5b1e94812e363385225bf6a9b47b0054a72bc8b01e"
+          }
+        ],
+        "license": "Apache-2.0",
+        "presentation": {
+          "model_name": "Qwen3.8 27B",
+          "weights_name": "Unsloth UD-Q4_K_XL · GGUF"
+        }
+      }
+    },
+    "templates": {
+      "froggeric-qwen38": {
+        "sources": [
+          {
+            "hub": "huggingface",
+            "repo": "froggeric/Qwen-Fixed-Chat-Templates",
+            "revision": "855bffc49448e299789730ff92c9b8d834d6cc14"
+          }
+        ],
+        "files": [
+          {
+            "path": "chat_template.jinja",
+            "bytes": 28234,
+            "sha256": "e57684bae4156211a55473c5a63be976a405a37ab5be5ae0e5abf1df5349c4b2"
+          }
+        ],
+        "compatible_artifacts": [
+          "qwen3.5-4b-q4km",
+          "qwen3.8-27b-q4xl"
+        ],
+        "license": "Apache-2.0",
+        "presentation": {
+          "display_name": "Froggeric fixed Qwen chat template",
+          "version": "22.5"
+        }
+      }
+    },
+    "engines": {
+      "splash": {
+        "adapter": "splash/v2",
+        "minimum_temper": "0.3.0",
+        "interfaces": [
+          "chat-completions"
+        ],
+        "modalities": [
+          "text"
+        ],
+        "supply": {
+          "package": "splash",
+          "target": {
+            "os": "darwin",
+            "arch": "arm64"
+          },
+          "source": {
+            "repository": "incoai/splash",
+            "asset": "splash-{version}-arm64-macos26.tar.gz",
+            "archive_root": "splash-{version}-arm64-macos26"
+          },
+          "release": {
+            "version": "1.3.2",
+            "revision": "be3b083c5f413673d44e44881042e875e674e333",
+            "artifact": {
+              "locator": "https://github.com/incoai/splash/releases/download/1.3.2/splash-1.3.2-arm64-macos26.tar.gz",
+              "sha256": "c3deb1dd971461ffafcf6b82c318789d6698b22aa865e490a11a0ed943686c0b",
+              "size": 74590927,
+              "unpacked_size": 251182310,
+              "installed_entries": 8126,
+              "format": "tar.gz",
+              "archive_root": "splash-1.3.2-arm64-macos26"
+            }
+          }
+        },
+        "presentation": {
+          "display_name": "Splash 1.3.2 / DFlash2"
+        }
+      }
+    },
+    "presets": {
+      "q4-64-splash-131072-cap36": {
+        "artifact": "qwen3.8-27b-q4xl",
+        "template": "froggeric-qwen38",
+        "engine": "splash",
+        "compute": "gpu",
+        "compute_options": [
+          "gpu"
+        ],
+        "interface": "chat-completions",
+        "modalities": [
+          "text"
+        ],
+        "context_limit_tokens": 262144,
+        "request_defaults": {
+          "reasoning": "on",
+          "sampling": {
+            "temperature": 1,
+            "top_k": 20,
+            "top_p": 0.95,
+            "min_p": 0,
+            "repeat_penalty": 1,
+            "presence_penalty": 0
+          }
+        },
+        "speculation": {
+          "draft_artifact": "qwen3.8-27b-dflash2",
+          "method": "dflash2",
+          "source": "artifact",
+          "max_draft_tokens": 0
+        },
+        "exclude_engine_versions": [
+          {
+            "range": "\u003c 1.3.2",
+            "reason": "needs Splash 1.3.2 or newer: source-assembly frontend, explicit SSD cache policy and native remaining-context output"
+          }
+        ],
+        "profiles": [
+          {
+            "min_memory_gib": 64,
+            "context_window_tokens": 131072,
+            "engine_config": {
+              "kind": "splash/v2",
+              "kv_cache": "int8",
+              "max_memory_bytes": 38654705664,
+              "reasoning_effort": "medium",
+              "request_timeout_seconds": 14400
+            }
+          }
+        ],
+        "presentation": {
+          "display_name": "Qwen3.8 27B Q4 / splash / 64 GiB study: a 36 GiB engine allowance for the 48 GiB projection",
+          "description": "Unmeasured experiment candidate; assess before recommending.",
+          "group": "other"
+        }
+      }
+    }
+  }
+}

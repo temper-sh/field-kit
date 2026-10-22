@@ -110,6 +110,12 @@ These are study briefs. Before dispatch, resolve candidate locks and material
 sizes and freeze the common completed-task inputs. The bundled
 [coding harness](../harnesses/coding/README.md) reads Field Kit's endpoint, model
 format and context window itself. There is no new per-study runner.
+
+Status, 22 October 2026: Splash context/cache is prepared, with its exact
+baseline lock and three settings variants in `splash-context-cache/`. Splash
+Q5/Q6 waits for the owner's new, unused coding tasks. Muse/Gemma still needs a
+check that the MLX engines expose the template and tokenizer routes the coding
+harness uses, or a fixed `--output-tokens` allowance.
 The briefs identify missing Splash SSD-cache control, Rapid's separate DFlash
 lifecycle and the vLLM helper allowance, so they can be addressed here instead
 of rediscovered by the tester. No study has been launched.
