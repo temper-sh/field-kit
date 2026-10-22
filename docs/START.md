@@ -1,7 +1,8 @@
 # Run a study
 
-Start with [the agent guide](ASSISTANT.md). Use installed Temper; the first
-command asks it to install Field Kit's own Python. ./field-kit doctor then
+Clone `https://github.com/temper-sh/field-kit.git`, then start with
+[the agent guide](ASSISTANT.md). Use installed Temper; the first command asks
+it to install Field Kit's own Python. ./field-kit doctor then
 performs read-only discovery.
 
 The agent prepares a brief, exact candidates and a resource budget. After

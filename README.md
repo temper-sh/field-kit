@@ -10,8 +10,8 @@ tradeoffs. Field Kit supplies supervised execution, measurements and recovery.
 The runner supports Apple Silicon and installed Temper 0.3.0+. Field Kit never
 uses a system Python: its first command asks Temper to install Field Kit's own
 pinned CPython 3.14.7 (about 27 MB, once) into `.local/`.
-This rebuild has offline verification; native execution still needs an approved
-trial. Earlier studies keep their original runtime.
+Native checks on an M5 / 32 GiB passed on 22 October 2026. Earlier studies keep
+their original runtime.
 
 ## Start with your agent
 
@@ -21,11 +21,17 @@ trial. Earlier studies keep their original runtime.
 > scope, investigate promising candidates, recover from tool problems and
 > include problems and repairs in the return.
 
-For a first read-only check:
+Get Field Kit and run a first read-only check:
 
 ```sh
+git clone https://github.com/temper-sh/field-kit.git
+cd field-kit
 ./field-kit doctor
 ```
+
+For a prepared study, name its brief in `studies/` instead, for example
+`studies/splash-context-cache.md`. `git pull` updates Field Kit between
+studies; an open study keeps the runtime it started with.
 
 The agent prepares a brief and exact candidates. You approve material and
 resource limits once; the agent chooses useful trials within that scope.
