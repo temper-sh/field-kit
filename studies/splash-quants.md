@@ -11,16 +11,20 @@ Carry the balanced Q4 settings from [context/cache tuning](splash-context-cache.
 forward. Begin with one candidate per size, all from Unsloth revision
 `4ca720788d1e01f1bff70c033e0d0028fd02e502`:
 
-| Candidate | File | Published rounded download size |
+| Candidate | Lock | Weights file, bytes |
 |---|---|---:|
-| Baseline | `Qwen3.8-27B-UD-Q4_K_XL.gguf` | 17.6 GB |
-| Q5 | `Qwen3.8-27B-UD-Q5_K_XL.gguf` | 20.9 GB |
-| Q6 | `Qwen3.8-27B-UD-Q6_K_XL.gguf` | 25.3 GB |
+| Baseline | [`splash-context-cache/locks/q4-64-splash-131072.lock.json`](splash-context-cache/locks/q4-64-splash-131072.lock.json) | `Qwen3.8-27B-UD-Q4_K_XL.gguf`, 17,559,178,144 |
+| Q5 | [`locks/q5-64-splash-131072.lock.json`](splash-quants/locks/q5-64-splash-131072.lock.json) | `Qwen3.8-27B-UD-Q5_K_XL.gguf`, 20,876,938,144 |
+| Q6 | [`locks/q6-64-splash-131072.lock.json`](splash-quants/locks/q6-64-splash-131072.lock.json) | `Qwen3.8-27B-UD-Q6_K_XL.gguf`, 25,299,061,664 |
 
-The [pinned repository listing](https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/tree/4ca720788d1e01f1bff70c033e0d0028fd02e502)
-was checked 21 October 2026. Resolve exact byte counts and hashes into locks
-before preparation. These decimal GB sizes describe downloads, not runtime
-RAM. XL is a starting choice to preserve the quantization family, not a claim
+Each lock differs from the Q4 baseline only in its weights: the same Splash
+1.3.2, DFlash2 draft (3.85 GB), Frog template, int8 KV, medium thinking,
+131,072-token window and 48 GiB allowance. If context/cache tuning selects other
+balanced settings, author Q5 and Q6 again from [`presets/`](splash-quants/presets)
+with those settings, as its brief describes. Byte sizes describe downloads,
+not runtime RAM. Splash's prepared model folder links to the files, so it adds
+no second copy. Approve each quant as its own candidate: different weights
+are different material. XL is a starting choice to preserve the quantization family, not a claim
 that every tensor has the named bit width or that XL is the best Q6 variant.
 Add a smaller Q6 variant only if its expected memory/speed tradeoff merits it.
 
@@ -94,4 +98,6 @@ larger quant is better, show the concrete improvement and its cost.
 Keep tester execution, owner quality judgment and catalog publication as
 separate facts; pending review does not invalidate resource measurements.
 Apply the shared [48 GiB projection method](64gib-studies.md#what-can-transfer-to-48-gib)
-to each finalist's own memory observations.
+to each finalist's own memory observations. The `-cap36` locks are prepared for
+Q5 and Q6, as for Q4: the same settings under the 36 GiB allowance a 48 GiB Mac
+is expected to allow. Q6's weights and draft alone take about 27 GiB of it.

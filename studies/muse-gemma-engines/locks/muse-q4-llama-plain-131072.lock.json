@@ -1,0 +1,202 @@
+{
+  "schema": "temper-execution-lock/v1",
+  "preset": "muse-q4-llama-plain-131072",
+  "target": {
+    "os": "darwin",
+    "arch": "arm64"
+  },
+  "records": {
+    "schema": "temper-catalog/v1",
+    "date": "2026-10-22",
+    "platform": "apple-silicon",
+    "runtime": {
+      "router": {
+        "package": "llama-swap",
+        "target": {
+          "os": "darwin",
+          "arch": "arm64"
+        },
+        "source": {
+          "repository": "mostlygeek/llama-swap",
+          "asset": "llama-swap_{number}_darwin_arm64.tar.gz",
+          "archive_root": "."
+        },
+        "release": {
+          "version": "v265",
+          "revision": "d1e743fea64324c990e16e951ac2ea1678f02228",
+          "artifact": {
+            "locator": "https://github.com/mostlygeek/llama-swap/releases/download/v265/llama-swap_265_darwin_arm64.tar.gz",
+            "sha256": "01d8d543198973dcfa52fd263e5696230ee1a77fb204f48c5d542761a67623b0",
+            "size": 22043365,
+            "unpacked_size": 40807156,
+            "installed_entries": 4,
+            "format": "tar.gz",
+            "archive_root": "."
+          }
+        },
+        "exclude_versions": [
+          {
+            "range": "\u003c v257",
+            "reason": "needs llama-swap v257 or newer: setParams defaults that keep explicit request settings"
+          }
+        ]
+      }
+    },
+    "artifacts": {
+      "muse-q4-gguf": {
+        "sources": [
+          {
+            "hub": "huggingface",
+            "repo": "unsloth/Muse-Glimmer-30B-GGUF",
+            "revision": "faa5b025c584459c13febfa5c59883516710ae39"
+          }
+        ],
+        "format": "gguf",
+        "files": [
+          {
+            "path": "Muse-Glimmer-30B-UD-Q4_K_XL.gguf",
+            "bytes": 15878222368,
+            "sha256": "82bece304887a313ece08400bc030f6066c7bff5b906b0cd40308ec8a409fd38"
+          }
+        ],
+        "license": "Apache-2.0",
+        "presentation": {
+          "model_name": "Muse Glimmer 30B",
+          "weights_name": "Unsloth UD-Q4_K_XL · GGUF"
+        }
+      }
+    },
+    "templates": {
+      "muse-official": {
+        "sources": [
+          {
+            "hub": "huggingface",
+            "repo": "meta-models/Muse-Glimmer-30B",
+            "revision": "a4e59da52a7bc87ae7251dd5545c0dd437c44b68"
+          }
+        ],
+        "files": [
+          {
+            "path": "chat_template.jinja",
+            "bytes": 9992,
+            "sha256": "cfc67e5f349f37690dfd31ed1f18bc4442a9dd32fe39a648f993cb4eb3cae678"
+          }
+        ],
+        "compatible_artifacts": [
+          "muse-q4-gguf"
+        ],
+        "license": "Apache-2.0",
+        "presentation": {
+          "display_name": "Muse Glimmer 30B official chat template"
+        }
+      }
+    },
+    "engines": {
+      "llama-cpp-b11741": {
+        "adapter": "llama-server/v1",
+        "minimum_temper": "0.2.0",
+        "interfaces": [
+          "chat-completions"
+        ],
+        "modalities": [
+          "text"
+        ],
+        "supply": {
+          "package": "llama-cpp",
+          "target": {
+            "os": "darwin",
+            "arch": "arm64"
+          },
+          "source": {
+            "repository": "ggml-org/llama.cpp",
+            "asset": "llama-{version}-bin-macos-arm64.tar.gz",
+            "archive_root": "llama-{version}"
+          },
+          "release": {
+            "version": "b11741",
+            "revision": "1b29621bacc6a446bd523fc790316a24a06e886f",
+            "artifact": {
+              "locator": "https://github.com/ggml-org/llama.cpp/releases/download/b11741/llama-b11741-bin-macos-arm64.tar.gz",
+              "sha256": "812a5f7d3707013956a5c9828c1b40fcfe2e3eb31c1ff7f091df193c3003e5bf",
+              "size": 12324422,
+              "unpacked_size": 32572694,
+              "installed_entries": 60,
+              "format": "tar.gz",
+              "archive_root": "llama-b11741"
+            }
+          }
+        },
+        "presentation": {
+          "display_name": "llama.cpp"
+        }
+      }
+    },
+    "presets": {
+      "muse-q4-llama-plain-131072": {
+        "artifact": "muse-q4-gguf",
+        "template": "muse-official",
+        "engine": "llama-cpp-b11741",
+        "compute": "gpu",
+        "compute_options": [
+          "gpu"
+        ],
+        "interface": "chat-completions",
+        "modalities": [
+          "text"
+        ],
+        "context_limit_tokens": 131072,
+        "request_defaults": {
+          "reasoning": "on",
+          "sampling": {
+            "temperature": 1,
+            "top_k": 64,
+            "top_p": 0.95,
+            "min_p": 0,
+            "repeat_penalty": 1,
+            "presence_penalty": 0
+          }
+        },
+        "speculation": {
+          "method": "none",
+          "source": "none",
+          "max_draft_tokens": 0
+        },
+        "profiles": [
+          {
+            "min_memory_gib": 32,
+            "context_window_tokens": 131072,
+            "engine_config": {
+              "kind": "llama-server/v1",
+              "parallel": 1,
+              "kv_cache": "f16",
+              "flash_attention": "on",
+              "batch_tokens": 1024,
+              "microbatch_tokens": 512,
+              "context_checkpoints": 2,
+              "prompt_cache_ram_mib": 0,
+              "gpu_layers": 99,
+              "controls": {
+                "checkpoint_min_step": 8192,
+                "cache_reuse": 0,
+                "reasoning_effort": "medium",
+                "preserve_reasoning": false,
+                "context_shift": false,
+                "cache_prompt": true,
+                "fit": "off",
+                "threads": 4,
+                "threads_batch": 4,
+                "load_mode": "mmap"
+              }
+            }
+          }
+        ],
+        "presentation": {
+          "display_name": "Muse Glimmer 30B Q4 · llama.cpp b11741 · plain",
+          "description": "A companion for technical writing, planning and orchestration.",
+          "group": "general",
+          "memory_tier": "S"
+        }
+      }
+    }
+  }
+}

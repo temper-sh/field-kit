@@ -26,8 +26,10 @@ Prepared settings variants of the same material, each run with
 | `q4-64-splash-262144` | 262,144-token window | Step 5: beyond 128k, toward the native limit |
 | `q4-64-splash-131072-cap36` | 36 GiB engine allowance | Step 6: the 48 GiB projection |
 
-36 GiB is 75% of 48 GiB, the same rule as the catalog's 24 GiB on 32 GiB and the
-48 GiB used on 64 GiB; replace it if the 48 GiB machine's facts say otherwise.
+36 GiB is the GPU limit a 48 GiB Mac is expected to report. Both patterns seen so
+far give it: 75% of RAM (an M5 / 32 GiB reports 24 GiB) and RAM less about
+12 GiB (this M5 Pro / 64 GiB reported 51.8 GiB). Replace it if a 48 GiB
+machine's own facts say otherwise.
 Author further variants from [`presets/`](splash-context-cache/presets): copy
 the files into an authoring root's `presets.d/` (`temper catalog update --root
 DIR` first), edit one setting, then `temper preset check ID --root DIR

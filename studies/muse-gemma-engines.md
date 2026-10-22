@@ -9,7 +9,7 @@ This is engine/composition research, not a Q5/Q6 campaign for these models.
 
 The prior machine is an M5 / 32 GiB / macOS 26.6.1. Its observations identify
 controls and explain hypotheses; compare finalists again on the M5 Pro before
-claiming a speed gain there. Snapshot facts below come from retained Labs
+claiming a speed gain there. Snapshot facts below come from the earlier study
 records, including work newer than the public model cards.
 
 | Reference | Useful result | Loaded → peak engine RSS, GiB |
@@ -46,19 +46,61 @@ counters overlap other memory views and are not added to RSS or wired growth.
 llama.cpp was faster on that short work. These findings motivate larger-input
 and larger-machine comparisons, not an automatic engine replacement.
 
-Owner-side source paths in the V3 workspace:
-
-- `labs/workstreams/writing-and-orchestration/method/muse-engines-2026-10-19.md`
-- `labs/workstreams/writing-and-orchestration/method/muse-context-capacity-2026-10-20/README.md`
-- `labs/workstreams/writing-and-orchestration/method/gemma-engines-2026-10-19.md`
-- `labs/workstreams/writing-and-orchestration/method/gemma-improvement-2026-10-20/README.md`
-
-Their compact records and frozen catalogs own exact inputs and identities.
-Carry over selected inputs/locks needed for reproduction, not their private
-Python runners. Current public assessments:
+Current public assessments:
 [Muse](https://temper-sh.github.io/models/muse-glimmer-30b/),
 [Gemma 26B](https://temper-sh.github.io/models/gemma-4-26b-a4b/),
 [Gemma 31B](https://temper-sh.github.io/models/gemma-4-31b/).
+
+## Prepared inputs
+
+Everything below is in [`muse-gemma-engines/`](muse-gemma-engines). The study
+catalog (`catalog.json`) gathers the exact engines, model files and settings of
+the earlier runs; every lock in `locks/` is compiled from it with
+`temper catalog compile --catalog catalog.json --preset ID --target darwin/arm64
+--memory-gib 64`. Author a further variant by editing one setting of a preset in
+a copy of the catalog and compiling it the same way.
+
+| Study | Candidate locks (`locks/ID.lock.json`) |
+|---|---|
+| Muse | `muse-q4-llama-dflash7-131072` (control), `muse-q4-llama-plain-131072`, `muse-4bit-rapid-131072`, `muse-4bit-vllm-131072`, `muse-8bit-rapid-131072` |
+| Gemma 26B | `gemma-26b-qat-q4-llama-plain-131072` (control), `gemma-26b-oq4-rapid-131072`, `gemma-26b-oq4-vllm-131072` |
+| Gemma 31B | `gemma-31b-qat-q4-llama-mtp3-40960` (control), `gemma-31b-qat-q4-llama-plain-40960`, `gemma-31b-oq4-rapid-40960`, `gemma-31b-oq4-vllm-40960` |
+
+- The llama.cpp locks keep each control's earlier engine build (b11741 for Muse,
+  b11756 for Gemma), model files, KV precision, speculation and reasoning, with
+  the window raised to the tested point. The Muse control matches the lock Field
+  Kit already ran four times, in material and settings.
+- Rapid is 0.16.4, the version measured before and the one the duplicate-BOS
+  workaround was checked on; the published catalog has 0.16.3. vLLM Metal is
+  0.31.0, as published. Both come as exact pinned Python packages.
+- The MLX locks use the same windows as their controls and a 4,096-token output
+  allowance. Rapid receives no context-window setting from Temper, only the
+  output allowance, so its practical limit is memory; vLLM's window is enforced.
+- New MLX targets: Gemma 31B oQ4 at revision `d809645df8db9531a57e76a2a55939435ed9a7ce`
+  (17.73 GiB) and Muse 8-bit at `679c45e1…` (31.11 GiB). Neither has been run
+  through Rapid or vLLM before; start with a smoke.
+- `muse-4bit-vllm` has no Muse reasoning or tool parser setting; check that
+  reasoning arrives separately before comparing its answers.
+
+Approve each study (Muse, Gemma 26B, Gemma 31B) with its own candidate locks and
+`--max-context 262144`, so window extensions remain settings variants.
+
+The labelled controls are ready as workloads in `workloads/`. They carry the
+earlier prompts, sampling (temperature 1, top-p 0.95, top-k 64, seed 17) and
+per-engine fields exactly:
+
+| Workload | For |
+|---|---|
+| `muse-controls-llama`, `-rapid`, `-vllm` | Source brief, critical review, a move schedule, a publication review, a scene and its revision; Rapid adds the duplicate-BOS workaround |
+| `gemma-controls-llama-thinking` | Notices, a chronology regression, a scene and its revision; thinking on with the 1,024-token budget |
+| `gemma-controls-llama-off`, `gemma-controls-mlx-off` | The same with thinking off: the matched llama.cpp/MLX pair |
+| `gemma-controls-mlx-thinking` | Thinking on without a budget, which MLX lacks; not matched with the llama.cpp thinking run |
+
+Every earlier reserved case has since been used, so these are controls, not
+fresh work. The fresh work for surviving configurations still needs to be
+frozen before inference. Context and cache sequences come from Field Kit's
+`context` and `cache` generators; the same records count differently on each
+engine's tokenizer, so adjust records from the native counts.
 
 ## Candidate order
 
@@ -112,13 +154,14 @@ The [shared brief](64gib-studies.md) defines memory recording, waiting and retur
   `679c45e1b331a6514a6e38076a353cc5fed21bf6` and
   `meta-models/Muse-Glimmer-30B-assistant` revision
   `e8192f3a8f617f74be2ce220360c89ef4789f39f`. Keep the same 8-bit target plain
-  control. Temper currently renders Rapid with no speculation or MTP, so it
-  needs a maintained lifecycle integration before this arm can run. Adding a
+  control. Temper renders Rapid's MTP speculation but has no route for its
+  original DFlash server path, so this arm needs a maintained lifecycle
+  integration before it can run. Adding a
   draft artifact field cannot enable it. Report this arm as pending integration
   and continue the supported candidates; do not bypass process ownership.
-- Muse Rapid 0.16.4 inserted a duplicate BOS. A study-local template-argument
-  workaround corrected token IDs then; verify the actual installed path before
-  reusing it. Unsupported sampling/template settings need diagnosis too.
+- Muse Rapid 0.16.4 inserted a duplicate BOS. Sending
+  `chat_template_kwargs.bos_token: ""` corrected the token IDs then, and
+  `muse-controls-rapid` sends it; verify the token IDs again before relying on it. Unsupported sampling/template settings need diagnosis too.
 - The earlier Gemma vLLM frontend legitimately reached 2.10 GiB. The engine
   adapter now proposes a 3 GiB frontend allowance in study preview, retaining
   2 GiB for its other helpers and the machine's wired/swap guards. Old approvals
@@ -136,3 +179,13 @@ Select one useful composition per model by default; retain alternatives only
 for demonstrated quality, latency or memory benefits. An engine winner at
 short input may differ from the populated-context winner. Project to 48 GiB
 using each composition's own measured envelope, especially the 8-bit Muse arm.
+
+For the 48 GiB projection, the MLX memory setting is a share of the Mac's own GPU
+limit, not of its RAM: vLLM sizes its cache from that limit times the share, less
+the model, and Rapid's pressure threshold is that limit times the share plus 0.05.
+The same share therefore gives a 48 GiB Mac about 30% less. The `-cap48` locks
+scale the shares by 36/51.8 (Rapid 0.70 → 0.49, vLLM 0.65 → 0.45), so the
+64 GiB machine gives each engine the budget a 48 GiB Mac would. llama.cpp has
+no such setting; its projection comes from the measured peak. Muse 8-bit's
+31.1 GiB of weights leave almost nothing of a 48 GiB Mac's expected 36 GiB, so
+report it as not expected to fit unless a measurement says otherwise.

@@ -21,8 +21,7 @@ Do not make an unresolved optional engine arm block the others.
 The tester runs, diagnoses, tunes and preserves outputs. We compare completed
 work centrally, using the returned source and test evidence. Preliminary
 tester judgments help diagnosis; they do not settle the quality ranking.
-Results owns maintained comparisons across machines; these files own the
-research questions and the evidence needed to answer them.
+These files hold the research questions and the evidence needed to answer them.
 
 ## Shared execution and return
 
@@ -68,6 +67,21 @@ numbers across chips. A different cache precision, draft, engine, quant or
 context allocation needs its own memory basis. Use three clear descriptions:
 measured on 48 GiB, projected to fit 48 GiB, or not yet established.
 
+A 48 GiB Mac is expected to report a GPU limit of about 36 GiB. Both patterns
+seen so far give it: 75% of RAM (M5 / 32 GiB: 24 GiB) and RAM less about 12 GiB
+(this M5 Pro / 64 GiB: 51.8 GiB, reported as 53,084 MiB). The basis for each
+projection is a constrained run on the 64 GiB machine at that budget:
+
+| Engine | Constrained run | Projected to fit 48 GiB when |
+|---|---|---|
+| Splash | The prepared `-cap36` lock: the same settings with a 36 GiB engine allowance | It completes the useful point, including continuation, without a resource stop |
+| llama.cpp | The finalist's own lock; llama.cpp has no allowance setting | Peak system wired growth at the useful point stays at or below 33 GiB (3 GiB under the expected limit, as the 64 GiB profile kept 3.8 GiB) |
+| MLX (Rapid, vLLM Metal) | The prepared `-cap48` lock: the memory share scaled by 36/51.8, because the share is of the Mac's own GPU limit | It completes the useful point at that budget, and peak footprint plus helpers stays at or below 33 GiB |
+
+Report the useful point itself: occupied input, output and continuation room,
+not the allocated window alone. A configuration that passes only a short
+lookup is not projected to fit its full window.
+
 Starting evidence, not a new cross-model benchmark:
 
 | Configuration and workload | Machine | Loaded → peak, GiB | Current 48 GiB inference |
@@ -111,11 +125,15 @@ sizes and freeze the common completed-task inputs. The bundled
 [coding harness](../harnesses/coding/README.md) reads Field Kit's endpoint, model
 format and context window itself. There is no new per-study runner.
 
-Status, 22 October 2026: Splash context/cache is prepared, with its exact
-baseline lock and three settings variants in `splash-context-cache/`. Splash
-Q5/Q6 waits for the owner's new, unused coding tasks. Muse/Gemma still needs a
-check that the MLX engines expose the template and tokenizer routes the coding
-harness uses, or a fixed `--output-tokens` allowance.
+Status, 22 October 2026:
+
+- Splash context/cache: ready. Exact baseline lock and variants, including the
+  36 GiB allowance, in `splash-context-cache/`.
+- Splash Q5/Q6: locks ready in `splash-quants/`, each with its 36 GiB variant.
+  It still needs the owner's new, unused coding tasks.
+- Muse and Gemma: catalog, candidate locks, `-cap48` variants and labelled
+  control workloads ready in `muse-gemma-engines/`. Fresh work for surviving
+  configurations still needs freezing; no unused reserved case remains.
 The briefs identify missing Splash SSD-cache control, Rapid's separate DFlash
 lifecycle and the vLLM helper allowance, so they can be addressed here instead
 of rediscovered by the tester. No study has been launched.

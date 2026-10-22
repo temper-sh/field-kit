@@ -1,0 +1,137 @@
+{
+  "question": "Gemma labelled controls on llama.cpp, thinking on with a 1,024-token budget per thinking block.",
+  "sessions": [
+    {
+      "id": "controls",
+      "steps": [
+        {
+          "id": "notices",
+          "request": {
+            "messages": [
+              {
+                "role": "system",
+                "content": "Follow the user's constraints and supplied facts. Treat missing facts as unknown. Return only the requested deliverable."
+              },
+              {
+                "role": "user",
+                "content": "Prepare two notices, each 65-90 words, labelled Visitors and Staff. Use only the source packet below. Visitors should receive practical access information and no budget or supplier detail. Staff should also receive the confirmed budget and unresolved supplier status. Do not publish draft claims as current facts.\n\nSource A — unsigned planning draft, 2 April: close the whole museum for four weeks; provisional budget £48,000; Saturday workshops cancelled.\nSource B — director-approved plan, 6 April: keep the east entrance and ground-floor galleries open Tuesday-Sunday, 10:00-17:00, during phased repairs. Only the upper gallery closes, 12-23 May inclusive. Saturday workshops continue in the ground-floor studio. Approved repair budget £57,500. Supplier appointment is still pending. No change to step-free access.\nSource C — director-approved correction to B, 8 April: upper-gallery closure is 14-25 May inclusive; all other parts of B stand. The upper gallery's reopening time has not yet been confirmed.\nSource D — undated supplier email, no approval: 'We should be able to reopen upstairs at 10:00 on 26 May.'\n\nDo not turn the supplier's forecast into a confirmed reopening time. Make it clear that museum access and workshops continue while the upper gallery is closed."
+              }
+            ],
+            "max_tokens": 4096,
+            "temperature": 1,
+            "top_p": 0.95,
+            "top_k": 64,
+            "min_p": 0,
+            "repeat_penalty": 1,
+            "presence_penalty": 0,
+            "seed": 17,
+            "chat_template_kwargs": {
+              "enable_thinking": true,
+              "preserve_thinking": false
+            },
+            "reasoning_budget_tokens": 1024,
+            "cache_prompt": true
+          }
+        },
+        {
+          "id": "chronology-regression",
+          "request": {
+            "messages": [
+              {
+                "role": "system",
+                "content": "Follow the user's constraints and supplied facts. Treat missing facts as unknown. Return only the requested deliverable."
+              },
+              {
+                "role": "user",
+                "content": "Write a quiet scene of 180–230 words with dialogue, third person limited to librarian Sera. At 17:48, Dev arrives to collect the only copy of a fragile map. The library closes at 18:00; Sera must lock up then. The map needs 18 minutes flat under a press before it can be rolled or carried. The press is in a locked room with no public access after closing. Sera can start pressing now and leave it safely overnight. The library reopens at 08:00. Dev's bus departs at 08:10 from a stop 15 minutes' walk away; the next bus is at 08:40. Dev has no vehicle and nobody can deliver the map. Show the earliest feasible collection and journey, with the cost of the delay acknowledged. Sera keeps the red claim slip in her shirt pocket throughout. Do not solve the problem by changing the rules, inventing a copy, moving the map early or extending opening hours. End before they settle who should pay for the delay. Output only the scene."
+              }
+            ],
+            "max_tokens": 4096,
+            "temperature": 1,
+            "top_p": 0.95,
+            "top_k": 64,
+            "min_p": 0,
+            "repeat_penalty": 1,
+            "presence_penalty": 0,
+            "seed": 17,
+            "chat_template_kwargs": {
+              "enable_thinking": true,
+              "preserve_thinking": false
+            },
+            "reasoning_budget_tokens": 1024,
+            "cache_prompt": true
+          }
+        },
+        {
+          "id": "scene",
+          "request": {
+            "messages": [
+              {
+                "role": "system",
+                "content": "Follow the user's constraints and supplied facts. Treat missing facts as unknown. Return only the requested deliverable."
+              },
+              {
+                "role": "user",
+                "content": "Write a 220-300-word scene in close third person from Ivo's viewpoint, with no explanation outside the scene. At 17:42 on Monday, Ivo is at a community print shop. His daughter needs exactly 36 dry invitation cards at school by 08:20 Tuesday. All 36 have just been printed in wet ink; the drying rack takes 22 uninterrupted minutes, and wet cards cannot be packed or carried. The shop closes to customers at 18:00 sharp; Ivo must leave by then without the wet cards. A staff member will put the completed dry cards in the locked collection cabinet after drying finishes; Ivo cannot open that cabinet until 07:45 Tuesday. It is a 14-minute walk from the shop to the tram stop. Trams leave at 07:50 and 08:10, and each takes 12 minutes to reach the school gate. No taxis, cars, bicycles, earlier cabinet access, alternate delivery or changed deadlines are available. End with a modest, practical decision that acknowledges the unavoidable two-minute delay rather than secretly solving it. Preserve every relevant quantity and chronology; do not imply Ivo can pack or leave with the cards tonight."
+              }
+            ],
+            "max_tokens": 4096,
+            "temperature": 1,
+            "top_p": 0.95,
+            "top_k": 64,
+            "min_p": 0,
+            "repeat_penalty": 1,
+            "presence_penalty": 0,
+            "seed": 17,
+            "chat_template_kwargs": {
+              "enable_thinking": true,
+              "preserve_thinking": false
+            },
+            "reasoning_budget_tokens": 1024,
+            "cache_prompt": true
+          }
+        },
+        {
+          "id": "scene-revision",
+          "request": {
+            "messages": [
+              {
+                "role": "user",
+                "content": "Revise the scene to 120-160 words. Keep Ivo's close third-person viewpoint, all 36 cards, the impossibility of tonight's pickup, and the unavoidable Tuesday arrival at 08:22. Keep the same practical decision and preserve the original constraints. Make the language less sentimental. Return only the revised scene."
+              }
+            ],
+            "max_tokens": 4096,
+            "temperature": 1,
+            "top_p": 0.95,
+            "top_k": 64,
+            "min_p": 0,
+            "repeat_penalty": 1,
+            "presence_penalty": 0,
+            "seed": 17,
+            "chat_template_kwargs": {
+              "enable_thinking": true,
+              "preserve_thinking": false
+            },
+            "reasoning_budget_tokens": 1024,
+            "cache_prompt": true
+          },
+          "append_previous": true
+        }
+      ]
+    }
+  ],
+  "labelled_controls": {
+    "sources": {
+      "notices": "2adda1180be9c0df",
+      "chronology-regression": "aa6a41ea89b866cd",
+      "scene": "9a85606d3dcb26b7",
+      "scene-revision": "6dc0c39847118bed"
+    },
+    "differences": [
+      "All four cases were used in earlier studies: they are labelled controls, not fresh work.",
+      "The revision replays the first answer as content only. The earlier Gemma revision also replayed its reasoning, so compare with that run as a labelled difference.",
+      "llama.cpp's reasoning budget limits each thinking block and can start again on a new one; check the stream."
+    ],
+    "grading": "Central review; rubrics are not part of this workload."
+  }
+}
