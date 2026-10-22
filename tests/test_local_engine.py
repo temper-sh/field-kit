@@ -115,6 +115,22 @@ class LocalEngineTest(unittest.TestCase):
         self.assertEqual([call for call in FakeTemper.calls if call[0] == "remove"], [])
         self.assertTrue(self.weights.exists())
 
+    def test_a_harness_reaches_the_local_engine_routes_directly(self):
+        self.calls = []
+        script = self.root / "harness.py"
+        script.write_text("import os, pathlib\np=pathlib.Path(os.environ['FIELD_KIT_OUTPUT_DIR'])\n"
+                          "(p/'native.txt').write_text(os.environ['FIELD_KIT_NATIVE_URL'])\n"
+                          "(p/'base.txt').write_text(os.environ['FIELD_KIT_BASE_URL'])\n")
+        harness = self.root / "harness.json"
+        harness.write_bytes(canonical_json({"question": "Coding task", "command": ["{python}", str(script)], "cwd": "."}))
+        study = self.open_study()
+        directory = study.reserve("flint-q4-pr", harness, "Run the coding harness against the local build")
+        attempt.execute(study, directory)
+        self.assertEqual(load_json(directory / "result.json", 64 * 1024**2)["state"], "complete")
+        output = directory / "sessions/task/output"
+        self.assertEqual((output / "native.txt").read_text(), "http://" + self.probes[0]["listen"])
+        self.assertEqual((output / "base.txt").read_text(), "http://" + self.probes[0]["listen"] + "/v1")
+
     def test_changed_files_are_refused_before_the_engine_starts(self):
         self.calls = []
         study = self.open_study()

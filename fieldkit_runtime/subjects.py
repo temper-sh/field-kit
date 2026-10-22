@@ -127,9 +127,11 @@ class TemperSubject:
     def __init__(self, attempt):
         self.attempt = attempt
         self.model = attempt.run["execution"]["preset"]
+        # The engine's own routes sit behind Temper's router.
+        self.native_prefix = f"/upstream/{self.model}"
 
     def health_path(self, engine):
-        return f"/upstream/{self.model}{engine.health_path}"
+        return self.native_prefix + engine.health_path
 
     def ready(self, session):
         # Temper's router starts the engine on demand and answers once it is ready.
@@ -179,9 +181,10 @@ class LocalSubject:
         self.attempt = attempt
         self.spec = json.loads(attempt.files.engine.read_text())
         self.model = self.spec["model"]
+        self.native_prefix = ""
 
     def health_path(self, engine):
-        return engine.health_path
+        return self.native_prefix + engine.health_path
 
     def ready(self, session):
         """A direct engine refuses connections before it binds and answers 503 while loading."""

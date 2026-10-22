@@ -29,6 +29,11 @@ class EngineSession:
     def base_url(self):
         return f"http://{self.probe.listen}/v1"
 
+    @property
+    def native_url(self):
+        """The engine's own routes (props, template, tokenizer), whichever subject serves it."""
+        return f"http://{self.probe.listen}{self.subject.native_prefix}"
+
     def __enter__(self):
         try:
             self.probe.start()

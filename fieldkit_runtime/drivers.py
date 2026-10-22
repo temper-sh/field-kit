@@ -4,6 +4,7 @@ A driver fills its session row; the attempt owns the serve around it.
 """
 from __future__ import annotations
 import os
+import sys
 import time
 from . import records
 from .process import atomic_write, run_process_silent
@@ -44,14 +45,17 @@ class Harness:
     def run(self, engine, files, row, attempt):
         files.output.mkdir()
         environment = dict(os.environ)
-        environment.update(FIELD_KIT_BASE_URL=engine.base_url, FIELD_KIT_MODEL=engine.preset,
-                           FIELD_KIT_OUTPUT_DIR=str(files.output), FIELD_KIT_MODEL_ADAPTER=self.model.identifier)
+        environment.update(FIELD_KIT_BASE_URL=engine.base_url, FIELD_KIT_NATIVE_URL=engine.native_url,
+                           FIELD_KIT_MODEL=engine.preset, FIELD_KIT_OUTPUT_DIR=str(files.output),
+                           FIELD_KIT_MODEL_ADAPTER=self.model.identifier)
+        # A workload names Field Kit's own Python as {python}, so it stays portable between checkouts.
+        argv = [sys.executable if value == "{python}" else value for value in self.command]
         started = time.monotonic()
-        result = run_process_silent(self.command, attempt.limit("trial_seconds"), environment=environment,
+        result = run_process_silent(argv, attempt.limit("trial_seconds"), environment=environment,
                                     identity_path=files.command, observer=engine.observe, cwd=self.cwd)
         atomic_write(files.stdout, result.stdout)
         atomic_write(files.stderr, result.stderr)
-        row["command"] = {"argv": self.command, "cwd": self.cwd, "returncode": result.returncode,
+        row["command"] = {"argv": argv, "cwd": self.cwd, "returncode": result.returncode,
                           "task_seconds": time.monotonic() - started, "quality": "needs source/deliverable review",
                           "native_rates": None}
         if result.stop_reason:

@@ -65,21 +65,31 @@ def classify_failure(error: BaseException) -> str:
     return "runtime-failure"
 
 
+def highest(*values: int | None) -> int | None:
+    present = [value for value in values if value is not None]
+    return max(present) if present else None
+
 def memory_record(loaded: dict[str, Any] | None, resources: dict[str, Any], native: dict[str, Any] | None) -> dict[str, Any]:
     engine_loaded = ((loaded or {}).get("roles") or {}).get("engine") or {}
     engine_peak = (resources.get("roles") or {}).get("engine") or {}
     baseline, loaded_wired = resources.get("wired_baseline_bytes"), (loaded or {}).get("wired_bytes")
+    loaded_growth = None if baseline is None or loaded_wired is None else max(0, loaded_wired - baseline)
+    # The loaded sample is taken apart from the periodic ones, so it can be the highest seen.
     record = {
-        "engine_loaded_wired_bytes": None if baseline is None or loaded_wired is None else max(0, loaded_wired - baseline),
-        "engine_peak_wired_bytes": resources.get("wired_growth_bytes") if resources.get("samples") else None,
+        "engine_loaded_wired_bytes": loaded_growth,
+        "engine_peak_wired_bytes": highest(loaded_growth, resources.get("wired_growth_bytes") if resources.get("samples") else None),
         "engine_loaded_footprint_bytes": engine_loaded.get("current_footprint_bytes"),
         "engine_loaded_rss_bytes": engine_loaded.get("rss_bytes"),
-        "engine_peak_footprint_bytes": engine_peak.get("peak_footprint_bytes_max"),
-        "engine_rss_max_bytes": engine_peak.get("rss_bytes_max"),
+        "engine_peak_footprint_bytes": highest(engine_loaded.get("current_footprint_bytes"), engine_peak.get("peak_footprint_bytes_max")),
+        "engine_rss_max_bytes": highest(engine_loaded.get("rss_bytes"), engine_peak.get("rss_bytes_max")),
         "swap_growth_bytes": resources.get("swap_growth_bytes"),
         "loaded_roles": (loaded or {}).get("roles"),
         "peak_roles": resources.get("roles"),
     }
+    if loaded is None:
+        # Samples from a serve that never finished loading are not its peak use; the raw roles stay.
+        record.update(engine_peak_wired_bytes=None, engine_peak_footprint_bytes=None, engine_rss_max_bytes=None,
+                      not_observed="the engine stopped before it finished loading")
     if native is not None:
         record.update(native)
     record.update(counter="system-wired-growth", units="bytes", limitations=(

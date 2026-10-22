@@ -33,7 +33,10 @@ Resource monitoring samples every five seconds, stops on observed thermal/CPU
 throttling or 512 MiB swap growth, and limits wired growth to the smaller of
 87.5% of RAM and the machine's reported wired limit. These are disclosed
 experiment stop policies, not measured preset limits. A sampled peak can miss
-short transients. No coding evaluator is required to initialize a study.
+short transients; it is never below the loaded sample. A serve that stopped
+before it finished loading has no peak: its memory record says `not_observed`,
+and the raw early samples stay beside it. No coding evaluator is required to
+initialize a study.
 Preview also lists each engine's helper-process limits. These are frozen with
 the approval; changing an adapter cannot enlarge an existing study's limits.
 
@@ -122,14 +125,20 @@ documented command; this is a format example, not a bundled harness:
 ```json
 {
   "question": "Complete and test the requested repository change",
-  "command": ["/absolute/path/to/task-harness", "--task", "/absolute/path/to/task.md"],
+  "command": ["{python}", "/absolute/path/to/task_harness.py", "--task", "/absolute/path/to/task.md"],
   "cwd": "/absolute/path/to/isolated-task-workspace"
 }
 ```
 
 Relative cwd resolves beside the workload file. The command is an argv list,
-executed without a shell. It receives FIELD_KIT_BASE_URL, FIELD_KIT_MODEL,
-FIELD_KIT_OUTPUT_DIR and FIELD_KIT_MODEL_ADAPTER. Configure the harness to use
+executed without a shell. An argument that is exactly `{python}` becomes Field
+Kit's own Python, so the workload does not name a checkout-specific path; the
+attempt records the actual argv. The harness receives FIELD_KIT_BASE_URL (the
+OpenAI-compatible `/v1` root), FIELD_KIT_NATIVE_URL (the engine's own routes,
+such as props, template and tokenize; behind Temper's router or direct for a
+local engine), FIELD_KIT_MODEL, FIELD_KIT_OUTPUT_DIR and
+FIELD_KIT_MODEL_ADAPTER. Use these rather than deriving routes from the
+subject kind. Configure the harness to use
 that local endpoint/model and its selected format. The harness owns its own
 parsing and conversation replay; the adapter variable alone does not change it.
 A small adapter for an actual harness can translate these inputs; reuse it

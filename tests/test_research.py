@@ -406,8 +406,8 @@ class StudyTest(unittest.TestCase):
 
     def test_finished_task_uses_existing_command_and_preserves_nonzero_outcome(self):
         script = self.root / "harness.py"
-        script.write_text("import os, pathlib, sys\np=pathlib.Path(os.environ['FIELD_KIT_OUTPUT_DIR'])/'candidate'\np.mkdir()\n(p/'tests.log').write_text('1 failed')\n(p/'adapter.txt').write_text(os.environ['FIELD_KIT_MODEL_ADAPTER'])\nprint(os.environ['FIELD_KIT_MODEL'])\nsys.exit(1)\n")
-        self.workload.write_bytes(canonical_json({"question": "Evaluate a finished task", "model_adapter": "flint/v1", "command": [sys.executable, str(script)],
+        script.write_text("import os, pathlib, sys\np=pathlib.Path(os.environ['FIELD_KIT_OUTPUT_DIR'])/'candidate'\np.mkdir()\n(p/'tests.log').write_text('1 failed')\n(p/'adapter.txt').write_text(os.environ['FIELD_KIT_MODEL_ADAPTER'])\n(p/'native.txt').write_text(os.environ['FIELD_KIT_NATIVE_URL'])\nprint(os.environ['FIELD_KIT_MODEL'])\nsys.exit(1)\n")
+        self.workload.write_bytes(canonical_json({"question": "Evaluate a finished task", "model_adapter": "flint/v1", "command": ["{python}", str(script)],
                                                   "cwd": str(self.root)}))
         directory = self.reserve()
         self.run_attempt(directory)
@@ -417,6 +417,10 @@ class StudyTest(unittest.TestCase):
         self.assertEqual((directory / "sessions/task/output/candidate/tests.log").read_text(), "1 failed")
         self.assertEqual((directory / "sessions/task/stdout.txt").read_text().strip(), "research-model")
         self.assertEqual((directory / "sessions/task/output/candidate/adapter.txt").read_text(), "flint/v1")
+        self.assertRegex((directory / "sessions/task/output/candidate/native.txt").read_text(),
+                         r"^http://127\.0\.0\.1:\d+/upstream/research-model$")
+        self.assertEqual(row["sessions"][0]["command"]["argv"][0], sys.executable)
+        self.assertEqual(load_json(directory / "workload.json")["command"][0], "{python}")
         self.assertEqual(row["model_adapter_scope"], "external-harness")
         self.reserve()
 
@@ -526,7 +530,30 @@ class WorkloadAndJobTest(unittest.TestCase):
     def test_missing_memory_samples_are_not_reported_as_zero_usage(self):
         from fieldkit_runtime.measurements import memory_record
         self.assertIsNone(memory_record(None, {"samples": 0, "wired_growth_bytes": 0}, None)["engine_peak_wired_bytes"])
-        self.assertEqual(memory_record(None, {"samples": 2, "wired_growth_bytes": 0}, None)["engine_peak_wired_bytes"], 0)
+        loaded = {"wired_bytes": GIB, "roles": {}}
+        self.assertEqual(memory_record(loaded, {"samples": 2, "wired_growth_bytes": 0, "wired_baseline_bytes": GIB},
+                                       None)["engine_peak_wired_bytes"], 0)
+
+    def test_peak_memory_is_never_below_the_loaded_sample(self):
+        from fieldkit_runtime.measurements import memory_record
+        loaded = {"wired_bytes": 25 * GIB, "roles": {"engine": {"rss_bytes": 9 * GIB, "current_footprint_bytes": 2 * GIB}}}
+        resources = {"samples": 4, "wired_baseline_bytes": GIB, "wired_growth_bytes": 23 * GIB,
+                     "roles": {"engine": {"rss_bytes_max": 7 * GIB, "peak_footprint_bytes_max": 3 * GIB}}}
+        record = memory_record(loaded, resources, None)
+        self.assertEqual((record["engine_loaded_wired_bytes"], record["engine_peak_wired_bytes"]), (24 * GIB, 24 * GIB))
+        self.assertEqual(record["engine_rss_max_bytes"], 9 * GIB)
+        self.assertEqual(record["engine_peak_footprint_bytes"], 3 * GIB)
+
+    def test_a_serve_that_never_loaded_reports_no_peak(self):
+        from fieldkit_runtime.measurements import memory_record
+        resources = {"samples": 1, "wired_baseline_bytes": GIB, "wired_growth_bytes": 753664, "swap_growth_bytes": 0,
+                     "roles": {"engine": {"rss_bytes_max": 25395200, "peak_footprint_bytes_max": 5374480}}}
+        record = memory_record(None, resources, None)
+        self.assertEqual([record[key] for key in ("engine_peak_wired_bytes", "engine_rss_max_bytes", "engine_peak_footprint_bytes")],
+                         [None, None, None])
+        self.assertIn("before it finished loading", record["not_observed"])
+        self.assertEqual(record["peak_roles"], resources["roles"])
+        self.assertEqual(record["swap_growth_bytes"], 0)
 
     def test_semantic_json_and_real_tool_calls(self):
         self.assertTrue(chat.correct({"message": {"content": ' [1, 2] '}}, {"json": [1, 2]}))

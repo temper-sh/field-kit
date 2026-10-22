@@ -163,8 +163,8 @@ been validated by this runtime revision.
 
 ## External harnesses and verification
 
-Command workloads receive `FIELD_KIT_MODEL_ADAPTER` alongside endpoint, model and
-output-directory variables. This is a selection hint, not an HTTP proxy: Field
+Command workloads receive `FIELD_KIT_MODEL_ADAPTER` alongside endpoint, native
+route, model and output-directory variables. This is a selection hint, not an HTTP proxy: Field
 Kit cannot rewrite a separate harness's conversation. The attempt records its
 adapter scope as `external-harness`. A harness must consume that hint or supply
 its own equivalent format/replay handling, and retain its effective selection.
