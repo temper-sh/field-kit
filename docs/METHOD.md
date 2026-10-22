@@ -29,20 +29,38 @@ plausible measurement variation. There is no universal percentage threshold.
 
 ## Tune runtime settings
 
-Write the tuning plan before the first run: what must not change (material,
-context, cache precision), the variants in order, the budget and the stop rule.
-Declare the settings that must not change with `study init --fixed`, so a
-variant cannot change them by accident.
-Change one setting per attempt and send the same request bytes. Run low-risk
-settings first. Try a riskier memory placement only after a smaller safe
-variant has run, and never repeat a resource failure unchanged.
+Write the tuning plan before the first run. Sort the settings into three kinds:
+fixed, which must keep their value ("context stays 65,536"); bounded, which may
+vary up to a limit ("context up to 65,536"); and tunable. Declare fixed ones
+with `study init --fixed`; `--max-context` and the other approval limits are
+bounds, not fixed values. Add the variants in order, the budget and the stop
+rule.
+
+Give each trial a decision to inform. Before it runs, write the hypothesis, the
+observation that would support or contradict it, and what you would do
+differently afterwards. A trial that cannot change a choice is not worth its
+time.
+
+Isolate effects first: change one setting at a time and send the same request
+bytes. Then test plausible interactions, such as threads with batch size, as
+planned comparisons of their own. Freeze each comparison before it runs, and
+let the next one follow the evidence. Run low-risk settings first. Try a
+riskier memory placement only after a smaller safe variant has run, and never
+repeat a resource failure unchanged.
+
+Reserve budget at the start for confirmation: a matched baseline and finalist
+pair, and completed work, unused where a quality conclusion is intended. Before
+committing to a long coding task, check cheaply that the thinking budget and the
+move to a tool call behave as expected.
 
 Find where the time goes before choosing a setting: startup, prefill, the
 number of generated tokens and the decode rate. Report them separately.
 Startup depends on the file cache (2 s warm versus 78 s on a cold SSD read in
-one Flint study). A reused prompt prefix rules out prefill tuning. A prompt
-change that shortens wall time may only have changed the token count or met a
-faster decode phase; do not credit it with better reasoning.
+one Flint study). A reused prompt prefix saves only part of the prefill:
+measure what remains (newly read tokens and their time) before ruling out
+prefill tuning. A prompt change that shortens wall time may only have changed
+the token count or met a faster decode phase; do not credit it with better
+reasoning.
 
 A short screen can hide a sustained effect. If real work runs at another rate
 than the screen, freeze a timing-only replay of that request: the same
@@ -54,9 +72,10 @@ threads averaged 21 tokens/s, falling from about 39 to 11, while four averaged
 39. With MoE expert layers on the CPU of an Apple chip, start decode threads at
 the performance-core count; llama.cpp sets no CPU affinity there.
 
-With greedy sampling, compare output bytes as well. Identical text means the
-setting changed only speed; different text means it also changed numerics, as
-larger batches did.
+With greedy sampling, compare output bytes as well. Identical text supports a
+controlled timing comparison for that sample; it does not show that quality is
+the same in general. Different text means the setting also changed the computed
+numbers, as larger batches did.
 
 Explain a surprise before tuning around it. Take a one-second profile (macOS
 `sample`) during the slow phase, and keep profiled requests out of speed
@@ -67,8 +86,10 @@ it does not cap total thinking. Native counters show whether a setting took
 effect, such as zero reasoning tokens with thinking off.
 
 Repeat the finalist and the baseline as a matched pair, then confirm on short
-completed work before a large task. The same patch in half the time is a
-runtime result. Stop a control early once its mechanism is clear and record
+completed work before a large task. When the results are close or drift is
+suspected, run the pair again in reverse order: a warm file or prompt cache, or
+a changing thermal state, must not become a tuning recommendation. The same
+patch in half the time is a runtime result. Stop a control early once its mechanism is clear and record
 the early stop; it is neither a failure nor a timeout. Spend remaining budget
 on held-out work, not on another grid.
 
