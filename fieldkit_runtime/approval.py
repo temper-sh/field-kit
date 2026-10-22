@@ -11,7 +11,7 @@ from . import lockview, machine, records, storage, subjects
 from .adapters import engines, interfaces
 from .common import IDENTITY, Refusal, digest, read_regular
 from .context import DEFAULT
-from .material import validate_variant
+from .material import MISSING, setting, validate_variant
 from .measurements import policy_for
 from .process import CommandFailure
 
@@ -63,7 +63,7 @@ def assess(temper, authoring_root, preset, environment, can_plan):
 
 def preview(temper, locks, brief, *, hours=8, download_gib=100, max_context=262144,
             request_seconds=1800, trial_seconds=14400, authoring_root=None, user_root=None,
-            weights_cache=None, weights_cleanup="added", root=None, context=DEFAULT, engines_local=()):
+            weights_cache=None, weights_cleanup="added", root=None, context=DEFAULT, engines_local=(), fixed=()):
     if not (locks or engines_local) or not 0 < hours <= 168 or download_gib < 0 or max_context < 512 \
             or request_seconds < 1 or trial_seconds < 1:
         raise Refusal("name candidates and positive time/context limits (download allowance may be zero)")
@@ -81,6 +81,11 @@ def preview(temper, locks, brief, *, hours=8, download_gib=100, max_context=2621
         validate_variant(document, document, max_context)
     for row in local:
         subjects.validate_local_variant(row, row, max_context)
+    for name in fixed:
+        absent = [row["id"] for row in candidates + local if setting(row, name) is MISSING]
+        if absent:
+            raise Refusal(f"fixed setting {name} is not a setting of {', '.join(absent)}; "
+                          "name a profile path such as context_window_tokens, or a local engine flag such as -c")
     cache = Path(weights_cache).absolute() if weights_cache else storage.default_cache()
     if candidates:  # local engines download nothing
         storage.require_cache(cache, weights_cache is not None)
@@ -111,6 +116,7 @@ def preview(temper, locks, brief, *, hours=8, download_gib=100, max_context=2621
             "resource_policy": policy_for(engines.resolve(row["engine_adapter"]) for row in candidates + local),
             "budgets": {"seconds": int(hours * 3600), "download_bytes": int(download_gib * GIB),
                         "context_tokens": max_context, "request_seconds": request_seconds, "trial_seconds": trial_seconds},
+            "fixed_settings": list(fixed),
             "known_material_bytes": lockview.declared_material_bytes(documents),
             "planned_download_bytes": planned,
             "download_limit_scope": "Approved material allowance, not a network byte meter. Known file sizes, less weights already in the cache; unlisted dependencies/retries excluded. Review Temper's plan and unknowns before approval.",
@@ -136,6 +142,7 @@ def summary(document):
             **lockview.describe(lock), "temper_assessment": document["temper_assessment"].get(row["id"])})
     weights = document["weights"]
     return {"temper": document["temper"], "machine": document["machine"], "budgets": document["budgets"],
+            "fixed_settings": document.get("fixed_settings", []),
             "known_material_bytes": document["known_material_bytes"],
             "planned_download_bytes": document["planned_download_bytes"],
             "download_limit_scope": document["download_limit_scope"], "disk_needs_bytes": document["disk_needs_bytes"],

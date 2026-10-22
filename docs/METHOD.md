@@ -31,6 +31,8 @@ plausible measurement variation. There is no universal percentage threshold.
 
 Write the tuning plan before the first run: what must not change (material,
 context, cache precision), the variants in order, the budget and the stop rule.
+Declare the settings that must not change with `study init --fixed`, so a
+variant cannot change them by accident.
 Change one setting per attempt and send the same request bytes. Run low-risk
 settings first. Try a riskier memory placement only after a smaller safe
 variant has run, and never repeat a resource failure unchanged.
@@ -45,7 +47,8 @@ faster decode phase; do not credit it with better reasoning.
 A short screen can hide a sustained effect. If real work runs at another rate
 than the screen, freeze a timing-only replay of that request: the same
 messages, no prompt cache, a forced long output. Compare native time checkpoints
-across variants, not only whole-response averages. In the Flint study a
+across variants, not only whole-response averages; `study compare` shows the
+decode rate in each quarter of a response. In the Flint study a
 512-token screen showed no thread difference, but over 4,096 tokens eight
 threads averaged 21 tokens/s, falling from about 39 to 11, while four averaged
 39. With MoE expert layers on the CPU of an Apple chip, start decode threads at

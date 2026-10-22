@@ -274,7 +274,28 @@ Temper presets only.
 
 Compile each new variant with Temper, then pass --lock trials/variant.lock.json
 alongside the approved --candidate. Field Kit checks fixed material and context
-scope; it does not require another coding pass.
+scope; it does not require another coding pass. To keep settings unchanged
+across every variant, name them at approval with `study init --fixed NAME`
+(repeatable): a path in a lock's profile, such as `context_window_tokens` or
+`engine_config.kv_cache`, or a local engine flag, such as `-c`. A variant that
+changes one is refused.
+
+`./field-kit study compare my-study RUN RUN …` puts finished attempts side by
+side, read-only:
+
+- whether the material is the same, the settings and workload fields that
+  differ, and the values of the declared fixed settings;
+- per session: startup, power, loaded/peak memory with its counter, and
+  resource samples and stops;
+- per response: input, cached and newly read tokens, output tokens, native
+  prefill and decode rates, decode rate in each quarter of the generated tokens
+  and the last quarter's ratio to the first, and the token at which the first
+  tool call began;
+- for a harness: its exit status, time, final state and graded proposals;
+- which responses produced identical text.
+
+Decode quarters come from the engine's per-token timings in the raw stream
+(`timings_per_token` on llama.cpp); without them they are reported missing.
 
 ```sh
 ./field-kit study status my-study

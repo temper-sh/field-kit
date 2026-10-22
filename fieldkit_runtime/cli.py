@@ -45,6 +45,8 @@ def parser():
     init.add_argument("--weights-cache", type=Path, help="Hugging Face hub cache, e.g. on an external SSD; default the user's")
     init.add_argument("--weights-cleanup", choices=("added", "keep"), default="added",
                       help="at close remove exact study-added weight files, or keep them")
+    init.add_argument("--fixed", action="append", default=[],
+                      help="a setting every variant must keep, e.g. context_window_tokens, engine_config.kv_cache or a local flag like -c")
     init.add_argument("--temper", type=Path)
     init.add_argument("--preview", action="store_true")
     init.add_argument("--yes", action="store_true", help="use existing owner approval for the displayed scope")
@@ -62,6 +64,9 @@ def parser():
     queue.add_argument("id")
     queue.add_argument("--plan", type=Path, required=True,
                        help='JSON {"attempts": [{"candidate", "workload", "reason", optional "lock", "engine", "model_adapter"}]}')
+    compare = actions.add_parser("compare", help="read-only: settings, timing, decode rates, outputs and memory of attempts side by side")
+    compare.add_argument("id")
+    compare.add_argument("runs", nargs="+", help="attempt IDs, as listed in the study")
     for name, help_text in (("status", "show compact state and latest result"),
                             ("wait", "block until completion or timeout; no repeated agent polling"),
                             ("stop", "request owned worker shutdown"),
@@ -148,7 +153,7 @@ def main(argv=None):
                     trial_seconds=arguments.trial_seconds, authoring_root=arguments.authoring_root,
                     user_root=arguments.user_root, weights_cache=arguments.weights_cache,
                     weights_cleanup=arguments.weights_cleanup, root=study.runtime(), context=study.context,
-                    engines_local=arguments.engine)
+                    engines_local=arguments.engine, fixed=arguments.fixed)
                 if arguments.preview:
                     result = summary(document)
                 else:
@@ -178,6 +183,9 @@ def main(argv=None):
                 from . import attempt_queue
                 from .attempt import execute
                 result = attempt_queue.run(study, arguments.plan, execute)
+            elif arguments.action == "compare":
+                from .compare import compare
+                result = compare(study, arguments.runs)
             elif arguments.action == "recover":
                 result = study.recover()
             elif arguments.action == "close":

@@ -11,7 +11,7 @@ from .adapters import interfaces
 from .approval import candidate, identity
 from .common import Refusal, canonical_json, digest, load_json, read_regular
 from .context import DEFAULT
-from .material import validate_variant
+from .material import require_fixed, validate_variant
 from .process import CommandFailure, atomic_write, exclusive_lock, runtime_identity
 from .temper import locate
 
@@ -113,6 +113,7 @@ class Study:
                 validate_variant(json.loads(base["lock"]), json.loads(chosen["lock"]), state["budgets"]["context_tokens"])
                 storage.require_cache(state["weights"]["cache"], state["weights_cache_explicit"])
                 interface = interfaces.resolve(lockview.interface(json.loads(chosen["lock"])))
+            require_fixed(base, chosen, state.get("fixed_settings", []))
             facts = temper.machine_facts()
             for key in ("chip", "physical_memory_bytes", "target"):
                 if facts.get(key) != state["machine"].get(key):

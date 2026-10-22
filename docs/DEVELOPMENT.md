@@ -50,6 +50,7 @@ cli ─► study ─► attempt: begin → prepare → measure each session → 
 | study | Custody: reserve, idle checks, recovery, close and repair attachment |
 | attempt | One attempt's phases, in order, and its committed outcome |
 | attempt_queue | Planned attempts one at a time; stops at a STOP file or after an attempt that did not complete |
+| compare | Read-only side-by-side of finished attempts: settings, timing, decode quarters, outputs, memory |
 | subjects | The two subject kinds: preparation, probe, health path, model name; local declarations and variants |
 | local_probe | One engine Field Kit starts itself: bound, watched, stopped and proven gone without Temper |
 | session | One Temper serve under resource watch; leaving it always stops the serve and records memory |
