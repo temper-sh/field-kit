@@ -10,6 +10,6 @@ class Splash(EngineAdapter):
     def metrics(self, response):
         return llama_timings(response)
 
-    def memory_observer(self, read, preset):
-        source = f"/upstream/{preset}/status"
+    def memory_observer(self, read, native_prefix):
+        source = native_prefix + "/status"
         return SplashMemory(lambda: read(source), source, 5)

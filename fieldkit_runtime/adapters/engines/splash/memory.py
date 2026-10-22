@@ -101,11 +101,11 @@ class SplashMemory:
         return copy.deepcopy({**self.record, "state": state(self.record)})
 
 
-def review(record, preset):
+def review(record, native_prefix):
     """Check reported counter meaning and consistency, without claiming attestation."""
     try:
         if (not isinstance(record, dict) or record["schema"] != SCHEMA
-                or record["source"] != "/upstream/" + preset + "/status"
+                or record["source"] != native_prefix + "/status"
                 or type(record["samples"]) is not int or record["samples"] < 0
                 or any(type(record[k]) is not bool for k in ("finished", "invalidated"))
                 or not isinstance(record["issues"], list) or len(record["issues"]) > 8

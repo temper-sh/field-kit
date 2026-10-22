@@ -131,6 +131,17 @@ class LocalEngineTest(unittest.TestCase):
         self.assertEqual((output / "native.txt").read_text(), "http://" + self.probes[0]["listen"])
         self.assertEqual((output / "base.txt").read_text(), "http://" + self.probes[0]["listen"] + "/v1")
 
+    def test_a_local_splash_engine_reads_its_native_memory_directly(self):
+        self.calls = []
+        self.spec = self.declare(engine_adapter="splash/v1")
+        study = self.open_study()
+        directory = study.reserve("flint-q4-pr", self.workload, "Smoke a local Splash build")
+        attempt.execute(study, directory)
+        native = load_json(directory / "result.json", 64 * 1024**2)["sessions"][0]["memory"]["splash_native"]
+        self.assertEqual(native["source"], "/status")
+        self.assertIn(("/status", None), self.calls)
+        self.assertFalse(any(path.startswith("/upstream/") for path, _ in self.calls))
+
     def test_changed_files_are_refused_before_the_engine_starts(self):
         self.calls = []
         study = self.open_study()

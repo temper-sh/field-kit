@@ -72,10 +72,10 @@ to candidate admission, request execution or process monitoring are needed.
 
 | Engine surface | Responsibility |
 |---|---|
-| `health_path` | Readiness route relative to `/upstream/PRESET` |
+| `health_path` | Readiness route relative to the engine's native root (`/upstream/PRESET` behind Temper's router, the root of a local engine) |
 | `helper_limits` | Temper helper-role names and proposed per-process byte limits; engine memory remains governed by study policy |
 | `metrics(response)` | Native token counts/rates, cache counts and rate sources; unavailable measurements stay `None` |
-| `memory_observer(read, preset)` | Optional observer with `capture(phase)`, `poll()` and `measurements()`; default is absent |
+| `memory_observer(read, native_prefix)` | Optional observer with `capture(phase)`, `poll()` and `measurements()`; it reads native routes under `native_prefix`; default is absent |
 
 `read(path)` is a bounded GET with process ownership checks. Observer creation
 performs no I/O. Its measurements add named native records to the common memory

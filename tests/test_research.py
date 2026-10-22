@@ -260,7 +260,9 @@ class StudyTest(unittest.TestCase):
             helper_limits = {"router": GIB, "helper": 3 * GIB}
             def metrics(self, response):
                 return {**super().metrics(response), "generation_tokens_per_second": 7}
-            def memory_observer(self, read, preset): return FixtureObserver()
+            def memory_observer(self, read, native_prefix):
+                prefixes.append(native_prefix)
+                return FixtureObserver()
         candidate = lock("brand-new-model")
         candidate["records"]["engines"]["engine"]["adapter"] = "fixture/v1"
         self.source.write_bytes(canonical_json(candidate))
@@ -269,7 +271,7 @@ class StudyTest(unittest.TestCase):
             study.initialize(preview(self.temper, [self.source], self.brief, hours=1, download_gib=1,
                                      weights_cache=self.cache, context=study.context))
             directory = study.reserve("brand-new-model", self.workload, "Exercise adapter integration")
-            seen = []
+            seen, prefixes = [], []
             def call(probe, path, payload, timeout, **kwargs):
                 seen.append(path)
                 if kwargs.get("method") == "GET":
@@ -280,6 +282,7 @@ class StudyTest(unittest.TestCase):
             self.assertEqual(result["engine_adapter"], "fixture/v1")
             self.assertEqual(result["model_adapter"], models.DEFAULT)
             self.assertEqual(seen, ["/upstream/brand-new-model/ready-for-work", "/v1/chat/completions"])
+            self.assertEqual(prefixes, ["/upstream/brand-new-model"])
             session = result["sessions"][0]
             self.assertEqual(session["steps"][0]["generation_tokens_per_second"], 7)
             self.assertTrue(session["steps"][0]["correct"])

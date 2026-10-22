@@ -41,7 +41,7 @@ class SplashMemoryTest(unittest.TestCase):
         self.assertEqual(record["last"]["current_bytes"], 18 * GIB)
         self.assertEqual(record["last"]["peak_bytes"], 29 * GIB)
         self.assertEqual(record["state"], "observed")
-        review(record, "splash-q4")
+        review(record, "/upstream/splash-q4")
 
     def test_missing_or_malformed_counters_never_become_zero_usage(self):
         malformed = [{}, {"ready": False}, {**status(), "memory_actual": {}}]
@@ -63,7 +63,7 @@ class SplashMemoryTest(unittest.TestCase):
                 record = memory.result()
                 self.assertEqual(record["state"], "unmeasured")
                 self.assertIsNone(record["last"])
-                review(record, "splash-q4")
+                review(record, "/upstream/splash-q4")
 
     def test_failed_final_read_retains_a_partial_peak_without_erasing_load(self):
         def read():
@@ -78,7 +78,7 @@ class SplashMemoryTest(unittest.TestCase):
         self.assertEqual(record["state"], "partial")
         self.assertFalse(record["finished"])
         self.assertEqual(record["loaded"]["current_bytes"], 20 * GIB)
-        review(record, "splash-q4")
+        review(record, "/upstream/splash-q4")
 
     def test_changed_instance_or_reset_cannot_combine_two_engines_peaks(self):
         for replacement in (status(20, 21), status(20, 40, instance="second"), status(20, 40, restarts=1)):
@@ -91,7 +91,7 @@ class SplashMemoryTest(unittest.TestCase):
                 record = memory.result()
                 self.assertEqual(record["state"], "invalid")
                 self.assertEqual(record["last"]["peak_bytes"], 22 * GIB)
-                review(record, "splash-q4")
+                review(record, "/upstream/splash-q4")
 
     def test_witness_rejects_changed_counter_state_or_source(self):
         memory = SplashMemory(status, SOURCE, 5)
@@ -100,11 +100,11 @@ class SplashMemoryTest(unittest.TestCase):
         for change in ({"source": "/upstream/splash-q5/status"}, {"samples": 0},
                        {"finished": False}, {"issues": ["lost observation"]}):
             with self.subTest(change=change), self.assertRaises(Refusal):
-                review({**memory.result(), **change}, "splash-q4")
+                review({**memory.result(), **change}, "/upstream/splash-q4")
         record = memory.result()
         record["last"]["peak_bytes"] = 19 * GIB
         with self.assertRaises(Refusal):
-            review(record, "splash-q4")
+            review(record, "/upstream/splash-q4")
 
     def test_optional_status_errors_do_not_swallow_process_safety_stops(self):
         def rejected():

@@ -16,10 +16,11 @@ class EngineAdapter:
     def metrics(self, response):
         return chat_usage(response)
 
-    def memory_observer(self, read, preset):
+    def memory_observer(self, read, native_prefix):
         """Optional observer with capture, poll and measurements methods.
 
         read(path) is a bounded, ownership-checked HTTP GET supplied by execution.
-        Construction does not perform I/O.
+        native_prefix is where the engine's own routes start: /upstream/PRESET
+        behind Temper's router, empty for a local engine. Construction does not perform I/O.
         """
         return None

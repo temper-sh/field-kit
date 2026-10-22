@@ -43,7 +43,7 @@ class EngineSession:
             self.startup_seconds = time.monotonic() - self.started
             self.loaded = self.context.sample(self.probe.full_binding, 15)
             self.native = self.engine.memory_observer(
-                lambda path: self.context.call(self.probe, path, {}, 2, method="GET"), self.preset)
+                lambda path: self.context.call(self.probe, path, {}, 2, method="GET"), self.subject.native_prefix)
             if self.native:
                 self.native.capture("loaded")
         except BaseException:
