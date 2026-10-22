@@ -30,8 +30,8 @@ cd field-kit
 ```
 
 For a prepared study, name its brief in `studies/` instead, for example
-`studies/splash-context-cache.md`. `git pull` updates Field Kit between
-studies; an open study keeps the runtime it started with.
+`studies/splash-context-cache.md`. Update with `git pull` between studies, not
+during one; each attempt records the Field Kit revision it ran.
 
 The agent prepares a brief and exact candidates. You approve material and
 resource limits once; the agent chooses useful trials within that scope.
