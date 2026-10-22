@@ -22,7 +22,10 @@ All observed zero swap growth. Counters cover the named workload, not minimum
 machine RAM. Gemma context sequences used thinking off. Both selected Gemma
 compositions also completed short thinking-on confirmation with an explicit
 1,024-token native reasoning budget. `reasoning_effort=medium` alone does not
-provide that budget. Unrestricted thinking sometimes exhausted the entire
+provide that budget. In the llama.cpp source pinned by the 22 October Flint
+study, the budget limits each thinking block and starts again when the model
+opens a new one; it is not a cap on total thinking. Check the stream for
+reopened thinking with the version under test. Unrestricted thinking sometimes exhausted the entire
 output allowance; thinking off introduced factual/arithmetic errors.
 
 Gemma 26B MTP improved the five-task time by only about 2% and added errors;

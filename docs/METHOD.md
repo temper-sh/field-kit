@@ -27,6 +27,53 @@ Select provisional winners by use case. Usually one is enough. Keep another
 speed, quality or memory option only for a meaningful practical gain beyond
 plausible measurement variation. There is no universal percentage threshold.
 
+## Tune runtime settings
+
+Write the tuning plan before the first run: what must not change (material,
+context, cache precision), the variants in order, the budget and the stop rule.
+Change one setting per attempt and send the same request bytes. Run low-risk
+settings first. Try a riskier memory placement only after a smaller safe
+variant has run, and never repeat a resource failure unchanged.
+
+Find where the time goes before choosing a setting: startup, prefill, the
+number of generated tokens and the decode rate. Report them separately.
+Startup depends on the file cache (2 s warm versus 78 s on a cold SSD read in
+one Flint study). A reused prompt prefix rules out prefill tuning. A prompt
+change that shortens wall time may only have changed the token count or met a
+faster decode phase; do not credit it with better reasoning.
+
+A short screen can hide a sustained effect. If real work runs at another rate
+than the screen, freeze a timing-only replay of that request: the same
+messages, no prompt cache, a forced long output. Compare native time checkpoints
+across variants, not only whole-response averages. In the Flint study a
+512-token screen showed no thread difference, but over 4,096 tokens eight
+threads averaged 21 tokens/s, falling from about 39 to 11, while four averaged
+39. With MoE expert layers on the CPU of an Apple chip, start decode threads at
+the performance-core count; llama.cpp sets no CPU affinity there.
+
+With greedy sampling, compare output bytes as well. Identical text means the
+setting changed only speed; different text means it also changed numerics, as
+larger batches did.
+
+Explain a surprise before tuning around it. Take a one-second profile (macOS
+`sample`) during the slow phase, and keep profiled requests out of speed
+comparisons. Read the engine's warnings, and the pinned source of a control
+whose meaning matters. Confirm in the stream that a control works: llama.cpp's
+reasoning budget limits each thinking block and starts again on a new one, so
+it does not cap total thinking. Native counters show whether a setting took
+effect, such as zero reasoning tokens with thinking off.
+
+Repeat the finalist and the baseline as a matched pair, then confirm on short
+completed work before a large task. The same patch in half the time is a
+runtime result. Stop a control early once its mechanism is clear and record
+the early stop; it is neither a failure nor a timeout. Spend remaining budget
+on held-out work, not on another grid.
+
+Keep prompt treatments, such as a system-prompt contract, apart from runtime
+settings: freeze their text before any output, label them and compare them at
+an unchanged runtime. Record power source and low-power mode with speed
+comparisons.
+
 ## Completed work
 
 One response is sufficient for smoke. Stronger quality conclusions require
@@ -34,13 +81,15 @@ finished-task evaluation using an established harness and ordinary project
 tests. Allow bounded feedback/repair; preserve first attempts and final results.
 Do not repeat a full workflow at every tuning point.
 
-Compare requested behavior, regressions, source quality, meaningful tests,
+Freeze each configuration before the quality attempts that judge it. Compare
+requested behavior, regressions, source quality, meaningful tests,
 remaining defects, repair effort and elapsed time. Submission, zero exit status
 and visible tests do not replace review. A missing submission marker does not
 erase useful code.
 
 Inspect bounded attempts that do not finish. Keep quality, completion, harness
-behavior and measurement integrity separate. Quality guides selection; it is
+behavior and measurement integrity separate. When a strict checker rejects the
+format, inspect the content separately and report both verdicts. Quality guides selection; it is
 not a universal gate for resource/cache investigation. Use suitable unused work
 when selection needs independent evidence, without locking a candidate after
 one confirmation case.
@@ -68,7 +117,10 @@ uncertainty; diagnostic caps/deadlines are not product limits.
 Field Kit retains exact measurements, configurations, outputs, reviews and
 important failures. Name memory counter, units and workload with loaded/peak
 values. Wired growth includes other apps; process footprint can omit GPU
-allocations. Do not sum overlapping counters. Disclose sampling gaps/load.
+allocations. Loading mode moves weights between counters: with mmap the
+footprint omits mapped weights; direct loading counts them there while wired
+growth stays the same. Do not sum overlapping counters. Disclose sampling
+gaps/load.
 
 Results owns maintained public comparisons across layouts and machines.
 Field Kit may show local comparisons to guide the study. Temper owns the
