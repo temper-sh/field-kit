@@ -21,19 +21,11 @@ launcher tests need macOS `plutil` and are skipped elsewhere.
 Tests use fake Temper/model boundaries and local subprocesses. They verify
 software behavior; they do not establish native engine performance or fit.
 
-## What was retained
+## Study format
 
-The process probe, macOS resource watcher, response-stream capture and Splash
-native-memory observer retain their focused tests. New study/execution code
-uses those boundaries. Model-specific planning, coding gates, the fixed Flask
-executor/oracle and per-campaign preparation command were retired from this
-branch. Their history remains on legacy at 75629ad. The Flask tasks returned on
-22 October 2026 as inputs of the bundled coding harness, a command workload
-like any other, not as a gate.
-
-Old active studies keep their original runtime and state. No implicit migration
-or destructive cleanup of those studies is performed here. Study schema v3 (one
-Temper root per study, a configured weights cache) refuses v2 studies.
+A study records its format. Field Kit refuses to load one made with another
+format: open it with the Field Kit revision that created it. Nothing migrates
+or cleans up such a study implicitly.
 
 ## Boundaries
 
@@ -63,7 +55,7 @@ cli ─► study ─► attempt: begin → prepare → measure each session → 
 | session | One Temper serve under resource watch; leaving it always stops the serve and records memory |
 | drivers | What sends the work: frozen request steps or an installed harness |
 | relay | A harness's HTTP traffic to the engine, passed unchanged and recorded per request |
-| records | Record shapes, states and file names: the stable surface for Workshop and returned studies |
+| records | Record shapes, states and file names: the stable surface for other tools and returned studies |
 | recovery | Proof that nothing an attempt owned still runs; never repeats inference |
 | context | Machine-facing collaborators, passed in; tests pass fakes instead of patching modules |
 | lockview | The one reader of Temper lock fields Field Kit uses |
@@ -91,18 +83,13 @@ Flint's format/history behavior. Existing formats need only a lock and input;
 each genuinely new engine or format gets one folder and one registry entry.
 
 Versioned briefs and inputs live in studies/. Generated execution state lives
-in .work/studies/ and stays outside version control. Historical runs are not
-migrated implicitly; their matching runtime remains on the legacy branch.
+in .work/studies/ and stays outside version control.
 
 Record exact Field Kit/Temper/Python identity per attempt. Repairs between
 attempts are allowed. A changed runtime cannot overwrite an old attempt.
 A lost worker is reconciled before cleanup or another trial; uncertainty about
 live owned processes must remain visible.
 
-The initial rebuild is verified offline, including a detached task's stop,
-wait and export, missing-harness recovery, changed runtime between attempts,
-and preservation of candidate test logs and repair patches. Read-only discovery
-and study preview have also run against installed Temper 0.3.0 without setup or
-model effects. A native trial requires owner
-authorization and should exercise smoke, cache continuation, interruption,
-close and export before the branch is promoted for testers.
+Offline tests cover a detached task's stop, wait and export, missing-harness
+recovery, changed runtime between attempts, and preservation of candidate test
+logs and repair patches. Native performance and fit need an authorized study.

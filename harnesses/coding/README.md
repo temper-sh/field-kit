@@ -7,9 +7,9 @@ fresh copy, and `submit_patch` ends the task. Independent tests and review
 checks grade every distinct complete proposal afterwards. The model never sees
 them, and the harness never runs or repairs incomplete output.
 
-Field Kit serves the preset and owns its processes, deadlines and memory. This
-harness owns the conversation, the proposals and their grading. It does not
-decide quality: passing tests, a submission and good source are separate
+Field Kit serves the preset and handles its processes, deadlines and memory.
+This harness runs the conversation, applies the proposals and grades them. It
+does not decide quality: passing tests, a submission and good source are separate
 observations, and comparative source review stays with the owner.
 
 ## Tasks
@@ -20,11 +20,9 @@ observations, and comparative source review stays with the owner.
 | `flask-async-stream` | Flask at `49b7e7bc8fb69d605719991d1c0a99fcee689053` | 1800 s, 6 responses | pytest; independent tests and two context-guard review checks |
 | `flask-template-decorators` | the same Flask revision | 1800 s, 6 responses | pytest; independent tests and 21 delegation/argument review checks |
 
-These are historical tasks. Earlier studies used them repeatedly, so they serve
-as labelled regressions and harness checks. A new quality conclusion needs
-unused work as well. The Flask tasks and archive are byte-identical to the
-earlier Field Kit coding suite, so new results compare directly with that
-evidence.
+These tasks have been used in earlier studies, so they serve as labelled
+regressions and harness checks. A new quality conclusion needs unused work as
+well.
 
 ## Run
 
@@ -52,7 +50,7 @@ attempt records the actual argv:
 |---|---|
 | `--seconds`, `--turns` | The task's wall-clock budget and response allowance |
 | `--contract feedback` or `feedback-state` | A labelled prompt treatment added to the system text; the task, tools and tests stay the same |
-| `--sampling JSON`, `--seed` | Sampling overrides; the default is the preset's own sampling with seed 421. Earlier Flint, Qwen and Muse comparisons used `{"temperature": 1, "top_p": 0.95, "top_k": 20, "min_p": 0}` |
+| `--sampling JSON`, `--seed` | Sampling overrides, such as `{"temperature": 1, "top_k": 20}`; the default is the preset's own sampling with seed 421 |
 | `--context` | Overrides the window Field Kit reports |
 | `--output-tokens` | A fixed output allowance, for an engine without template and tokenizer routes |
 
@@ -84,9 +82,3 @@ frozen task files match `manifest.json` and that each reference proposal under
 positive controls from earlier runs, not solutions of record. A new task
 revision is a deliberate change: add its files, then record it with
 `harness.py verify --write-manifest`.
-
-Provenance: the harness and its tasks were extracted on 22 October 2026 from the
-Flint, Qwen and Muse comparison
-(`labs/workstreams/model-runtime-optimization/.work/flint-qwen-muse-2026-10-22`,
-the same bytes as that study's frozen evidence). The prompt treatments are
-byte-identical to those of the Flint tuning study that day.

@@ -122,6 +122,5 @@ footprint omits mapped weights; direct loading counts them there while wired
 growth stays the same. Do not sum overlapping counters. Disclose sampling
 gaps/load.
 
-Results owns maintained public comparisons across layouts and machines.
-Field Kit may show local comparisons to guide the study. Temper owns the
-installable catalog; publication and catalog mutation are separate actions.
+Local comparisons may guide the study. Publishing comparisons across machines
+and changing Temper's catalog are separate actions, outside the study.

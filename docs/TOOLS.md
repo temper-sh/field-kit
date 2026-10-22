@@ -164,9 +164,8 @@ Each step records the scores in document order, documents per second, input
 tokens where the engine reports them, and the unchanged response. A missing,
 duplicated or non-finite score is a failure that ends the session, never a
 ranking. There is no `expect`, `append_previous` or model format: the suite that
-owns the relevance judgments grades the attempt. Workshop's reranking suite
-(`workshop/suites/reranking/field_kit.py`) writes these workloads and grades
-the finished attempt. Field Kit keeps other top-level
+holds the relevance judgments grades the attempt, reading the scores from the
+attempt's records. Field Kit keeps other top-level
 workload fields unchanged, so a suite can freeze its own selection with the
 workload.
 
@@ -260,8 +259,9 @@ proves the group is gone and the port closed. A variant with other arguments
 uses `study run --engine variant.json`; another binary or file needs a new study.
 Changed files are refused before the engine starts.
 
-A local engine is research evidence: it can support a Results story and a
-Temper request, never a catalog profile. Tester studies use Temper presets only.
+A local engine is research evidence: it can support a published assessment and
+a request for Temper support, never a catalog profile. Tester studies use
+Temper presets only.
 
 ## Tune and return
 
@@ -290,5 +290,6 @@ or blocked study, retaining its true state. It includes all evidence and repairs
 including candidate test logs, while excluding the study's private runtime.
 The manifest validates archive membership and file bytes. Nothing uploads.
 
-Earlier study schemas use their original checkout/runtime. This branch does
-not silently rewrite their evidence or operate their processes.
+A study made with a different Field Kit study format refuses to load; open it
+with the Field Kit revision that created it. Field Kit never rewrites another
+format's evidence or operates its processes.

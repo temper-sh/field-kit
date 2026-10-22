@@ -6,9 +6,10 @@ Read [the agent guide](docs/ASSISTANT.md), then relevant study knowledge.
 The goals are trustworthy catalog data and the best supported presets for
 this particular machine and useful work.
 
-Use installed Temper unless the user selects another build. Temper owns preset
-authoring, locks, installation and execution. Read [its operations](docs/TEMPER.md)
-and [Field Kit's tools](docs/TOOLS.md) as needed.
+Use installed Temper unless the user selects another build. Author presets,
+compile locks, install and run through Temper; Field Kit never duplicates it.
+Read [its operations](docs/TEMPER.md) and [Field Kit's tools](docs/TOOLS.md) as
+needed.
 
 Research decisions belong to the agent. Follow [the method](docs/METHOD.md):
 smoke, shortlist including near ties, research/tune, smoke again, select useful
@@ -34,12 +35,12 @@ publish as part of a study.
 ## Changing Field Kit
 
 Read README.md and docs/DEVELOPMENT.md. Follow parent workspace instructions,
-REQUIREMENTS.md and PLAN.md when present. The owner-approved agent/knowledge
-rebuild supersedes older Qwen-only sequencing and qualification gates.
+REQUIREMENTS.md and PLAN.md when present.
 
 Keep studies mostly prose and inputs. Reuse project tests and established
 harnesses for completed work. Add a shared tool only for an actual repeated
-operation. Results owns maintained comparisons; Temper owns runtime facts.
+operation. Return evidence and proposals; maintained comparisons and the
+catalog are changed outside Field Kit.
 
 Use Python's standard library. Preserve process ownership, resource monitoring,
 interruption evidence and repeatable cleanup. Attribute runtime changes per

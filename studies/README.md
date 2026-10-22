@@ -3,10 +3,10 @@
 Start from the user's work and machine. Read the current assessment, then
 investigate uncertainty that changes this study.
 
-- [Temper catalog](https://temper-sh.github.io/catalog/) owns installable
+- The [Temper catalog](https://temper-sh.github.io/catalog/) lists installable
   candidates and scoped memory observations.
-- [Results](https://temper-sh.github.io/) owns model/layout assessments and
-  maintained comparisons.
+- The [model assessments](https://temper-sh.github.io/) compare models and
+  layouts.
 - [Temper contracts](https://github.com/temper-sh/temper/tree/master/docs/contracts)
   explain controls; match documentation to the installed release.
 - Primary model cards, engine source/docs and release notes supply expectations,
@@ -28,10 +28,8 @@ operations rather than another per-study codebase.
 
 Maintained briefs and workload inputs belong in this directory. Local execution
 state belongs in .work/studies/ID/: keep brief.md current with run references,
-choices and relevant rejected options. conclusions.md owns the final proposal.
+choices and relevant rejected options. conclusions.md holds the final proposal.
 The repair tool retains defects and local patches for maintainers.
 
-Weekly/monthly refreshes compare tested identities with changed material,
-identify affected behavior and reuse unchanged evidence. Workshop owns upstream
-release watchers; a fired watcher routes investigation, not qualification.
-Field Kit's wait tool watches local execution.
+A refresh after a software or model update compares tested identities with the
+changed material, identifies affected behavior and reuses unchanged evidence.

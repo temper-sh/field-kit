@@ -103,8 +103,8 @@ Usage totals and wall time never substitute for prefill/decode timing. Rapid
 and vLLM retain usage counts but leave native rates unmeasured until a supported
 native timing source is added to their adapters.
 
-Temper owns installation and runtime effects. Adapters do not introduce their
-own installers, launchers, HTTP clients, lifecycle state or retry loops.
+Temper installs and runs engines. Adapters do not introduce their own
+installers, launchers, HTTP clients, lifecycle state or retry loops.
 
 ## Add a model format
 
@@ -158,13 +158,6 @@ by Field Kit from the request/history and output and marked as such; IDs from
 native structured responses are preserved. Decoding cannot establish the first
 usable-answer timestamp, so that measurement is left missing and the wire
 timestamp is retained separately.
-
-The retained 21 October Flint investigation confirmed a harness history defect:
-reasoning was dropped between assistant turns. Its exact native parser passed
-nested/multiline fixtures and 665 partial prefixes; the original malformed
-generated call remains unexplained. These offline checks support the adapter
-tests, not a claim that native Flint generation or its Temper integration has
-been validated by this runtime revision.
 
 ## External harnesses and verification
 

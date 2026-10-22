@@ -10,8 +10,8 @@ Read existing study state, brief, results and repairs before starting new work.
 Run ./field-kit doctor and use installed Temper. Read [Temper operations](TEMPER.md)
 before relying on newer commands.
 
-Consult [relevant studies](../studies/README.md), current Results/catalog
-assessments and primary upstream sources. Record important expectations and
+Consult [relevant studies](../studies/README.md), the current model assessments
+and catalog, and primary upstream sources. Record important expectations and
 their source/revision or access date. Distinguish facts and hypotheses.
 Reuse applicable evidence. Software refreshes focus on changed material.
 
@@ -61,8 +61,9 @@ quality review, elapsed time/native rates, loaded/peak memory with counters,
 tested input/output/cache scope, meaningful alternatives, remaining questions
 and why exploration stopped. Budget exhaustion is not a hardware limit.
 
-Prepare evidenced settings for Temper. Results owns maintained comparison
-tables; return usable observations and interpretation.
+Prepare evidenced settings for Temper and return usable observations and
+interpretation. Publishing comparisons and changing the catalog are not part
+of a study.
 
 Attach every defect/repair through the repair command, including local patches.
 Close owned resources and export. An idle open study may be exported for a
