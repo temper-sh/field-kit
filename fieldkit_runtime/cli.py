@@ -21,9 +21,11 @@ def parser():
     doctor.add_argument("--temper", type=Path)
     doctor.add_argument("--json", action="store_true")
     generate = commands.add_parser("workload", help="write a reusable request workload, without inference")
-    generate.add_argument("kind", choices=("smoke", "tools", "engine", "context", "cache"))
+    generate.add_argument("kind", choices=("smoke", "tools", "engine", "context", "cache", "replay"))
     generate.add_argument("--records", type=int, default=256)
-    generate.add_argument("--output-tokens", type=int, default=512)
+    generate.add_argument("--output-tokens", type=int, help="default 512; 4096 for replay")
+    generate.add_argument("--from", dest="source", type=Path,
+                          help="replay: a recorded chat request, e.g. a step's request.json or a relay request.body")
     generate.add_argument("--out", type=Path, required=True)
     study = commands.add_parser("study", help="own material, run trials, wait, recover and return evidence")
     actions = study.add_subparsers(dest="action", required=True)
@@ -56,6 +58,10 @@ def parser():
     run.add_argument("--engine", type=Path, help="local engine variant: same binary and files, other arguments")
     run.add_argument("--temper", type=Path)
     run.add_argument("--background", action="store_true")
+    queue = actions.add_parser("queue", help="run planned attempts one at a time; stop at a STOP file or an attempt needing review")
+    queue.add_argument("id")
+    queue.add_argument("--plan", type=Path, required=True,
+                       help='JSON {"attempts": [{"candidate", "workload", "reason", optional "lock", "engine", "model_adapter"}]}')
     for name, help_text in (("status", "show compact state and latest result"),
                             ("wait", "block until completion or timeout; no repeated agent polling"),
                             ("stop", "request owned worker shutdown"),
@@ -118,7 +124,13 @@ def main(argv=None):
         elif arguments.command == "workload":
             if arguments.out.exists() or arguments.out.is_symlink():
                 raise Refusal("workload output exists; choose a new file")
-            atomic_write(arguments.out, canonical_json(workloads.generate(arguments.kind, arguments.records, arguments.output_tokens)))
+            if arguments.kind == "replay":
+                if not arguments.source:
+                    raise Refusal("replay needs --from naming a recorded chat request")
+                document = workloads.replay(arguments.source, arguments.output_tokens or 4096)
+            else:
+                document = workloads.generate(arguments.kind, arguments.records, arguments.output_tokens or 512)
+            atomic_write(arguments.out, canonical_json(document))
             result = {"workload": str(arguments.out), "inference": False}
         else:
             study = Study(REPOSITORY, arguments.id, runtime.DEFAULT)
@@ -162,6 +174,10 @@ def main(argv=None):
                 else:
                     from .attempt import execute
                     result = execute(study, directory)
+            elif arguments.action == "queue":
+                from . import attempt_queue
+                from .attempt import execute
+                result = attempt_queue.run(study, arguments.plan, execute)
             elif arguments.action == "recover":
                 result = study.recover()
             elif arguments.action == "close":

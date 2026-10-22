@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import sys
 from typing import Any, Callable
-from . import storage, watcher
+from . import machine, storage, watcher
 from .local_probe import LocalProbe
 from .probe import ManagedProbe
 from .serving import monitored_call
@@ -17,6 +17,7 @@ class Context:
     call: Callable[..., Any] = monitored_call           # bounded HTTP through that probe
     sample: Callable[..., Any] = watcher.sample_macos   # one resource sample of bound processes
     volume: Callable[[Any], Any] = storage.describe     # volume facts for a path
+    power: Callable[[], Any] = machine.power_state      # power source and modes, recorded per session
     keep_awake: bool = sys.platform == "darwin"         # caffeinate while an attempt runs
 
 DEFAULT = Context()

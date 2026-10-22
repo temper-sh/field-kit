@@ -5,8 +5,9 @@ may contain belongs to the preset's interface.
 """
 from __future__ import annotations
 import hashlib
+import json
 from pathlib import Path
-from .common import Refusal, IDENTITY, load_json
+from .common import Refusal, IDENTITY, digest, load_json, read_regular
 from .adapters import interfaces, models
 
 def validate(document, interface=None):
@@ -77,6 +78,27 @@ def load(path, *, model_adapter=None, interface=None):
     if "cwd" in document:
         document["cwd"] = str((path.parent / document["cwd"]).resolve())
     return validate(document, interface)
+
+def replay(path, output_tokens=4096):
+    """A timing-only replay of one recorded chat request: the same messages, tools and sampling,
+    no prompt cache and a forced output length. It measures sustained speed, never quality.
+    The no-cache, ignore-EOS and per-token timing fields are llama.cpp's; check other engines."""
+    if not 32 <= output_tokens <= 32768:
+        raise Refusal("use 32–32768 output tokens")
+    raw = read_regular(Path(path), 64 * 1024**2)
+    try:
+        request = json.loads(raw)
+    except ValueError as error:
+        raise Refusal(f"replay needs a recorded JSON chat request: {error}") from error
+    if not isinstance(request, dict) or not isinstance(request.get("messages"), list) or not request["messages"]:
+        raise Refusal("replay needs a recorded chat-completions request with messages")
+    request = {key: value for key, value in request.items()
+               if key not in ("model", "stream", "stream_options", "max_completion_tokens")}
+    request.update(max_tokens=output_tokens, cache_prompt=False, ignore_eos=True, timings_per_token=True)
+    return {"question": f"Timing only: how does decoding hold up over {output_tokens} forced tokens of this "
+                        "recorded request? Not a quality check; the forced length ignores the model's own stop.",
+            "replay_of": {"path": str(Path(path).absolute()), "sha256": digest(raw)},
+            "steps": [{"id": "replay", "request": request}]}
 
 def generate(kind, records=256, output_tokens=512):
     if not 8 <= records <= 32768 or not 32 <= output_tokens <= 32768:

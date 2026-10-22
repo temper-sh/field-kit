@@ -2,6 +2,7 @@
 only the approved one and never signals a process it does not own."""
 from __future__ import annotations
 import os
+import re
 import shlex
 import subprocess
 from .common import Refusal
@@ -73,6 +74,24 @@ def restore(temper, approved):
     root = approved.get("root")
     if not layout_record(temper.layout_status(root), root)["running"]:
         temper.layout_activate(approved["layout"], root)
+
+def power_state():
+    """Power source, battery charge and power modes, which change speed. Read-only."""
+    def read(*arguments):
+        return subprocess.run(["/usr/bin/pmset", "-g", *arguments], capture_output=True, text=True, timeout=10,
+                              env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"}, check=True).stdout
+    try:
+        battery, settings = read("batt"), read()
+    except (OSError, subprocess.SubprocessError) as error:
+        return {"counter": "pmset", "error": str(error)[:200]}
+    def setting(name):
+        found = re.search(r"^\s*" + name + r"\s+(\d+)", settings, re.M)
+        return int(found.group(1)) if found else None
+    source, charge = re.search(r"drawing from '([^']+)'", battery), re.search(r"(\d+)%", battery)
+    low = setting("lowpowermode")
+    return {"counter": "pmset", "source": source.group(1) if source else None,
+            "battery_percent": int(charge.group(1)) if charge else None,
+            "low_power_mode": None if low is None else bool(low), "power_mode": setting("powermode")}
 
 def large_processes(minimum=LARGE_PROCESS_BYTES):
     """Read-only list for the tester. RSS can omit GPU memory; nothing is signaled."""

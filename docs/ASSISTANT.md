@@ -46,7 +46,8 @@ check that distinguishes plausible causes. Match controls to explain an
 effect; independently tuned candidates answer deployment-choice questions.
 
 Prefer the host's foreground job completion. For detached work use study wait
-and let the host wait on that process. Internal sampling needs no agent turns.
+and let the host wait on that process. Run a frozen series with study queue
+instead of a loop of agent turns. Internal sampling needs no agent turns.
 Return to interpret completion, repair a defect or respond to a resource stop.
 
 Follow [repair instructions](REPAIR.md) instead of stopping on routine defects.

@@ -104,7 +104,8 @@ def fake_context(call=None, wired=20 * GIB):
     """The machine as tests see it: fake Temper and probe, scripted HTTP, ample APFS disk."""
     return Context(temper=FakeTemper, probe=FakeProbe, local_probe=FakeProbe, call=call or (lambda *args, **kwargs: {}),
                    sample=lambda binding, timeout: {"wired_bytes": wired, "roles": {}}, volume=fake_volume,
-                   keep_awake=False)
+                   power=lambda: {"counter": "pmset", "source": "AC Power", "battery_percent": 80,
+                                  "low_power_mode": False, "power_mode": None}, keep_awake=False)
 
 def fake_volume(path):
     """An internal APFS volume with ample space; real volume facts have their own test."""
@@ -210,6 +211,7 @@ class StudyTest(unittest.TestCase):
         self.assertEqual(session["steps"][0]["finish_reason"], "length")
         self.assertEqual(session["steps"][0]["prefill_tokens_per_second"], 10000)
         self.assertEqual(session["memory"]["engine_peak_wired_bytes"], 20 * GIB)
+        self.assertEqual((session["power"]["source"], session["power"]["low_power_mode"]), ("AC Power", False))
         self.assertNotIn("measurement_valid", result)
         self.assertEqual(result["state"], "complete")
         cache = self.root / "cache.json"

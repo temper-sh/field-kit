@@ -5,7 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from dataclasses import replace
 
@@ -245,11 +245,20 @@ class WeightsStorageTest(Base):
         self.volume = lambda path: volume(path, "exfat")
         with self.assertRaisesRegex(Refusal, "APFS"):
             self.preview([self.write_lock(lock())], root=study.runtime())
-        # exFAT may keep full snapshot copies: 2048 absent bytes need 4096 on the cache volume.
+        # An exFAT cache not seen linking may keep full snapshot copies: 2048 absent bytes need 4096.
         self.volume = lambda path: (volume(path, "exfat", 3000) if Path(path) == self.cache
                                                 else {**volume(path), "mount_point": "/internal"})
-        with self.assertRaisesRegex(Refusal, "not enough free disk"):
+        with self.assertRaisesRegex(Refusal, "copied snapshots"):
             self.preview([self.write_lock(sourced_lock())], root=study.runtime())
+        # A cache that already links its snapshot files needs one copy (macOS 26 exFAT does).
+        snapshot = self.cache / "models--other--model/snapshots" / ("c" * 40)
+        snapshot.mkdir(parents=True)
+        (snapshot / "weights.gguf").symlink_to("../../blobs/" + "d" * 64)
+        self.assertTrue(storage.snapshot_links(self.cache))
+        self.assertEqual(self.preview([self.write_lock(sourced_lock(), "linked.json")], root=study.runtime())
+                         ["disk_needs_bytes"]["/"], 2048)
+        (snapshot / "copied.gguf").write_bytes(b"x")
+        self.assertFalse(storage.snapshot_links(self.cache))
         self.volume = lambda path: volume(path, free=storage.INTERNAL_RESERVE_BYTES - 1)
         with self.assertRaisesRegex(Refusal, "10 GiB reserve"):
             self.preview([self.write_lock(lock())], root=study.runtime())
@@ -272,6 +281,19 @@ class StudyRootTest(Base):
         self.assertFalse((study.directory / ".runtime").exists())
 
 class VolumeFactsTest(unittest.TestCase):
+    def test_power_state_names_source_charge_and_modes(self):
+        from fieldkit_runtime import machine
+        laptop = ("Now drawing from 'Battery Power'\n -InternalBattery-0 (id=1)\t57%; discharging; 3:10 remaining\n",
+                  "System-wide power settings:\n lowpowermode         1\n powermode            2\n")
+        desktop = ("Now drawing from 'AC Power'\n", " sleep                1\n")
+        for (battery, settings), expected in ((laptop, ("Battery Power", 57, True, 2)), (desktop, ("AC Power", None, None, None))):
+            outputs = iter([battery, settings])
+            with patch.object(machine.subprocess, "run", side_effect=lambda *a, **k: Mock(stdout=next(outputs))):
+                state = machine.power_state()
+            self.assertEqual((state["source"], state["battery_percent"], state["low_power_mode"], state["power_mode"]), expected)
+        with patch.object(machine.subprocess, "run", side_effect=FileNotFoundError("pmset")):
+            self.assertIn("pmset", machine.power_state()["error"])
+
     def test_mount_lines_with_spaces_name_the_filesystem(self):
         output = ("/dev/disk3s5 on /System/Volumes/Data (apfs, local, journaled)\n"
                   "/dev/disk4s2 on /Volumes/Crucial X10 (exfat, local, nodev, nosuid, noowners)\n")

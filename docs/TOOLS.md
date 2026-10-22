@@ -29,9 +29,11 @@ is not a network byte meter; review unlisted dependency costs before approval.
 Requests and whole trials have separate deadlines.
 Cleanup and evidence return remain available after the budget ends.
 
-Resource monitoring samples every five seconds, stops on observed thermal/CPU
-throttling or 512 MiB swap growth, and limits wired growth to the smaller of
-87.5% of RAM and the machine's reported wired limit. These are disclosed
+Each session also records the power source, battery charge, low-power mode and
+power mode, since they change speed. Resource monitoring samples every five
+seconds, stops on observed thermal/CPU throttling or 512 MiB swap growth, and
+limits wired growth to the smaller of 87.5% of RAM and the machine's reported
+wired limit. These are disclosed
 experiment stop policies, not measured preset limits. A sampled peak can miss
 short transients; it is never below the loaded sample. A serve that stopped
 before it finished loading has no peak: its memory record says `not_observed`,
@@ -58,9 +60,10 @@ their software installs once. Weights go to the user's Hugging Face cache, or to
 the hub cache moves; `HF_HOME` and the user's token stay. Files already in the
 cache are reused and kept. With `--weights-cleanup added` (default), close
 removes only the exact files this study added, never a whole repository; `keep`
-leaves them. An exFAT cache can hold full copies instead of links, so preview
-requires up to twice the download there, plus 10 GiB free on the study root's
-disk. Each attempt records its root and cache volumes, including file system
+leaves them. Hugging Face copies a snapshot file instead of linking it where
+the file system refuses links. On exFAT, preview therefore asks for twice the
+download unless the cache already shows linked snapshots (macOS 26's exFAT
+links); it always asks for 10 GiB free on the study root's disk. Each attempt records its root and cache volumes, including file system
 and internal or USB. A disconnected cache refuses the attempt before Temper
 starts: reconnect it and start a new attempt.
 
@@ -85,11 +88,38 @@ work, wait blocks inside the tool and returns on completion, lost worker or
 timeout. The host may continue waiting on that process. Avoid repeated agent
 turns calling status. Sampling and process checks are internal.
 
+A frozen series of attempts can run as one command, without agent turns between
+them. Plan paths resolve beside the plan file:
+
+```json
+{"attempts": [
+  {"candidate": "qwen3.8-27b-q4xl-splash", "workload": "coding-flask-async-stream.json",
+   "reason": "Completed work, async streaming"},
+  {"candidate": "flint-q4", "workload": "coding-flask-async-stream.json",
+   "reason": "Same task on Flint", "engine": "flint-65536.json", "model_adapter": "flint/v1"}]}
+```
+
+`./field-kit study queue my-study --plan plan.json` checks the whole plan first,
+then runs each attempt like `study run`. It stops after any attempt that did not
+complete: it failed, was interrupted, was stopped by the resource watch or could
+not prove its shutdown. A harness's own exit status is evidence, not a stop. Create
+`STOP` in the study folder to stop after the current attempt; `study stop`
+interrupts it. The study's `queues/` folder records each run's plan, attempts
+and why it stopped.
+
 Generators: smoke (plain chat), tools (a real tool call), engine (same answer
 at short/populated input, fresh process each), context (cold then append) and
 cache (adds an early edit). Record counts are not token counts. Actual usage is
 retained from engine responses. Generated checks establish only their narrow
 question, not coding quality or a universal context limit.
+
+`replay --from REQUEST` turns one recorded chat request into a timing-only
+workload: the same messages, tools and sampling, with no prompt cache, a forced
+output length (`--output-tokens`, default 4096) and per-token timings in the
+raw stream. Use it when real work runs at another rate than a short screen; the
+source can be a step's `request.json`, a coding turn's `request.json` or a
+relay `request.body`. The no-cache, ignore-EOS and per-token fields are
+llama.cpp's.
 
 ## Write a one-shot workload
 

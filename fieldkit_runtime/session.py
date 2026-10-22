@@ -23,6 +23,7 @@ class EngineSession:
         self.preset = self.subject.model
         self.started = time.monotonic()
         self.startup_seconds = self.loaded = self.native = self.finished = None
+        self.power = self.context.power()  # speed comparisons need it; it can change between sessions
         self.probe = self.subject.probe(files, free_listen())
 
     @property
@@ -80,5 +81,5 @@ class EngineSession:
         resources = self.probe.finish()
         self.finished = {"resources": resources, "safe_to_cleanup": resources.get("safe_to_cleanup", False),
             "memory": memory_record(self.loaded, resources, self.native.measurements() if self.native else None),
-            "elapsed_seconds": time.monotonic() - self.started}
+            "elapsed_seconds": time.monotonic() - self.started, "power": self.power}
         return self.finished

@@ -83,9 +83,22 @@ def weights_plan(cache, locks, cleanup):
             "absent_bytes": sum(row["bytes"] for row in rows if not row["present_before"]),
             "files": sorted(rows, key=lambda row: (row["repo"], row["path"]))}
 
+def snapshot_links(cache, limit=2000):
+    """How the cache already stores snapshot files: links (True), full copies (False) or unknown (None).
+    Hugging Face copies a file only where the file system refuses its link; read-only."""
+    linked = False
+    for count, entry in enumerate(Path(cache).glob("models--*/snapshots/*/**/*")):
+        if count >= limit:
+            break
+        if entry.is_symlink():
+            linked = True
+        elif entry.is_file():
+            return False
+    return True if linked else None
+
 def require_space(root, cache, absent_bytes, software_bytes):
-    """Known sizes only. exFAT caches may keep full snapshot copies instead of links."""
-    factor = 2 if cache["filesystem"] == "exfat" else 1
+    """Known sizes only. On exFAT, a cache not seen linking snapshot files may need a second copy."""
+    factor = 2 if cache["filesystem"] == "exfat" and snapshot_links(cache["path"]) is not True else 1
     needs = {}
     for record, amount in ((cache, absent_bytes * factor), (root, software_bytes + INTERNAL_RESERVE_BYTES)):
         if record is None:
@@ -95,7 +108,8 @@ def require_space(root, cache, absent_bytes, software_bytes):
     for key, (record, amount) in needs.items():
         if record["free_bytes"] is not None and record["free_bytes"] < amount:
             raise Refusal(f"not enough free disk at {key}: about {amount / GIB:.1f} GiB needed "
-                          f"(known files, exFAT copies and a 10 GiB reserve), {record['free_bytes'] / GIB:.1f} GiB free")
+                          f"(known files{', copied snapshots' if factor == 2 else ''} and a 10 GiB reserve), "
+                          f"{record['free_bytes'] / GIB:.1f} GiB free")
     return {key: amount for key, (record, amount) in needs.items()}
 
 def require_cache(cache, explicit):
