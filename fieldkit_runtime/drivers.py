@@ -27,7 +27,8 @@ class Requests:
             if error is not None:
                 observed["failure"] = records.failure(error)
             response, measured = self.interface.observe(response, body, step, attempt.engine, self.model)
-            records.write(step_files.response, response)
+            if response is not None:  # nothing arrived; the failure says why
+                records.write(step_files.response, response)
             observed.update(measured)
             row["steps"].append(observed)
             records.write(files.observations, row)
@@ -46,8 +47,11 @@ class Harness:
         files.output.mkdir()
         environment = dict(os.environ)
         environment.update(FIELD_KIT_BASE_URL=engine.base_url, FIELD_KIT_NATIVE_URL=engine.native_url,
-                           FIELD_KIT_MODEL=engine.preset, FIELD_KIT_OUTPUT_DIR=str(files.output),
-                           FIELD_KIT_MODEL_ADAPTER=self.model.identifier)
+                           FIELD_KIT_MODEL=engine.preset, FIELD_KIT_OUTPUT_DIR=str(files.output))
+        if self.model:
+            environment["FIELD_KIT_MODEL_ADAPTER"] = self.model.identifier
+        else:
+            environment.pop("FIELD_KIT_MODEL_ADAPTER", None)
         # A workload names Field Kit's own Python as {python}, so it stays portable between checkouts.
         argv = [sys.executable if value == "{python}" else value for value in self.command]
         started = time.monotonic()

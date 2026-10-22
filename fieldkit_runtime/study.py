@@ -128,8 +128,7 @@ class Study:
                 created_epoch=time.time(), created_at=jobs.now(), temper=temper.identity(),
                 field_kit=runtime_identity(), machine=facts, resource_policy=state["resource_policy"],
                 family=chosen["family"], execution=chosen["execution"], engine_adapter=chosen["engine_adapter"],
-                model_adapter=work["model_adapter"],
-                model_adapter_scope="external-harness" if "command" in work else "request-workload",
+                model_adapter=work["model_adapter"], model_adapter_scope=workloads.adapter_scope(work),
                 workload_sha256=digest(canonical_json(work)))
             if local:
                 atomic_write(files.engine, chosen["spec"].encode())

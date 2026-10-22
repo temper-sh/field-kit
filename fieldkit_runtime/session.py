@@ -34,6 +34,9 @@ class EngineSession:
         """The engine's own routes (props, template, tokenizer), whichever subject serves it."""
         return f"http://{self.probe.listen}{self.subject.native_prefix}"
 
+    def native_path(self, route):
+        return self.subject.native_prefix + route
+
     def __enter__(self):
         try:
             self.probe.start()

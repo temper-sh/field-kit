@@ -94,15 +94,16 @@ def begin(study, files):
             lock = load_json(files.lock, 16 * 1024**2)
             interface, engine = interfaces.resolve(lockview.interface(lock)), engines.from_lock(lock)
         work = workloads.load(files.workload, interface=interface)
-        model = models.resolve(work["model_adapter"])
-        if run.get("engine_adapter", engine.identifier) != engine.identifier or run.get("model_adapter", model.identifier) != model.identifier:
+        model = models.resolve(work["model_adapter"]) if work["model_adapter"] else None
+        model_id = model.identifier if model else None
+        if run.get("engine_adapter", engine.identifier) != engine.identifier or run.get("model_adapter", model_id) != model_id:
             raise Refusal("attempt adapters differ from its frozen inputs")
         temper = study.context.temper(Path(run["temper"]["path"]))
         if not local and temper.identity() != run["temper"]:
             raise Refusal("Temper changed after this attempt was reserved; prepare a new attempt")
         run.update(worker=jobs.process_identity(os.getpid()), field_kit=runtime_identity(),
-                   engine_adapter=engine.identifier, model_adapter=model.identifier,
-                   model_adapter_scope="external-harness" if "command" in work else "request-workload",
+                   engine_adapter=engine.identifier, model_adapter=model_id,
+                   model_adapter_scope=workloads.adapter_scope(work),
                    state="preparing", safe_to_cleanup=False)
         files.save_run(run)
     attempt = Attempt(study.context, files, run, state, lock, work, engine, model, interface, temper,

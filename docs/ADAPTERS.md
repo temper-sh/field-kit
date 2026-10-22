@@ -10,12 +10,17 @@ completions. There is no engine × model class matrix.
 
 The lock's preset names its interface. The
 [interface registry](../fieldkit_runtime/adapters/interfaces/__init__.py) maps it
-to one module; today `chat-completions` maps to
-[`chat/v1`](../fieldkit_runtime/adapters/interfaces/chat.py). A module provides
-`validate_request`, the allowed `EXPECT` checks, `build` (the request, including
-history replay), `send` (capture, keeping partial output) and `observe`
-(decoding and measurements). Another Temper interface, such as reranking, adds
-one module and one registry entry; sessions, drivers and custody stay unchanged.
+to one module: `chat-completions` maps to
+[`chat/v1`](../fieldkit_runtime/adapters/interfaces/chat.py) and `reranking` to
+[`rerank/v1`](../fieldkit_runtime/adapters/interfaces/rerank.py). A module provides
+`validate_request`, the allowed `EXPECT` checks, `MODEL_FORMAT` (whether a model
+format decodes replies and replays history), `build` (the request, including
+any history replay), `send` (capture, keeping partial output) and `observe`
+(decoding and measurements). `rerank/v1` posts to the engine's own `/rerank`
+route, which llama-server and CrispEmbed share, and records scores in document
+order; it has no model format, so its attempts record none. Another Temper
+interface adds one module and one registry entry; sessions, drivers and custody
+stay unchanged.
 Presets with other interfaces are refused before any effect. Local engines use
 the same interface and engine adapters; their declaration names both.
 

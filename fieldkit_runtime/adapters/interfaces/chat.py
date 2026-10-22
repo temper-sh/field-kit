@@ -11,6 +11,8 @@ from ...stream import ChatStream
 IDENTIFIER = "chat/v1"
 PATH = "/v1/chat/completions"
 EXPECT = ("json", "text", "tool")
+# Replies are decoded, and history replayed, by the selected model format.
+MODEL_FORMAT = True
 
 
 def validate_request(request):

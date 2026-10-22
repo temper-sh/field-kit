@@ -88,7 +88,7 @@ class LocalEngineTest(unittest.TestCase):
         for changes, message in (({"arguments": ["-m", "{file:weights}"]}, "port"),
                                  ({"arguments": ["{port}", "{file:draft}"]}, "unknown placeholders"),
                                  ({"executable": "llama-server"}, "absolute"),
-                                 ({"interface": "reranking"}, "does not evaluate")):
+                                 ({"interface": "embeddings"}, "does not evaluate")):
             with self.subTest(message=message), self.assertRaisesRegex(Refusal, message):
                 local_candidate(self.declare("bad.json", **changes))
 

@@ -116,6 +116,30 @@ Flint reasoning and tool-call envelopes. Parse issues remain separate from
 quality, rate and memory observations. See [adapters](ADAPTERS.md) for supported
 formats and adding another one.
 
+## Reranker presets
+
+A reranking preset takes steps whose request is exactly a query and its
+documents; Field Kit adds the model and asks for every document's score:
+
+```json
+{
+  "question": "Does the reranker put the direct answer first?",
+  "steps": [{"id": "timeout", "request": {
+    "query": "How is a timeout told apart from cancellation?",
+    "documents": ["Timeouts raise DeadlineExceeded.", "Cancel is a user signal.", "Spinner colors."]}}]
+}
+```
+
+Each step records the scores in document order, documents per second, input
+tokens where the engine reports them, and the unchanged response. A missing,
+duplicated or non-finite score is a failure that ends the session, never a
+ranking. There is no `expect`, `append_previous` or model format: the suite that
+owns the relevance judgments grades the attempt. Workshop's reranking suite
+(`workshop/suites/reranking/field_kit.py`) writes these workloads and grades
+the finished attempt. Field Kit keeps other top-level
+workload fields unchanged, so a suite can freeze its own selection with the
+workload.
+
 ## Finished tasks with an existing harness
 
 A command workload runs the installed harness under the same engine/resource

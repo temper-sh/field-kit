@@ -45,7 +45,7 @@ so a local result and its later Temper rerun compare directly.
 ```text
 cli ─► study ─► attempt: begin → prepare → measure each session → commit
                  ├─ session    one Temper serve under watch; always finished
-                 ├─ interface  chosen by the lock's preset (chat/v1 today)
+                 ├─ interface  chosen by the lock's preset: chat/v1 or rerank/v1
                  ├─ driver     frozen requests │ an existing harness command
                  └─ records    the only record shapes and file names
 ```

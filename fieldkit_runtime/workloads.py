@@ -13,7 +13,12 @@ def validate(document, interface=None):
     interface = interface or interfaces.resolve("chat-completions")
     if not isinstance(document, dict) or not isinstance(document.get("question"), str) or not document["question"].strip():
         raise Refusal("workload needs a question")
-    document = {**document, "model_adapter": models.resolve(document.get("model_adapter", models.DEFAULT)).identifier}
+    if interface.MODEL_FORMAT:
+        document = {**document, "model_adapter": models.resolve(document.get("model_adapter", models.DEFAULT)).identifier}
+    elif document.get("model_adapter") is not None:
+        raise Refusal(f"{interface.IDENTIFIER} has no model format; remove model_adapter")
+    else:
+        document = {**document, "model_adapter": None}
     if "command" in document:
         if any(key in document for key in ("request", "sessions", "steps")):
             raise Refusal("choose a command or requests, not both")
@@ -50,11 +55,20 @@ def validate(document, interface=None):
             interface.validate_request(step.get("request"))
             if step.get("append_previous") and not index:
                 raise Refusal("append_previous needs a preceding response")
+            if step.get("append_previous") and not interface.MODEL_FORMAT:
+                raise Refusal(f"append_previous replays chat history; {interface.IDENTIFIER} has none")
             expected = step.get("expect")
             if expected is not None and (not isinstance(expected, dict) or len(expected) != 1
                                          or next(iter(expected)) not in interface.EXPECT):
-                raise Refusal("expect is one of " + ", ".join(interface.EXPECT))
+                raise Refusal("expect is one of " + ", ".join(interface.EXPECT) if interface.EXPECT
+                              else f"{interface.IDENTIFIER} steps take no expect; the suite that owns the judgments grades them")
     return {**document, "sessions": sessions}
+
+def adapter_scope(work):
+    """Where the model format applies: requests Field Kit sends, or an external harness's own."""
+    if work["model_adapter"] is None:
+        return None
+    return "external-harness" if "command" in work else "request-workload"
 
 def load(path, *, model_adapter=None, interface=None):
     document = load_json(path, 64 * 1024**2)

@@ -1,8 +1,8 @@
 """Temper preset interfaces. The lock's preset names one; the workload must match it."""
 from ...common import Refusal
-from . import chat
+from . import chat, rerank
 
-INTERFACES = {"chat-completions": chat}
+INTERFACES = {"chat-completions": chat, "reranking": rerank}
 
 
 def resolve(name):
