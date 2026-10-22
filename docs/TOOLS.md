@@ -1,7 +1,8 @@
 # Field Kit tools
 
-Commands emit compact JSON; errors go to stderr. The runtime uses installed
-Python and Temper. Help, doctor, workload generation and preview start no model.
+Commands emit compact JSON; errors go to stderr. Field Kit runs on its own
+pinned Python, which the installed Temper installs on first use, and calls that
+Temper. Help, doctor, workload generation and preview start no model.
 
 ## Start a study
 

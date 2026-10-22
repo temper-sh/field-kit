@@ -216,11 +216,7 @@ class ManagedProbe:
             match = STATUS_TIMESTAMP.fullmatch(timestamp) if isinstance(timestamp, str) else None
             if match is None:
                 raise ValueError("invalid RFC 3339 timestamp")
-            second, fraction, zone = match.groups()
-            # Python 3.9 only parses fractions of 3 or 6 digits. Go emits 0–9;
-            # truncate to microseconds for the seconds-scale freshness check.
-            fraction = "." + fraction[:6].ljust(6, "0") if fraction else ""
-            updated = datetime.datetime.fromisoformat(second + fraction + zone.replace("Z", "+00:00"))
+            updated = datetime.datetime.fromisoformat(timestamp)
             age = (datetime.datetime.now(datetime.timezone.utc) - updated).total_seconds()
             if not final and not -1 <= age <= 15:
                 raise ProbeError("Temper process observation is stale")

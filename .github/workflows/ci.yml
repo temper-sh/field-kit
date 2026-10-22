@@ -13,7 +13,8 @@ jobs:
   test:
     strategy:
       matrix:
-        python: ["3.9", "3.14"]
+        # Field Kit runs on its pinned CPython 3.14 (runtime/python-macos-arm64.lock.yaml).
+        python: ["3.14"]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

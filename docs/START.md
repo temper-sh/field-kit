@@ -1,7 +1,8 @@
 # Run a study
 
-Start with [the agent guide](ASSISTANT.md). Use installed Temper and Python;
-./field-kit doctor performs read-only discovery.
+Start with [the agent guide](ASSISTANT.md). Use installed Temper; the first
+command asks it to install Field Kit's own Python. ./field-kit doctor then
+performs read-only discovery.
 
 The agent prepares a brief, exact candidates and a resource budget. After
 approval it uses [the tools](TOOLS.md) to smoke, tune and investigate the

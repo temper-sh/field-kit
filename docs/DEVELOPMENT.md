@@ -13,7 +13,11 @@ python3 -m unittest discover -v
 git diff --check
 ```
 
-Python 3.9+ and its standard library are sufficient. CI exercises 3.9 and 3.14.
+Field Kit runs on its pinned CPython 3.14.7 (`runtime/python-macos-arm64.lock.yaml`),
+installed by Temper into `.local/` on first use, and uses only its standard
+library. It never falls back to a system or PATH `python3`. Development and CI
+may set `FIELD_KIT_PYTHON` to another Python 3.14 or newer; CI runs 3.14. The
+launcher tests need macOS `plutil` and are skipped elsewhere.
 Tests use fake Temper/model boundaries and local subprocesses. They verify
 software behavior; they do not establish native engine performance or fit.
 

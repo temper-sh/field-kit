@@ -7,7 +7,9 @@ Your agent researches options, measures promising configurations, reviews their
 work and follows the evidence toward useful quality, speed, memory and context
 tradeoffs. Field Kit supplies supervised execution, measurements and recovery.
 
-The runner supports Apple Silicon, installed Temper 0.3.0+ and Python 3.9+.
+The runner supports Apple Silicon and installed Temper 0.3.0+. Field Kit never
+uses a system Python: its first command asks Temper to install Field Kit's own
+pinned CPython 3.14.7 (about 27 MB, once) into `.local/`.
 This rebuild has offline verification; native execution still needs an approved
 trial. Earlier studies keep their original runtime.
 

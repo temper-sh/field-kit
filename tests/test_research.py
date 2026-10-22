@@ -2,6 +2,7 @@
 import copy
 import json
 import os
+import socket
 from pathlib import Path
 import subprocess
 import sys
@@ -229,22 +230,25 @@ class StudyTest(unittest.TestCase):
     def test_transport_failure_ends_the_session_and_keeps_the_partial_stream(self):
         self.workload.write_bytes(canonical_json({"question": "Stop after a broken request", "steps": [
             {"id": name, "request": {"messages": [{"role": "user", "content": "Answer"}]}} for name in ("first", "second")]}))
-        directory = self.reserve()
-        sent = []
-        def call(probe, path, payload, timeout, **kwargs):
-            if kwargs.get("method") == "GET":
-                return {}
-            sent.append(path)
-            kwargs["stream_reader"].raw_path.write_text("data: partial")
-            raise TimeoutError("request deadline")
-        self.run_attempt(directory, call)
-        result = load_json(directory / "result.json", 64 * 1024**2)
-        self.assertEqual(len(sent), 1)
-        self.assertEqual(result["sessions"][0]["failure"]["kind"], "timeout")
-        self.assertEqual((result["state"], result["error"]["kind"]), ("failed", "timeout"))
-        self.assertEqual((directory / "sessions/session/first/response.sse").read_text(), "data: partial")
-        self.assertTrue((directory / "sessions/session/first/response.json").is_file())
-        self.assertTrue(result["safe_to_cleanup"])
+        # The approved request deadline, and a stalled socket read inside it.
+        for error in (TimeoutError("request deadline"), socket.timeout("timed out")):
+            with self.subTest(error=type(error).__name__):
+                directory = self.reserve()
+                sent = []
+                def call(probe, path, payload, timeout, **kwargs):
+                    if kwargs.get("method") == "GET":
+                        return {}
+                    sent.append(path)
+                    kwargs["stream_reader"].raw_path.write_text("data: partial")
+                    raise error
+                self.run_attempt(directory, call)
+                result = load_json(directory / "result.json", 64 * 1024**2)
+                self.assertEqual(len(sent), 1)
+                self.assertEqual(result["sessions"][0]["failure"]["kind"], "timeout")
+                self.assertEqual((result["state"], result["error"]["kind"]), ("failed", "timeout"))
+                self.assertEqual((directory / "sessions/session/first/response.sse").read_text(), "data: partial")
+                self.assertTrue((directory / "sessions/session/first/response.json").is_file())
+                self.assertTrue(result["safe_to_cleanup"])
 
     def test_new_engine_adapter_runs_without_a_core_executor_change(self):
         class FixtureObserver:
@@ -574,16 +578,3 @@ class WorkloadAndJobTest(unittest.TestCase):
             record = load_json(identity)
             self.assertEqual(record["state"], "exited")
             self.assertFalse(jobs.alive(record["process"]))
-
-    def test_launcher_help_uses_installed_python_without_setup(self):
-        root = Path(__file__).resolve().parents[1]
-        with tempfile.TemporaryDirectory() as temp:
-            executable = Path(temp) / "field-kit"
-            executable.write_bytes((root / "field-kit").read_bytes())
-            executable.chmod(0o755)
-            (Path(temp) / "fieldkit_runtime").symlink_to(root / "fieldkit_runtime", target_is_directory=True)
-            result = subprocess.run([str(executable), "--help"], capture_output=True, text=True,
-                                    env={**os.environ, "FIELD_KIT_PYTHON": sys.executable})
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertFalse((Path(temp) / ".local").exists())
-            self.assertIn("doctor", result.stdout)

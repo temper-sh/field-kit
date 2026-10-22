@@ -34,7 +34,7 @@ evidence stays.
 | Symptom | Action |
 |---|---|
 | New Temper command missing | Inspect help; use existing fork/copy/check/files and execution commands. Upgrade only when required capability has no installed route. |
-| Launcher Python unavailable | Set FIELD_KIT_PYTHON to installed Python 3.9+. Help never downloads Python. |
+| Field Kit's Python unavailable | Remove .local/python-path and run ./field-kit again; Temper reinstalls the pinned Python. Never point Field Kit at a system Python. |
 | Interrupted preparation | Recover the worker and start a new trial with the same owned root/cache; Temper reuses verified material. |
 | Occupied port | Identify listener read-only; never stop unrelated services. Use a different owned root for engine-port conflicts. |
 | Missing submission | Review retained patch/tests and attribute the harness outcome separately. |
