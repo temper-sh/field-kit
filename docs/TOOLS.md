@@ -150,6 +150,44 @@ Use ordinary project tests and comparative source review. The agent writes
 assessment.md beside the run or uses study evidence/ for a shared comparison.
 No submission marker or source-review verdict is required for another trial.
 
+## Evaluate a local engine before Temper supports it
+
+On your own machine, test an engine build or setting Temper cannot express yet;
+if it is worth it, Temper gains support and the same workload is run again on the
+Temper preset. Declare the engine you built:
+
+```json
+{
+  "schema": "field-kit-local-engine/v1",
+  "id": "flint-q4-pr",
+  "interface": "chat-completions",
+  "engine_adapter": "llama-server/v1",
+  "executable": "/absolute/path/llama.cpp/build/bin/llama-server",
+  "arguments": ["--host", "127.0.0.1", "--port", "{port}", "-m", "{file:weights}", "--n-cpu-moe", "4"],
+  "files": {"weights": "/absolute/path/to/model.gguf"},
+  "model": "flint",
+  "source": "llama.cpp pull request and commit, build options",
+  "context_window_tokens": 65536
+}
+```
+
+`{port}` is required; Field Kit chooses a free loopback port. `{file:NAME}`
+inserts a declared file. `environment` is optional. Field Kit never builds or
+installs the engine. Approval records a digest of every file in the
+executable's folder, so a rebuilt library changes identity, and each file's
+size, modification time and SHA-256 (a Hugging Face blob name is its SHA-256).
+Pass `--engine engine.json` to `study init` instead of, or beside, `--lock`;
+a local-only study needs no weights cache.
+
+The engine runs in its own process group under the same resource watch. Field
+Kit waits for its health path, stops the group (SIGTERM, then SIGKILL) and
+proves the group is gone and the port closed. A variant with other arguments
+uses `study run --engine variant.json`; another binary or file needs a new study.
+Changed files are refused before the engine starts.
+
+A local engine is research evidence: it can support a Results story and a
+Temper request, never a catalog profile. Tester studies use Temper presets only.
+
 ## Tune and return
 
 Compile each new variant with Temper, then pass --lock trials/variant.lock.json

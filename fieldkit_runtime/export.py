@@ -41,7 +41,7 @@ def export_study(study, destination):
             row = files.load_run()
             if jobs.alive(row.get("worker")) or jobs.status(files.directory)["state"] == "queued":
                 raise Refusal("wait for or stop the active worker before export")
-            for path, expected in ((files.lock, row["lock_sha256"]), (files.workload, row["workload_sha256"])):
+            for path, expected in files.inputs(row):
                 if file_digest(path) != expected:
                     raise Refusal(f"attempt input changed: {run_id}/{path.name}")
         files = list(evidence_files(study.directory))

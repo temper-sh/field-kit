@@ -18,7 +18,10 @@ Reuse applicable evidence. Software refreshes focus on changed material.
 Write a brief covering intended work, candidates and why, prior observations,
 open questions, comparisons, material/resource budget and evidence destination.
 Prepare Temper presets and exact locks. Include useful drafts/variants within
-approval. Review installation requirements and unknown costs.
+approval. Review installation requirements and unknown costs. On the owner's
+machine, an engine build or setting Temper cannot express yet can be declared as
+a [local engine](TOOLS.md#evaluate-a-local-engine-before-temper-supports-it);
+its results are research evidence for deciding whether Temper should support it.
 
 Use study init --preview to prepare a concrete review. Pass --authoring-root
 when candidates are user presets there, so Temper checks them. Choose the

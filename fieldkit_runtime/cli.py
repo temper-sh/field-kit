@@ -30,7 +30,9 @@ def parser():
     init = actions.add_parser("init", help="review and approve exact candidates and limits")
     init.add_argument("id")
     init.add_argument("--brief", type=Path, required=True)
-    init.add_argument("--lock", type=Path, action="append", required=True)
+    init.add_argument("--lock", type=Path, action="append", default=[], help="exact Temper execution lock of a candidate preset")
+    init.add_argument("--engine", type=Path, action="append", default=[],
+                      help="local engine declaration (field-kit-local-engine/v1) for builds Temper cannot run yet")
     init.add_argument("--hours", type=float, default=8)
     init.add_argument("--download-gib", type=float, default=100)
     init.add_argument("--max-context", type=int, default=262144)
@@ -51,6 +53,7 @@ def parser():
     run.add_argument("--model-adapter", help="format/replay adapter, e.g. flint/v1; overrides the workload")
     run.add_argument("--reason", required=True)
     run.add_argument("--lock", type=Path, help="Temper-compiled settings variant of this candidate")
+    run.add_argument("--engine", type=Path, help="local engine variant: same binary and files, other arguments")
     run.add_argument("--temper", type=Path)
     run.add_argument("--background", action="store_true")
     for name, help_text in (("status", "show compact state and latest result"),
@@ -124,7 +127,8 @@ def main(argv=None):
                     max_context=arguments.max_context, request_seconds=arguments.request_seconds,
                     trial_seconds=arguments.trial_seconds, authoring_root=arguments.authoring_root,
                     user_root=arguments.user_root, weights_cache=arguments.weights_cache,
-                    weights_cleanup=arguments.weights_cleanup, root=study.runtime(), context=study.context)
+                    weights_cleanup=arguments.weights_cleanup, root=study.runtime(), context=study.context,
+                    engines_local=arguments.engine)
                 if arguments.preview:
                     result = summary(document)
                 else:
@@ -141,7 +145,8 @@ def main(argv=None):
                               "restore_command": state["restore_command"], "instruction": state["instruction"]}
             elif arguments.action == "run":
                 directory = study.reserve(arguments.candidate, arguments.workload, arguments.reason,
-                                          arguments.lock, arguments.temper, model_adapter=arguments.model_adapter)
+                                          arguments.lock, arguments.temper, model_adapter=arguments.model_adapter,
+                                          engine_path=arguments.engine)
                 if arguments.background:
                     worker = jobs.start(REPOSITORY, arguments.id, directory.name)
                     result = {"run": directory.name, "pid": worker.pid, "state": "queued",

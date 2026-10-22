@@ -16,7 +16,8 @@ to one module; today `chat-completions` maps to
 history replay), `send` (capture, keeping partial output) and `observe`
 (decoding and measurements). Another Temper interface, such as reranking, adds
 one module and one registry entry; sessions, drivers and custody stay unchanged.
-Presets with other interfaces are refused before any effect.
+Presets with other interfaces are refused before any effect. Local engines use
+the same interface and engine adapters; their declaration names both.
 
 ## Select a model format
 

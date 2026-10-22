@@ -6,8 +6,8 @@ import json
 from pathlib import Path
 import shutil
 import time
-from . import jobs, lockview, machine, records, recovery, storage, workloads
-from .adapters import engines, interfaces
+from . import jobs, lockview, machine, records, recovery, storage, subjects, workloads
+from .adapters import interfaces
 from .approval import candidate, identity
 from .common import Refusal, canonical_json, digest, load_json, read_regular
 from .context import DEFAULT
@@ -87,7 +87,7 @@ class Study:
                 raise Refusal(f"owned runtime path was replaced with a symlink: {path}")
         return root
 
-    def reserve(self, name, workload_path, reason, lock_path=None, temper_path=None, *, model_adapter=None):
+    def reserve(self, name, workload_path, reason, lock_path=None, temper_path=None, *, model_adapter=None, engine_path=None):
         if not reason.strip():
             raise Refusal("name the question or observation motivating this trial")
         with exclusive_lock(self.directory / ".lock"):
@@ -101,31 +101,46 @@ class Study:
             if base is None:
                 raise Refusal("candidate is outside approved material")
             temper = self.temper(temper_path or state["temper"]["path"])
-            chosen = candidate(temper, lock_path) if lock_path else base
-            validate_variant(json.loads(base["lock"]), json.loads(chosen["lock"]), state["budgets"]["context_tokens"])
+            local = base.get("subject") == "local"
+            if (lock_path and local) or (engine_path and not local):
+                raise Refusal("a variant must be the same subject kind as its candidate: --lock for Temper, --engine for local")
+            if local:
+                chosen = subjects.local_candidate(engine_path, known=base["files"]) if engine_path else base
+                subjects.validate_local_variant(base, chosen, state["budgets"]["context_tokens"])
+                interface = interfaces.resolve(json.loads(chosen["spec"])["interface"])
+            else:
+                chosen = candidate(temper, lock_path) if lock_path else base
+                validate_variant(json.loads(base["lock"]), json.loads(chosen["lock"]), state["budgets"]["context_tokens"])
+                storage.require_cache(state["weights"]["cache"], state["weights_cache_explicit"])
+                interface = interfaces.resolve(lockview.interface(json.loads(chosen["lock"])))
             facts = temper.machine_facts()
             for key in ("chip", "physical_memory_bytes", "target"):
                 if facts.get(key) != state["machine"].get(key):
                     raise Refusal("machine differs from approved study")
-            storage.require_cache(state["weights"]["cache"], state["weights_cache_explicit"])
-            lock = json.loads(chosen["lock"])
-            work = workloads.load(workload_path, model_adapter=model_adapter,
-                                  interface=interfaces.resolve(lockview.interface(lock)))
+            work = workloads.load(workload_path, model_adapter=model_adapter, interface=interface)
             self.claim_machine(temper, state)
             self.save(state)
             run_id = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
             files = self.files(run_id)
             files.directory.mkdir(parents=True)
-            atomic_write(files.lock, chosen["lock"].encode())
             atomic_write(files.workload, canonical_json(work))
-            files.save_run(records.new_run(run_id=run_id, study=self.name, candidate=name, reason=reason,
+            shared = dict(run_id=run_id, study=self.name, candidate=name, reason=reason,
                 created_epoch=time.time(), created_at=jobs.now(), temper=temper.identity(),
                 field_kit=runtime_identity(), machine=facts, resource_policy=state["resource_policy"],
-                family=chosen["family"], execution=chosen["execution"],
-                engine_adapter=engines.from_lock(lock).identifier, model_adapter=work["model_adapter"],
+                family=chosen["family"], execution=chosen["execution"], engine_adapter=chosen["engine_adapter"],
+                model_adapter=work["model_adapter"],
                 model_adapter_scope="external-harness" if "command" in work else "request-workload",
-                installation=lockview.installation(lock), weights_cache=state["weights"]["cache"],
-                lock_sha256=chosen["lock_sha256"], workload_sha256=digest(canonical_json(work))))
+                workload_sha256=digest(canonical_json(work)))
+            if local:
+                atomic_write(files.engine, chosen["spec"].encode())
+                run = records.new_run(**shared, subject="local", spec_sha256=chosen["spec_sha256"],
+                    local_engine={"executable": chosen["executable"], "files": chosen["files"]})
+            else:
+                lock = json.loads(chosen["lock"])
+                atomic_write(files.lock, chosen["lock"].encode())
+                run = records.new_run(**shared, installation=lockview.installation(lock),
+                    weights_cache=state["weights"]["cache"], lock_sha256=chosen["lock_sha256"])
+            files.save_run(run)
             state["runs"].append(run_id)
             self.save(state)
             return files.directory
@@ -168,7 +183,8 @@ class Study:
             for run_id in state["runs"]:
                 files = self.files(run_id)
                 record = files.load_run()
-                latest[record["installation"]] = (files, record)
+                if record.get("installation"):  # local engines install nothing
+                    latest[record["installation"]] = (files, record)
             for name, (files, record) in latest.items():
                 if name in state["removed"]:
                     continue
@@ -189,6 +205,8 @@ class Study:
 
     def close_weights(self, state):
         weights = state["weights"]
+        if not weights["files"]:
+            return "no weights were planned for this study"
         if weights["cleanup"] == "keep":
             return "kept: " + weights["cache"]
         if "removal" not in weights:

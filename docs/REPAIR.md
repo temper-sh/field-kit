@@ -46,6 +46,8 @@ evidence stays.
 | Weights cache unavailable | Reconnect the disk, then start a new attempt. Nothing was downloaded; it is not a model failure. |
 | Not enough disk or non-APFS root | Free space, or use a Field Kit checkout on APFS. Nothing was downloaded. |
 | Restore failed at close | Run the command in restore.md; Temper keeps the activation pending. |
+| Local engine still runs after a lost worker | Recovery names its process group: run the `kill -TERM -GROUP` it prints, then recover again. |
+| Local engine files changed | The attempt is refused before the engine starts. Restore the approved build/files, or start a new study for the new ones. |
 
 ## Report every defect, including repaired ones
 

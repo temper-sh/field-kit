@@ -1,4 +1,5 @@
-"""One Temper serve of the attempt's preset under resource watch.
+"""One serve of the attempt's subject under resource watch: a Temper serve of a
+preset, or a local engine Field Kit starts itself.
 
 Leaving the block always stops the serve and records resources and memory,
 whatever happened inside. Failures propagate; they are never swallowed here.
@@ -6,11 +7,8 @@ whatever happened inside. Failures propagate; they are never swallowed here.
 from __future__ import annotations
 import socket
 import time
-from . import records
-from .measurements import memory_record, watch_spec
+from .measurements import memory_record
 from .probe import ProbeError
-
-LOG_BYTES = 16 * 1024**2
 
 def free_listen():
     with socket.socket() as sock:
@@ -20,18 +18,12 @@ def free_listen():
 class EngineSession:
     def __init__(self, attempt, files):
         self.attempt, self.files = attempt, files
-        self.context, self.engine, run = attempt.context, attempt.engine, attempt.run
-        self.preset = run["execution"]["preset"]
+        self.context, self.engine, self.subject = attempt.context, attempt.engine, attempt.subject
+        # The model name requests carry: the preset ID behind Temper's router, or the local engine's own.
+        self.preset = self.subject.model
         self.started = time.monotonic()
         self.startup_seconds = self.loaded = self.native = self.finished = None
-        self.probe = self.context.probe(temper=attempt.temper.path, root=attempt.root,
-            installation=run["installation"], execution_lock=attempt.files.lock,
-            generation=run["preparation"]["generation"], listen=free_listen(), log_dir=files.process,
-            watch_spec=watch_spec(run["resource_policy"], run["machine"], self.engine),
-            router_ready_seconds=min(30, attempt.remaining(30)), log_bytes_max=LOG_BYTES)
-        # Recovery compares this intent with Temper's final status before any cleanup.
-        records.write(files.intent, {"root": str(attempt.root), "installation": run["installation"],
-                                     "generation": run["preparation"]["generation"], "listen": self.probe.listen})
+        self.probe = self.subject.probe(files, free_listen())
 
     @property
     def base_url(self):
@@ -40,8 +32,7 @@ class EngineSession:
     def __enter__(self):
         try:
             self.probe.start()
-            self.context.call(self.probe, f"/upstream/{self.preset}{self.engine.health_path}", {},
-                              self.attempt.remaining(1800), method="GET")
+            self.subject.ready(self)
             if not self.probe.observe_engine():
                 raise ProbeError("engine identity unavailable after readiness")
             self.startup_seconds = time.monotonic() - self.started

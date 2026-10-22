@@ -35,8 +35,12 @@ Temper root per study, a configured weights cache) refuses v2 studies.
 
 ## Boundaries
 
-Field Kit evaluates presets: each attempt measures one Temper preset served by
-the installed Temper.
+Field Kit evaluates presets: each attempt measures one subject. A `temper`
+subject is an exact preset lock served by the installed Temper, on any machine;
+it is the only source of catalog evidence. A `local` subject is an engine build,
+arguments and files on the owner's machine before Temper supports them; it is
+research evidence. Both share attempts, sessions, drivers, workloads and records,
+so a local result and its later Temper rerun compare directly.
 
 ```text
 cli ─► study ─► attempt: begin → prepare → measure each session → commit
@@ -51,6 +55,8 @@ cli ─► study ─► attempt: begin → prepare → measure each session → 
 | approval | The read-only approval document: candidates, limits, Temper's check/plan, storage and layout effect |
 | study | Custody: reserve, idle checks, recovery, close and repair attachment |
 | attempt | One attempt's phases, in order, and its committed outcome |
+| subjects | The two subject kinds: preparation, probe, health path, model name; local declarations and variants |
+| local_probe | One engine Field Kit starts itself: bound, watched, stopped and proven gone without Temper |
 | session | One Temper serve under resource watch; leaving it always stops the serve and records memory |
 | drivers | What sends the work: frozen request steps or an installed harness |
 | records | Record shapes, states and file names: the stable surface for Workshop and returned studies |

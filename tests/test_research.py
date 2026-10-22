@@ -102,7 +102,7 @@ class FakeTemper:
 
 def fake_context(call=None, wired=20 * GIB):
     """The machine as tests see it: fake Temper and probe, scripted HTTP, ample APFS disk."""
-    return Context(temper=FakeTemper, probe=FakeProbe, call=call or (lambda *args, **kwargs: {}),
+    return Context(temper=FakeTemper, probe=FakeProbe, local_probe=FakeProbe, call=call or (lambda *args, **kwargs: {}),
                    sample=lambda binding, timeout: {"wired_bytes": wired, "roles": {}}, volume=fake_volume,
                    keep_awake=False)
 

@@ -14,6 +14,7 @@ from .process import atomic_write
 STUDY_SCHEMA = "field-kit-study/v3"
 TERMINAL = {"complete", "failed", "interrupted", "retained"}
 RUN_LIMIT = 64 * 1024**2
+LOG_BYTES = 16 * 1024**2
 
 def failure(error: BaseException) -> dict[str, str]:
     return {"kind": classify_failure(error), "message": str(error)}
@@ -26,16 +27,25 @@ def outcome(run: dict[str, Any]) -> str:
 
 def new_run(*, run_id, study, candidate, reason, created_epoch, created_at, temper, field_kit, machine,
             resource_policy, family, execution, engine_adapter, model_adapter, model_adapter_scope,
-            installation, weights_cache, lock_sha256, workload_sha256) -> dict[str, Any]:
-    """A reserved attempt. Every later phase updates this one record."""
-    return {"id": run_id, "study": study, "candidate": candidate, "state": "queued", "reason": reason,
-            "created_epoch": created_epoch, "created_at": created_at, "worker": None,
-            "temper": temper, "field_kit": field_kit, "machine": machine, "resource_policy": resource_policy,
-            "family": family, "execution": execution, "engine_adapter": engine_adapter,
-            "model_adapter": model_adapter, "model_adapter_scope": model_adapter_scope,
-            "installation": installation, "weights_cache": weights_cache,
-            "lock_sha256": lock_sha256, "workload_sha256": workload_sha256,
-            "safe_to_cleanup": True, "sessions": [], "error": None}
+            workload_sha256, subject="temper", installation=None, weights_cache=None, lock_sha256=None,
+            local_engine=None, spec_sha256=None) -> dict[str, Any]:
+    """A reserved attempt. Every later phase updates this one record.
+
+    A temper attempt names its lock, installation and weights cache; a local
+    attempt names its declaration and the identities approved for it.
+    """
+    run = {"id": run_id, "study": study, "candidate": candidate, "subject": subject, "state": "queued",
+           "reason": reason, "created_epoch": created_epoch, "created_at": created_at, "worker": None,
+           "temper": temper, "field_kit": field_kit, "machine": machine, "resource_policy": resource_policy,
+           "family": family, "execution": execution, "engine_adapter": engine_adapter,
+           "model_adapter": model_adapter, "model_adapter_scope": model_adapter_scope,
+           "workload_sha256": workload_sha256, "safe_to_cleanup": True, "sessions": [], "error": None}
+    if subject == "local":
+        run.update(local_engine=local_engine, spec_sha256=spec_sha256,
+                   evidence="research: a local engine is never catalog evidence")
+    else:
+        run.update(installation=installation, weights_cache=weights_cache, lock_sha256=lock_sha256)
+    return run
 
 def session_row(session_id: str) -> dict[str, Any]:
     return {"id": session_id, "steps": [], "failure": None, "safe_to_cleanup": False}
@@ -70,6 +80,7 @@ class AttemptFiles:
         self.directory = Path(directory)
         self.run, self.result, self.failure = (self.directory / name for name in ("run.json", "result.json", "failure.md"))
         self.lock, self.workload = self.directory / "execution.lock.json", self.directory / "workload.json"
+        self.engine = self.directory / "local-engine.json"
         self.prepare_command, self.worker_log = self.directory / "prepare-command.json", self.directory / "worker.log"
 
     def session(self, session_id: str) -> SessionFiles:
@@ -80,6 +91,11 @@ class AttemptFiles:
 
     def load_run(self) -> dict[str, Any]:
         return load_json(self.run, RUN_LIMIT)
+
+    def inputs(self, run: dict[str, Any]) -> list[tuple[Path, str]]:
+        """Frozen inputs and their recorded digests, for either subject kind."""
+        subject = (self.engine, run["spec_sha256"]) if run.get("subject") == "local" else (self.lock, run["lock_sha256"])
+        return [subject, (self.workload, run["workload_sha256"])]
 
     def save_run(self, run: dict[str, Any]) -> None:
         write(self.run, run)

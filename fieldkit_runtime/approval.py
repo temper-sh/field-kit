@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from . import lockview, machine, records, storage
+from . import lockview, machine, records, storage, subjects
 from .adapters import engines, interfaces
 from .common import IDENTITY, Refusal, digest, read_regular
 from .context import DEFAULT
@@ -29,7 +29,7 @@ def candidate(temper, path):
     name = identity(execution["preset"])
     interface = interfaces.resolve(lockview.interface(lock))
     adapter = engines.from_lock(lock)
-    return {"id": name, "lock": raw.decode(), "lock_sha256": digest(raw), "execution": execution,
+    return {"id": name, "subject": "temper", "lock": raw.decode(), "lock_sha256": digest(raw), "execution": execution,
             "interface": interface.IDENTIFIER, "family": adapter.family, "engine_adapter": adapter.identifier}
 
 def hf_environment(cache):
@@ -63,8 +63,9 @@ def assess(temper, authoring_root, preset, environment, can_plan):
 
 def preview(temper, locks, brief, *, hours=8, download_gib=100, max_context=262144,
             request_seconds=1800, trial_seconds=14400, authoring_root=None, user_root=None,
-            weights_cache=None, weights_cleanup="added", root=None, context=DEFAULT):
-    if not locks or not 0 < hours <= 168 or download_gib < 0 or max_context < 512 or request_seconds < 1 or trial_seconds < 1:
+            weights_cache=None, weights_cleanup="added", root=None, context=DEFAULT, engines_local=()):
+    if not (locks or engines_local) or not 0 < hours <= 168 or download_gib < 0 or max_context < 512 \
+            or request_seconds < 1 or trial_seconds < 1:
         raise Refusal("name candidates and positive time/context limits (download allowance may be zero)")
     if weights_cleanup not in ("added", "keep"):
         raise Refusal("weights cleanup is added or keep")
@@ -72,19 +73,26 @@ def preview(temper, locks, brief, *, hours=8, download_gib=100, max_context=2621
     if not text.strip():
         raise Refusal("write the study question and scope in the brief")
     candidates = [candidate(temper, path) for path in locks]
-    if len({row["id"] for row in candidates}) != len(candidates):
+    local = [subjects.local_candidate(path) for path in engines_local]
+    if len({row["id"] for row in candidates + local}) != len(candidates + local):
         raise Refusal("candidate IDs must be distinct")
     documents = [json.loads(row["lock"]) for row in candidates]
     for document in documents:
         validate_variant(document, document, max_context)
+    for row in local:
+        subjects.validate_local_variant(row, row, max_context)
     cache = Path(weights_cache).absolute() if weights_cache else storage.default_cache()
-    storage.require_cache(cache, weights_cache is not None)
+    if candidates:  # local engines download nothing
+        storage.require_cache(cache, weights_cache is not None)
     weights = storage.weights_plan(cache, documents, weights_cleanup)
     software = lockview.software_bytes(documents)
     planned = weights["absent_bytes"] + software
     if planned > download_gib * GIB:
         raise Refusal("planned downloads exceed the proposed allowance; reuse/narrow candidates or review a larger scope")
-    locations = {"root": context.volume(root) if root else None, "weights_cache": context.volume(cache)}
+    # Only Temper candidates use the study root and the weights cache; local files stay where they are.
+    locations = {"root": context.volume(root) if root and candidates else None, "weights_cache": context.volume(cache),
+                 "local_files": {row["id"]: {name: context.volume(record["path"]) for name, record in row["files"].items()}
+                                 for row in local}}
     if locations["root"]:
         storage.require_apfs(locations["root"], "the study root")
     needs = storage.require_space(locations["root"], locations["weights_cache"], weights["absent_bytes"], software)
@@ -100,7 +108,7 @@ def preview(temper, locks, brief, *, hours=8, download_gib=100, max_context=2621
     layout["effect"] = ("stop before measuring; restore at close" if layout["running"] else
                         "none" if layout["running"] is False else "unknown: " + layout["error"])
     return {"schema": records.STUDY_SCHEMA, "brief": text, "temper": temper.identity(), "machine": temper.machine_facts(),
-            "resource_policy": policy_for(engines.resolve(row["engine_adapter"]) for row in candidates),
+            "resource_policy": policy_for(engines.resolve(row["engine_adapter"]) for row in candidates + local),
             "budgets": {"seconds": int(hours * 3600), "download_bytes": int(download_gib * GIB),
                         "context_tokens": max_context, "request_seconds": request_seconds, "trial_seconds": trial_seconds},
             "known_material_bytes": lockview.declared_material_bytes(documents),
@@ -113,16 +121,19 @@ def preview(temper, locks, brief, *, hours=8, download_gib=100, max_context=2621
             "temper_assessment": assessments, "user_layout": layout,
             "restore_command": machine.restore_command(layout), "instruction": machine.INSTRUCTION,
             "other_processes": machine.large_processes(),
-            "candidates": candidates}
+            "candidates": candidates + local}
 
 def summary(document):
     candidates = []
     for row in document["candidates"]:
+        common = {"id": row["id"], "subject": row["subject"], "interface": row["interface"], "family": row["family"],
+                  "engine_adapter": row["engine_adapter"]}
+        if row["subject"] == "local":
+            candidates.append({**common, "spec_sha256": row["spec_sha256"], **subjects.describe_local(row)})
+            continue
         lock = json.loads(row["lock"])
-        candidates.append({"id": row["id"], "interface": row["interface"], "family": row["family"],
-            "lock_sha256": row["lock_sha256"], "engine_adapter": row["engine_adapter"],
-            "installation": lockview.installation(lock), **lockview.describe(lock),
-            "temper_assessment": document["temper_assessment"].get(row["id"])})
+        candidates.append({**common, "lock_sha256": row["lock_sha256"], "installation": lockview.installation(lock),
+            **lockview.describe(lock), "temper_assessment": document["temper_assessment"].get(row["id"])})
     weights = document["weights"]
     return {"temper": document["temper"], "machine": document["machine"], "budgets": document["budgets"],
             "known_material_bytes": document["known_material_bytes"],

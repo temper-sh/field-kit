@@ -17,6 +17,9 @@ claims require completed-task evaluation and comparative source review.
 Tests passing, useful code, harness completion and measured resources are
 different observations. Coding qualification is not an execution gate.
 
+Local engines (builds or settings Temper cannot express yet) are for the
+owner's machine and are research evidence only; tester studies use Temper presets.
+
 Recover from small problems within approved scope. [Report every defect and
 local repair](docs/REPAIR.md), including workarounds that let the study finish.
 Preserve first attempts and return patches and decisive reproduction evidence.

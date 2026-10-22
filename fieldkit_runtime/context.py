@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import sys
 from typing import Any, Callable
 from . import storage, watcher
+from .local_probe import LocalProbe
 from .probe import ManagedProbe
 from .serving import monitored_call
 from .temper import Temper
@@ -12,6 +13,7 @@ from .temper import Temper
 class Context:
     temper: Callable[[Any], Any] = Temper              # Temper(path): the installed CLI
     probe: Callable[..., Any] = ManagedProbe            # one owned `temper execution serve`
+    local_probe: Callable[..., Any] = LocalProbe        # one engine Field Kit starts itself
     call: Callable[..., Any] = monitored_call           # bounded HTTP through that probe
     sample: Callable[..., Any] = watcher.sample_macos   # one resource sample of bound processes
     volume: Callable[[Any], Any] = storage.describe     # volume facts for a path
