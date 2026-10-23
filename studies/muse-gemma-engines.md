@@ -5,6 +5,12 @@ Question: can MLX improve useful work, populated-input latency or memory on the
 Run separate studies for Muse Glimmer 30B, Gemma 4 26B-A4B and Gemma 4 31B.
 This is engine/composition research, not a Q5/Q6 campaign for these models.
 
+**Gemma 26B disposition:** after review of the returned `gemma26-r2` evidence,
+the owner selected llama.cpp with Unsloth QAT UD-Q4_K_XL and closed its MLX
+comparison. Continue through [Gemma 26B Q4 tuning](gemma26-q4-tuning.md).
+The Gemma 26B engine arms below remain historical inputs, not a request to
+repeat them. Muse and Gemma 31B retain their independent questions.
+
 ## Evidence to carry forward
 
 The prior machine is an M5 / 32 GiB / macOS 26.6.1. Its observations identify
@@ -82,8 +88,8 @@ a copy of the catalog and compiling it the same way.
 - `muse-4bit-vllm` has no Muse reasoning or tool parser setting; check that
   reasoning arrives separately before comparing its answers.
 
-Approve each study (Muse, Gemma 26B, Gemma 31B) with its own candidate locks and
-`--max-context 262144`, so window extensions remain settings variants.
+Approve each unfinished engine study (Muse or Gemma 31B) with its own candidate
+locks and `--max-context 262144`, so window extensions remain settings variants.
 
 The labelled controls are ready as workloads in `workloads/`. They carry the
 earlier prompts, sampling (temperature 1, top-p 0.95, top-k 64, seed 17) and
@@ -107,7 +113,7 @@ engine's tokenizer, so adjust records from the native counts.
 | Model | Control | MLX candidates |
 |---|---|---|
 | Muse | Q4 llama.cpp + DFlash2 7; plain as a targeted memory/decoder control | Rapid 4-bit; compatible vLLM Metal on the same MLX bytes; then Rapid 8-bit/plain and original DFlash as a distinct larger-memory question. |
-| Gemma 26B | QAT Q4 llama.cpp/plain with bounded thinking | Rapid and vLLM Metal using the previously tested `mlx-community/unsloth-gemma-4-26B-A4B-it-qat-oQ4` target. |
+| Gemma 26B | Selected QAT Q4 llama.cpp/plain; [Q4 tuning continuation](gemma26-q4-tuning.md) | Closed after `gemma26-r2`; retain the Rapid/vLLM inputs as historical controls. |
 | Gemma 31B | QAT Q4 llama.cpp/MTP 3 with bounded thinking; plain where needed | Rapid and vLLM Metal using `mlx-community/unsloth-gemma-4-31B-it-qat-oQ4`, after model-path compatibility checks. |
 
 Prior MLX target identities: Muse 4-bit revision

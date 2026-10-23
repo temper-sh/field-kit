@@ -72,7 +72,8 @@ class Example(EngineAdapter):
 ```
 
 Import `Example` in the engine registry and add `"example/v1": Example` to
-`ADAPTERS`. The ID must match an engine actually supported by Temper. No edits
+`ADAPTERS`. For a Temper preset the ID must match an engine supported by Temper;
+a local-engine declaration may name a research-only adapter. No edits
 to candidate admission, request execution or process monitoring are needed.
 
 | Engine surface | Responsibility |
@@ -102,6 +103,14 @@ can exclude the first token. The fallback is labelled in `rate_sources`.
 Usage totals and wall time never substitute for prefill/decode timing. Rapid
 and vLLM retain usage counts but leave native rates unmeasured until a supported
 native timing source is added to their adapters.
+
+`kapitsa/v1` is a local-engine observation adapter, not Temper support. Kapitsa
+0.2.9 serves `/health` and standard chat usage/cache counts. Its streamed usage
+also retains Dory's `usage.kapitsa.loops` in the raw response. Native rates and
+allocation counters remain unmeasured; common process/system memory monitoring
+still applies. The single native process has no helper roles. The
+[prepared study](../studies/kapitsa-qwen-dory.md) owns native validation and
+the template, output-budget and model-switching checks.
 
 Temper installs and runs engines. Adapters do not introduce their own
 installers, launchers, HTTP clients, lifecycle state or retry loops.

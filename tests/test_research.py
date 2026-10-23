@@ -542,13 +542,14 @@ class WorkloadAndJobTest(unittest.TestCase):
 
     def test_peak_memory_is_never_below_the_loaded_sample(self):
         from fieldkit_runtime.measurements import memory_record
-        loaded = {"wired_bytes": 25 * GIB, "roles": {"engine": {"rss_bytes": 9 * GIB, "current_footprint_bytes": 2 * GIB}}}
+        loaded = {"wired_bytes": 25 * GIB, "roles": {"engine": {"rss_bytes": 9 * GIB, "current_footprint_bytes": 2 * GIB,
+                                                              "peak_footprint_bytes": 4 * GIB}}}
         resources = {"samples": 4, "wired_baseline_bytes": GIB, "wired_growth_bytes": 23 * GIB,
                      "roles": {"engine": {"rss_bytes_max": 7 * GIB, "peak_footprint_bytes_max": 3 * GIB}}}
         record = memory_record(loaded, resources, None)
         self.assertEqual((record["engine_loaded_wired_bytes"], record["engine_peak_wired_bytes"]), (24 * GIB, 24 * GIB))
         self.assertEqual(record["engine_rss_max_bytes"], 9 * GIB)
-        self.assertEqual(record["engine_peak_footprint_bytes"], 3 * GIB)
+        self.assertEqual(record["engine_peak_footprint_bytes"], 4 * GIB)
 
     def test_a_serve_that_never_loaded_reports_no_peak(self):
         from fieldkit_runtime.measurements import memory_record

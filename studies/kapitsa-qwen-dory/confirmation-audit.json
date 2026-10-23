@@ -1,0 +1,121 @@
+{
+  "question": "Unused confirmation: can the selected composition correctly audit atomic rollback, duplicate IDs and no-op events in supplied source? Keep out of screening and tuning.",
+  "request": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "Audit the behavior of this implementation, not an idealized implementation. Do not repair it.\n\n```python\ndef apply_batch(state, events):\n    balances = dict(state[\"balances\"])\n    seen = set(state[\"seen\"])\n    for event in events:\n        if event[\"id\"] in seen:\n            continue\n        account = event[\"account\"]\n        updated = balances.get(account, 0) + event[\"delta\"]\n        if updated < 0:\n            return False\n        balances[account] = updated\n        seen.add(event[\"id\"])\n    state[\"balances\"] = balances\n    state[\"seen\"] = seen\n    return True\n```\n\nFor EACH named case start with a fresh state whose balances are {\"A\":5,\"B\":1} and whose seen is the Python set {\"old\"}. The input events are a fresh list of dictionaries. Call apply_batch exactly once.\n\nCases:\n{\n  \"rollback\": [\n    {\n      \"id\": \"credit\",\n      \"account\": \"A\",\n      \"delta\": 3\n    },\n    {\n      \"id\": \"debit\",\n      \"account\": \"B\",\n      \"delta\": -2\n    }\n  ],\n  \"collision\": [\n    {\n      \"id\": \"same\",\n      \"account\": \"A\",\n      \"delta\": -2\n    },\n    {\n      \"id\": \"same\",\n      \"account\": \"B\",\n      \"delta\": 5\n    }\n  ],\n  \"already_seen\": [\n    {\n      \"id\": \"old\",\n      \"account\": \"A\",\n      \"delta\": -100\n    }\n  ],\n  \"zero_new_account\": [\n    {\n      \"id\": \"zero\",\n      \"account\": \"C\",\n      \"delta\": 0\n    }\n  ]\n}\n\nReturn only a JSON object keyed by the four case names. Each value must have: accepted (the returned boolean), balances (the final state balances), seen (the final seen IDs sorted alphabetically as a JSON array), events_unchanged (whether the input event list and its dictionaries retain their values). Report actual behavior even if the ID collision policy is undesirable."
+      }
+    ],
+    "max_tokens": 8192
+  },
+  "expect": {
+    "json": {
+      "rollback": {
+        "accepted": false,
+        "balances": {
+          "A": 5,
+          "B": 1
+        },
+        "seen": [
+          "old"
+        ],
+        "events_unchanged": true
+      },
+      "collision": {
+        "accepted": true,
+        "balances": {
+          "A": 3,
+          "B": 1
+        },
+        "seen": [
+          "old",
+          "same"
+        ],
+        "events_unchanged": true
+      },
+      "already_seen": {
+        "accepted": true,
+        "balances": {
+          "A": 5,
+          "B": 1
+        },
+        "seen": [
+          "old"
+        ],
+        "events_unchanged": true
+      },
+      "zero_new_account": {
+        "accepted": true,
+        "balances": {
+          "A": 5,
+          "B": 1,
+          "C": 0
+        },
+        "seen": [
+          "old",
+          "zero"
+        ],
+        "events_unchanged": true
+      }
+    }
+  },
+  "study_oracle": {
+    "source": "def apply_batch(state, events):\n    balances = dict(state[\"balances\"])\n    seen = set(state[\"seen\"])\n    for event in events:\n        if event[\"id\"] in seen:\n            continue\n        account = event[\"account\"]\n        updated = balances.get(account, 0) + event[\"delta\"]\n        if updated < 0:\n            return False\n        balances[account] = updated\n        seen.add(event[\"id\"])\n    state[\"balances\"] = balances\n    state[\"seen\"] = seen\n    return True",
+    "initial": {
+      "balances": {
+        "A": 5,
+        "B": 1
+      },
+      "seen": [
+        "old"
+      ]
+    },
+    "cases": {
+      "rollback": [
+        {
+          "id": "credit",
+          "account": "A",
+          "delta": 3
+        },
+        {
+          "id": "debit",
+          "account": "B",
+          "delta": -2
+        }
+      ],
+      "collision": [
+        {
+          "id": "same",
+          "account": "A",
+          "delta": -2
+        },
+        {
+          "id": "same",
+          "account": "B",
+          "delta": 5
+        }
+      ],
+      "already_seen": [
+        {
+          "id": "old",
+          "account": "A",
+          "delta": -100
+        }
+      ],
+      "zero_new_account": [
+        {
+          "id": "zero",
+          "account": "C",
+          "delta": 0
+        }
+      ]
+    },
+    "non_claims": [
+      "General coding reliability",
+      "Repair ability",
+      "Performance or memory on another machine"
+    ],
+    "freeze": "Prepared 2026-10-23 before any candidate output; use once per frozen finalist and baseline. New repeated observations remain exposed."
+  }
+}

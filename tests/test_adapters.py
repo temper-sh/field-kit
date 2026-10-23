@@ -26,6 +26,32 @@ def reply(content="", *, reasoning="", calls=None, complete=True):
 
 
 class EngineAdapterTest(unittest.TestCase):
+    def test_kapitsa_stream_keeps_loop_and_cache_evidence_without_inventing_rates(self):
+        # Source-shaped fixture, not a captured inference: Kapitsa 0.2.9,
+        # e86dea79b2751d04a3fa78bfa7746f4ebf981515, api/chat_completions.cpp.
+        events = [
+            {"choices": [{"delta": {"role": "assistant", "content": ""}, "finish_reason": None}]},
+            {"choices": [{"delta": {}, "finish_reason": None}]},  # prefill keepalive
+            {"choices": [{"delta": {"reasoning_content": "Check the supplied source."}}]},
+            {"choices": [{"delta": {"content": "The batch rolls back."}}]},
+            {"choices": [{"delta": {}, "finish_reason": "stop"}], "usage": {
+                "prompt_tokens": 4100, "completion_tokens": 32, "total_tokens": 4132,
+                "prompt_tokens_details": {"cached_tokens": 4096}, "kapitsa": {"loops": 2}}},
+        ]
+        wire = b"".join(b"data: " + json.dumps(event).encode() + b"\n\n" for event in events)
+        with tempfile.TemporaryDirectory() as temporary:
+            result = ChatStream(Path(temporary) / "reply.sse", clock=lambda: 2)(
+                io.BytesIO(wire + b"data: [DONE]\n\n"), 1)
+        self.assertTrue(result["stream_complete"])
+        self.assertEqual(result["message"]["content"], "The batch rolls back.")
+        self.assertEqual(result["message"]["reasoning"], "Check the supplied source.")
+        self.assertEqual(result["usage"]["kapitsa"]["loops"], 2)
+        metrics = engines.resolve("kapitsa/v1").metrics(result)
+        self.assertEqual((metrics["input_tokens"], metrics["output_tokens"], metrics["cached_tokens"]),
+                         (4100, 32, 4096))
+        self.assertIsNone(metrics["prefill_tokens_per_second"])
+        self.assertIsNone(metrics["generation_tokens_per_second"])
+
     def test_native_rate_owns_its_timed_interval_and_cache_is_separate(self):
         # Retained llama.cpp response: two tokens, but only one timed decode
         # interval. Recomputing predicted_n/predicted_ms doubles the native rate.

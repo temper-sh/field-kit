@@ -10,11 +10,13 @@ Use installed Temper and the [shared method](../docs/METHOD.md).
 |---|---|---|
 | 1 | [Splash context and cache](splash-context-cache.md) | Finish the Q4 layout: practical context, cache behavior, memory allowance and useful alternatives. |
 | 2 | [Splash Q5/Q6](splash-quants.md) | Decide whether better completed code justifies a larger quant's latency and memory. Owner-side comparative review. |
-| 3 | [Muse and Gemma engines](muse-gemma-engines.md) | Compare promising MLX compositions with the best existing llama.cpp choices on this machine. |
+| 3 | [Muse and Gemma engines](muse-gemma-engines.md) | Continue the independent Muse/Gemma 31B questions. Gemma 26B's MLX comparison is closed; llama.cpp is selected. |
+| 3, Gemma 26B continuation | [Gemma 26B Q4 tuning](gemma26-q4-tuning.md) | Test sampling and thinking budgets on completed work, establish useful context, then pursue justified speed/cache controls before considering Q8. |
 
 Keep Muse, Gemma 26B-A4B and Gemma 31B as separate studies, with separate
 winners. The earlier M5 / 32 GiB work supplies controls and known traps. It
-does not supply M5 Pro timing measurements. Reuse any exact, applicable
+does not supply M5 Pro timing measurements. The Gemma 26B continuation carries
+the returned M5 Pro measurements and their limits. Reuse any exact, applicable
 measurements from the contributor's machine too; identify them in the brief.
 Do not make an unresolved optional engine arm block the others.
 
