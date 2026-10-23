@@ -117,7 +117,7 @@ class QueueTest(unittest.TestCase):
         context = type(context)(**{**context.__dict__, "probe": Lingering})
         result = self.run_queue(self.plan({}, {}), context)
         self.assertEqual((len(result["attempts"]), result["attempts"][0]["state"]), (1, "retained"))
-        self.assertIn("ended retained", result["stopped"])
+        self.assertIn("ended retained (shutdown-unconfirmed", result["stopped"])
 
     def test_an_invalid_plan_starts_nothing(self):
         for change, message in (({"candidate": "another-model"}, "outside approved material"),

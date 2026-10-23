@@ -100,6 +100,9 @@ Field Kit invokes these commands and supervises their processes:
   install exact material; may download and leave recoverable partial work.
 - execution serve with the prepared generation and a new status-file:
   run the owned engine and publish process/shutdown observations.
+- execution verify-stopped --status-file FILE --json, when available:
+  verify current process/port absence after a stopped probe failed cleanup
+  confirmation; preserve the original status and retain the fresh result.
 - execution remove with the same owned root/installation/lock: remove software.
 
 Field Kit also reads `preset check` and, where installed, `preset plan` for

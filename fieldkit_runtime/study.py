@@ -153,7 +153,7 @@ class Study:
             if not row.get("safe_to_cleanup"):
                 raise Refusal(f"run {run} has uncertain process shutdown; use study recover")
 
-    def recover(self):
+    def recover(self, temper_path=None):
         with exclusive_lock(self.directory / ".lock"):
             state = self.load()
             recovered = []
@@ -166,11 +166,15 @@ class Study:
                     raise Refusal("worker is still running; use study stop and wait for shutdown")
                 if run["state"] == "queued" and not run.get("worker") and time.time() - run["created_epoch"] < 10:
                     raise Refusal("worker is starting; wait for startup before recovery")
-                recovery.require_shutdown(files)
+                recovery.require_shutdown(files, verify_stopped=lambda path:
+                    self.temper(temper_path or state["temper"]["path"]).verify_stopped(path))
                 run.update(state="interrupted", error=run.get("error") or "worker ended before committing its result",
                            safe_to_cleanup=True, recovered_at=jobs.now())
                 files.save_run(run)
-                records.write(files.result, run)
+                # The committed result and original probe status describe what
+                # happened then. Only run.json advances the recoverable state.
+                if not files.result.exists():
+                    records.write(files.result, run)
                 recovered.append(run_id)
             return {"recovered": recovered, "next": "review retained evidence; a retry is a new trial"}
 

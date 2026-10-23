@@ -68,6 +68,7 @@ class SessionFiles:
         self.intent, self.observations = stage / "intent.json", stage / "observations.json"
         self.process = stage / "process"
         self.status = self.process / STATUS_FILE
+        self.recovery = self.process / "temper-recovery.json"
         self.command, self.stdout, self.stderr = stage / "command.json", stage / "stdout.txt", stage / "stderr.txt"
         self.output = stage / "output"
         self.relay = stage / "relay"

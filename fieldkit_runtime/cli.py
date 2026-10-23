@@ -79,6 +79,8 @@ def parser():
             command.add_argument("--timeout", type=float, default=60)
         if name == "export":
             command.add_argument("--out", type=Path, required=True)
+        if name == "recover":
+            command.add_argument("--temper", type=Path, help="explicit Temper build for post-exit shutdown verification")
     repair = commands.add_parser("repair", help="attach a defect report and optional local patch for maintainers")
     repair.add_argument("id")
     repair.add_argument("--report", type=Path, required=True)
@@ -187,7 +189,7 @@ def main(argv=None):
                 from .compare import compare
                 result = compare(study, arguments.runs)
             elif arguments.action == "recover":
-                result = study.recover()
+                result = study.recover(arguments.temper)
             elif arguments.action == "close":
                 result = study.close()
             elif arguments.action == "export":

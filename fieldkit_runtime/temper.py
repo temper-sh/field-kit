@@ -106,6 +106,15 @@ class Temper:
     def remove(self, lock: Path, root: Path, installation: str) -> dict[str, Any]:
         return self.document(["execution", "remove", "--lock", lock, "--root", root, "--installation", installation], 600)
 
+    def verify_stopped(self, status: Path) -> dict[str, Any]:
+        if not self.supports(["execution", "verify-stopped"]):
+            raise Refusal("This Temper cannot verify a stopped probe after shutdown uncertainty. "
+                          "Use study recover ID --temper PATH with a build supporting execution verify-stopped.")
+        identity = self.identity()
+        observation = self.document(["execution", "verify-stopped", "--status-file", status], 60,
+                                    "temper-probe-recovery/v1")
+        return {**observation, "temper": identity}
+
     def supports(self, command: list[str]) -> bool:
         """Whether this installed Temper offers a command, judged by its help."""
         try:

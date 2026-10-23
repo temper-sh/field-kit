@@ -91,6 +91,15 @@ attempts are allowed. A changed runtime cannot overwrite an old attempt.
 A lost worker is reconciled before cleanup or another trial; uncertainty about
 live owned processes must remain visible.
 
+`run.json` owns current attempt/recovery state. An existing `result.json` remains
+the committed original outcome during recovery. For a stopped Temper probe
+whose cleanup was unconfirmed, Field Kit invokes Temper's read-only
+`execution verify-stopped` and retains its status-bound observation plus verifier
+identity in `process/temper-recovery.json`. Restart can reuse that observation
+only while the original status bytes and invocation still match. Shutdown
+uncertainty is reported as `shutdown-unconfirmed`; a resource-limit stop remains
+`resource-stop` with its recorded stop reasons.
+
 Offline tests cover a detached task's stop, wait and export, missing-harness
 recovery, changed runtime between attempts, and preservation of candidate test
 logs and repair patches. Native performance and fit need an authorized study.

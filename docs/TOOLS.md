@@ -29,6 +29,11 @@ is not a network byte meter; review unlisted dependency costs before approval.
 Requests and whole trials have separate deadlines.
 Cleanup and evidence return remain available after the budget ends.
 
+For a stopped probe with uncertain shutdown, `study recover ID --temper PATH`
+can use an explicitly selected repair build supporting `execution verify-stopped`.
+It preserves the original result and records fresh shutdown evidence separately;
+see [recovery instructions](REPAIR.md). The selection applies to recovery only.
+
 Each session also records the power source, battery charge, low-power mode and
 power mode, since they change speed. Resource monitoring samples every five
 seconds, stops on observed thermal/CPU throttling or 512 MiB swap growth, and

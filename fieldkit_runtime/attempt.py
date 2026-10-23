@@ -151,7 +151,13 @@ def measure(attempt, session_id, driver):
     run["safe_to_cleanup"] = row["safe_to_cleanup"]
     attempt.save()
     if row["failure"] or not row["safe_to_cleanup"] or row["resources"].get("stop_reasons"):
-        run["error"] = row["failure"] or {"kind": "resource-stop", "message": "inspect session resources"}
+        if row["failure"]:
+            run["error"] = row["failure"]
+        elif row["resources"].get("stop_reasons"):
+            run["error"] = {"kind": "resource-stop", "message": "inspect session resources"}
+        else:
+            run["error"] = {"kind": "shutdown-unconfirmed",
+                            "message": "; ".join(row["resources"].get("issues", [])) or "owned shutdown was not confirmed"}
         return False
     return True
 

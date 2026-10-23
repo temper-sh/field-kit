@@ -17,6 +17,26 @@ study stop requests owned shutdown. After a dead worker, study recover
 reconciles recorded process state; it never silently repeats inference.
 Investigate uncertain ownership; never kill by name or delete recovery files.
 
+If a stopped Temper probe could not confirm cleanup, recover on the original
+Mac with a Temper build that offers `execution verify-stopped`:
+
+```sh
+./field-kit study recover my-study --temper /absolute/path/to/temper
+```
+
+This checks the recorded processes, their groups and serving ports without
+signaling anything. A live process, occupied port or incomplete observation
+still refuses. An older Temper without this command gives an actionable
+refusal; do not edit `safe_to_cleanup` by hand. `--temper` selects only the
+recovery verifier. Use `study run --temper PATH` explicitly if subsequent
+trials should also use that build.
+
+The fresh observation and verifier identity are saved in the affected session's
+`process/temper-recovery.json`. Original probe status, committed result,
+answers and measurements stay unchanged; `run.json` records recovery and lets
+the study continue or close. Interrupted recovery can be repeated. It starts
+no model, repeats no request and does not extend the approved study budget.
+
 Tool changes are attributed per attempt. New weights/templates/engine software
 outside approval require a scoped extension. Use installed Temper by default.
 
