@@ -3,7 +3,9 @@
 Measure how well a served preset completes a supplied-source repair. The model
 gets the task, the relevant source and the visible tests. Its only tools apply a
 complete proposal: `test_patch` runs the visible tests and its own new tests on a
-fresh copy, and `submit_patch` ends the task. Independent tests and review
+fresh copy and returns a proposal ID. `submit_tested_patch` submits that exact
+retained proposal without repeating its files; `submit_patch` submits a new
+complete proposal directly. Independent tests and review
 checks grade every distinct complete proposal afterwards. The model never sees
 them, and the harness never runs or repairs incomplete output.
 
@@ -48,7 +50,8 @@ attempt records the actual argv:
 
 | Argument | Meaning |
 |---|---|
-| `--seconds`, `--turns` | The task's wall-clock budget and response allowance |
+| `--seconds`, `--turns` | The task's wall-clock budget and response allowance; `0` removes the respective limit |
+| `--proposal-protocol` | `retained-v2` (default) submits tested proposals by ID; `complete-v1` reproduces the original full-patch submission protocol |
 | `--contract feedback` or `feedback-state` | A labelled prompt treatment added to the system text; the task, tools and tests stay the same |
 | `--sampling JSON`, `--seed` | Sampling overrides, such as `{"temperature": 1, "top_k": 20}`; the default is the preset's own sampling with seed 421 |
 | `--context` | Overrides the window Field Kit reports |
@@ -59,6 +62,31 @@ template and tokenizer routes, then allows the rest of the window as output
 (less 256 tokens). llama.cpp and Splash provide those routes. The request also
 carries llama.cpp's optional timing and progress fields; other engines are
 untested.
+
+## Submit a tested proposal
+
+After `test_patch`, its tool reply contains `proposal_id` alongside the visible
+test results. To submit those exact files, call `submit_tested_patch` with that
+ID and an `explanation`. Send no edits or file contents in this call. To change
+the solution, provide a new complete proposal against the original snapshot.
+
+IDs bind the original source, case and complete proposal, including authored
+tests. Only proposals tested in the current attempt can be selected by ID.
+Changed original or retained files invalidate the reference. IDs are derived
+from contents rather than local paths or timestamps, so replaying identical
+inputs reproduces their identities.
+
+Submission expresses readiness for review. It does not turn failed tests into
+a pass or replace independent grading and source review. An interrupted final
+response can leave a correct retained artifact: report its grading separately
+from the conversation's completion status.
+
+Each result records `proposal_protocol`, the prompt/source identities and the
+selected proposal's originating turn. Protocol versions change the tool
+contract and are separate experimental conditions. Use `--proposal-protocol
+complete-v1` to replay the original two-tool contract; use the recorded source
+revision for exact historical runtime reproduction. Existing raw study records,
+frozen task inputs and the retained Ruby study runner are not rewritten by this change.
 
 ## What it records
 

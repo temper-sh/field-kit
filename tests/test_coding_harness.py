@@ -55,11 +55,13 @@ class FakeModel:
                     result = json.dumps({"tokens": list(range(len(body["content"]) // 4))}).encode()
                 elif self.path == "/v1/chat/completions":
                     model.requests.append(body)
-                    message = model.replies.pop(0)
+                    reply = model.replies.pop(0)
+                    message = reply(body) if callable(reply) else copy.deepcopy(reply)
+                    message, finish_reason = message if isinstance(message, tuple) else (message, "tool_calls")
                     for call in message["tool_calls"]:
                         call["index"] = 0
                     result = (b"data: " + json.dumps({"choices": [{"index": 0, "delta": message}]}).encode() + b"\n\n"
-                              + b"data: " + json.dumps({"choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}).encode()
+                              + b"data: " + json.dumps({"choices": [{"index": 0, "delta": {}, "finish_reason": finish_reason}]}).encode()
                               + b"\n\ndata: [DONE]\n\n")
                 else:
                     self.send_error(404)
@@ -150,6 +152,7 @@ class CodingHarnessTest(unittest.TestCase):
         self.assertEqual(result["contract"], "feedback-state")
         self.assertIn("Tool workspace contract", fake.requests[0]["messages"][0]["content"])
 
+
     def test_an_engine_without_token_routes_needs_a_fixed_output_allowance(self):
         with self.assertRaises(FileNotFoundError):  # refused before the task starts or writes anything
             self.run_task("pagination-repair", [], native=False, window=None)
@@ -164,6 +167,96 @@ class CodingHarnessTest(unittest.TestCase):
         self.assertEqual(result["state"], "submitted")
         self.assertEqual(fake.requests[0]["max_tokens"], 2048)
         self.assertFalse(json.loads((files.output / "turn-001/budget.json").read_text())["token_preflight"])
+
+    def test_submit_retained_proposal_grades_exact_files_without_retransmitting_them(self):
+        proposal = reference("pagination-repair")
+        def submit(body):
+            receipt = json.loads(body["messages"][-1]["content"])
+            return call("submit_tested_patch", {"proposal_id": receipt["proposal_id"], "explanation": "Ready."}, 1)
+        row, result, fake, files = self.run_task("pagination-repair", [call("test_patch", proposal, 0), submit],
+                                                 adapter="flint/v1")
+        self.assertEqual(row["command"]["returncode"], 0, files.stderr.read_text())
+        self.assertEqual(result["proposal_protocol"], "retained-v2")
+        self.assertEqual(result["state"], "submitted")
+        self.assertEqual(result["submission"]["source_turn"], "turn-001")
+        first, submitted = result["assessments"]
+        self.assertTrue(first["evaluation"]["all_pass"])
+        self.assertEqual(submitted["proposal_id"], first["proposal_id"])
+        self.assertTrue(submitted["same_patch_as_prior"])
+        self.assertEqual(submitted["source_turn"], "turn-001")
+        args = json.loads(json.loads((files.output / "turn-002/response.json").read_text())[
+            "message"]["tool_calls"][0]["function"]["arguments"])
+        self.assertEqual(set(args), {"proposal_id", "explanation"})
+        self.assertEqual((files.output / "turn-001/candidate/pagination.py").read_bytes(),
+                         (files.output / "assessment-turn-001/candidate/pagination.py").read_bytes())
+        self.assertNotIn("test_acceptance", json.dumps(fake.requests))
+
+    def test_unknown_reference_is_rejected_and_a_known_earlier_proposal_can_be_selected(self):
+        good = reference("pagination-repair")
+        bad = copy.deepcopy(good)
+        bad["new_files"][0]["content"] = "import unittest\nclass Broken(unittest.TestCase):\n def test_wrong(self): self.fail('wrong expectation')\n"
+        selected = {}
+        def test_later(body):
+            selected["proposal_id"] = json.loads(body["messages"][-1]["content"])["proposal_id"]
+            return call("test_patch", bad, 2)
+        def submit_earlier(body):
+            return call("submit_tested_patch", {**selected, "explanation": "Select the first tested proposal."}, 3)
+        _, result, _, files = self.run_task("pagination-repair", [
+            call("submit_tested_patch", {"proposal_id": "unknown", "explanation": "Ready."}, 0),
+            call("test_patch", good, 1), test_later, submit_earlier])
+        self.assertEqual(result["state"], "submitted", files.stderr.read_text())
+        self.assertEqual(result["quality"]["turns"][0]["status"], "invalid-proposal")
+        self.assertIn("invalid_patch", result["assessments"][0])
+        self.assertEqual(result["submission"]["source_turn"], "turn-002")
+        self.assertTrue(result["assessments"][1]["evaluation"]["all_pass"])
+        self.assertFalse(result["assessments"][2]["evaluation"]["all_pass"])
+        self.assertEqual(result["assessments"][-1]["proposal_id"], result["assessments"][1]["proposal_id"])
+
+    def test_truncated_final_response_keeps_the_correct_tested_artifact_without_claiming_submission(self):
+        def truncated(body):
+            return call("submit_patch", {"partial": "unfinished"}, 1), "length"
+        _, result, _, files = self.run_task("pagination-repair", [
+            call("test_patch", reference("pagination-repair"), 0), truncated])
+        self.assertEqual(result["state"], "incomplete", files.stderr.read_text())
+        self.assertNotIn("submission", result)
+        self.assertTrue(result["assessments"][0]["evaluation"]["all_pass"])
+        self.assertIn("proposal_id", result["assessments"][0])
+        self.assertTrue((files.output / "assessment-turn-001/proposal.patch").is_file())
+
+    def test_submitting_a_failed_tested_proposal_does_not_turn_its_grading_into_a_pass(self):
+        proposal = reference("pagination-repair")
+        proposal["new_files"][0]["content"] = "import unittest\nclass Broken(unittest.TestCase):\n def test_wrong(self): self.fail('wrong expectation')\n"
+        def submit(body):
+            receipt = json.loads(body["messages"][-1]["content"])
+            self.assertFalse(receipt["visible_tests_pass"])
+            return call("submit_tested_patch", {"proposal_id": receipt["proposal_id"],
+                                               "explanation": "Submit for independent review."}, 1)
+        _, result, _, files = self.run_task("pagination-repair", [call("test_patch", proposal, 0), submit])
+        self.assertEqual(result["state"], "submitted", files.stderr.read_text())
+        self.assertFalse(result["assessments"][0]["evaluation"]["all_pass"])
+        self.assertEqual(result["source_review"], "pending")
+
+    def test_legacy_full_patch_protocol_is_explicitly_replayable(self):
+        proposal = reference("pagination-repair")
+        _, result, fake, files = self.run_task("pagination-repair", [
+            call("test_patch", proposal, 0), call("submit_patch", proposal, 1)],
+            arguments=("--proposal-protocol", "complete-v1"))
+        self.assertEqual(result["state"], "submitted", files.stderr.read_text())
+        self.assertEqual(result["proposal_protocol"], "complete-v1")
+        self.assertNotIn("submit_tested_patch", json.dumps(fake.requests[0]))
+        self.assertNotIn("proposal_id", result["assessments"][0])
+
+    def test_zero_limits_allow_a_seventh_response_without_a_client_deadline(self):
+        replies = [call("submit_tested_patch", {"proposal_id": "unknown", "explanation": "Ready."}, n)
+                   for n in range(6)]
+        replies.append(call("submit_patch", reference("pagination-repair"), 6))
+        _, result, fake, files = self.run_task("pagination-repair", replies,
+                                               arguments=("--seconds", "0", "--turns", "0"))
+        self.assertEqual(result["state"], "submitted", files.stderr.read_text())
+        self.assertEqual((result["budget_seconds"], result["max_turns"]), (0, 0))
+        self.assertIsNone(result["quality"]["deadline"])
+        self.assertEqual(len(fake.requests), 7)
+        self.assertNotIn("at most", fake.requests[0]["messages"][0]["content"])
 
     @unittest.skipUnless(GRADING, "run ./field-kit grading to install the Flask test packages")
     def test_flask_references_pass_independent_tests_and_review_checks(self):
@@ -192,7 +285,10 @@ class CodingHarnessTest(unittest.TestCase):
                 self.assertTrue(harness.evaluate_flask.group_passes(result["groups"]["original"]))
                 self.assertFalse(result["behavior_pass"])
 
+
+
 class FrozenInputTest(unittest.TestCase):
+
     def test_a_changed_task_input_is_refused(self):
         with tempfile.TemporaryDirectory() as temp:
             copy_root = Path(temp) / "coding"

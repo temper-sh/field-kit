@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import copy
 import json
+import itertools
 from pathlib import Path
 import time
 
 import bootstrap
 import patches
+import proposals
 from history import feedback_messages
 from fieldkit_runtime.common import canonical_json, digest
 from fieldkit_runtime.process import atomic_write
@@ -50,19 +52,33 @@ test file, replace its complete new_files contents and repeat the production
 edits. The previous disposable checkout is not available to edit."""
 
 
-def system_text(contract="original"):
-    return SYSTEM + ("\n\n" + CONTRACTS[contract] if CONTRACTS[contract] else "")
+def system_text(contract="original", proposal_protocol=proposals.RETAINED):
+    if proposal_protocol not in proposals.PROTOCOLS:
+        raise ValueError("Unknown proposal protocol: " + str(proposal_protocol))
+    text = SYSTEM + ("\n\n" + CONTRACTS[contract] if CONTRACTS[contract] else "")
+    if proposal_protocol == proposals.RETAINED:
+        text = text.replace(
+            "Finish with one submit_patch call containing the complete final implementation\nand tests.",
+            "Finish by calling submit_tested_patch with the proposal_id returned by test_patch\nwhen that exact proposal is ready. Do not repeat its edits or files. To submit\na new untested proposal, use submit_patch with the complete implementation and tests.")
+        text = text.replace(
+            "call submit_patch with the complete implementation and tests.",
+            "call submit_tested_patch with its returned proposal_id, or submit_patch for a new complete proposal.")
+    return text
 
 
-def request_for(case, max_turns, contract="original"):
+def request_for(case, max_turns, contract="original", proposal_protocol=proposals.RETAINED):
     request = copy.deepcopy(case["request"])
-    request["messages"][0]["content"] = system_text(contract) + f"\nYou have at most {max_turns} responses, including final submission."
+    request["messages"][0]["content"] = system_text(contract, proposal_protocol)
+    if max_turns:
+        request["messages"][0]["content"] += f"\nYou have at most {max_turns} responses, including final submission."
     for message in request["messages"][1:]:
         message["content"] = message["content"].replace(
             "Do not claim tests ran.", "Only report tests actually returned by test_patch.")
     test = copy.deepcopy(patches.TOOLS[0])
     test["function"].update(name="test_patch", description="Test a complete proposal against the original source; receive visible test feedback.")
     request["tools"] = [test, *copy.deepcopy(patches.TOOLS)]
+    if proposal_protocol == proposals.RETAINED:
+        request["tools"].append(copy.deepcopy(proposals.REFERENCE_TOOL))
     return request
 
 
@@ -92,18 +108,20 @@ def feedback(result):
 
 
 def run(case, stage, fixture, python, max_turns, deadline, request, summarize, row, *, model_adapter, evaluation,
-        contract="original", observer=None):
+        contract="original", observer=None, proposal_protocol=proposals.RETAINED):
     """One residency, durable attempts, no implicit retry after a failed effect."""
     base = fixture / "base"
     started = time.monotonic()
     detail = row["quality"] = {"status": "running", "max_turns": max_turns, "deadline": deadline, "turns": []}
+    detail["proposal_protocol"] = proposal_protocol
     row["evaluator_safe_to_cleanup"] = True
+    retained = proposals.RetainedProposals(base, case) if proposal_protocol == proposals.RETAINED else None
     response = None
     try:
         visible_control(evaluation, base, stage / "control", case, python, deadline, observer=observer)
-        body = request_for(case, max_turns, contract)
-        for number in range(1, max_turns + 1):
-            if time.time() >= deadline:
+        body = request_for(case, max_turns, contract, proposal_protocol)
+        for number in (range(1, max_turns + 1) if max_turns else itertools.count(1)):
+            if deadline is not None and time.time() >= deadline:
                 raise TimeoutError("coding quality time budget exhausted")
             folder = stage / f"turn-{number:03d}"
             folder.mkdir()
@@ -134,19 +152,36 @@ def run(case, stage, fixture, python, max_turns, deadline, request, summarize, r
             tool = (call.get("function") or {}).get("name")
             reply = None
             try:
+                if tool == "submit_tested_patch" and retained is not None and call.get("id"):
+                    selected = proposals.reference(response)
+                    _, origin = retained.resolve(selected["proposal_id"])
+                    turn.update(status="submitted", tool=tool, proposal_id=selected["proposal_id"],
+                                source_turn=origin)
+                    row["submission"] = {"proposal_id": selected["proposal_id"], "source_turn": origin,
+                                         "turn": folder.name, "via": tool}
+                    detail["status"] = "submitted"
+                    atomic_write(folder / "turn.json", canonical_json(turn))
+                    break
                 if tool not in ("test_patch", "submit_patch") or not call.get("id"):
                     raise patches.InvalidPatch("Use one test_patch or submit_patch call with an ID.")
                 arguments = patches.submission(response, tool=tool)
                 # Validate before producing any candidate effects.
                 patches.staged_texts(arguments, base, case["edit_scope"])
                 turn["tool"] = tool
+                if retained is not None:
+                    turn["proposal_id"] = retained.identify(arguments)
                 if tool == "submit_patch":
                     turn["status"] = "submitted"
                     detail["status"] = "submitted"
+                    if retained is not None:
+                        row["submission"] = {"proposal_id": turn["proposal_id"], "source_turn": folder.name,
+                                             "turn": folder.name, "via": tool}
                     atomic_write(folder / "turn.json", canonical_json(turn))
                     break
                 applied = patches.apply(arguments, base, folder / "candidate", case["edit_scope"])
                 turn.update(status="testing", patch_sha256=digest(applied["diff"].encode()))
+                if retained is not None:
+                    turn.update(retained.remember(arguments, folder))
                 atomic_write(folder / "turn.json", canonical_json(turn))
                 result = evaluation.evaluate(folder / "candidate", folder / "tests", case, fixture, python,
                                              visible_only=True, deadline=deadline, observer=observer)
@@ -158,6 +193,11 @@ def run(case, stage, fixture, python, max_turns, deadline, request, summarize, r
                     atomic_write(folder / "turn.json", canonical_json(turn))
                     break
                 reply = feedback(result)
+                if retained is not None:
+                    reply.update(proposal_id=turn["proposal_id"], instruction=(
+                        "Inspect the visible results. Repair a complete proposal against the original source, "
+                        "or call submit_tested_patch with this proposal_id to submit these exact retained files. "
+                        "Independent grading and source review still determine acceptance."))
             except patches.InvalidPatch as error:
                 turn["status"] = "invalid-proposal"
                 reply = {"error": str(error), "instruction": "Repair the complete proposal against the original source."}

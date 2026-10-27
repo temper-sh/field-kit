@@ -18,6 +18,7 @@ from client import Client, save
 import evaluate_flask
 import evaluate_unittest
 import patches
+import proposals
 import quality
 from fieldkit_runtime.process import runtime_identity
 
@@ -81,11 +82,12 @@ def verify(write_manifest=False):
     return {'verified': True, 'tasks': sorted(TASKS), 'reference_changes': references, 'inference': False}
 
 
-def grade(output, task, case, fixture, python, seconds=180):
+def grade(output, task, case, fixture, python, seconds=180, *, proposal_protocol=proposals.RETAINED):
     """Grade every distinct complete proposal; review checks and independent tests never reach the model."""
     evaluation = TASKS[task]['evaluation']
     review_folder, reviews = review_checks(task, case)
     assessments, seen = [], set()
+    retained = proposals.RetainedProposals(fixture / 'base', case) if proposal_protocol == proposals.RETAINED else None
     deadline = time.time() + seconds
     for stage in sorted(output.glob('turn-???')):
         path = stage / 'response.json'
@@ -95,14 +97,31 @@ def grade(output, task, case, fixture, python, seconds=180):
         if not response.get('stream_complete') or response.get('finish_reason') not in ('tool_calls', 'stop'):
             continue
         calls = response['message'].get('tool_calls') or []
-        if len(calls) != 1 or calls[0]['function']['name'] not in ('test_patch', 'submit_patch'):
+        tools = ('test_patch', 'submit_patch', 'submit_tested_patch') if retained is not None else ('test_patch', 'submit_patch')
+        if len(calls) != 1 or calls[0]['function']['name'] not in tools:
             continue
         try:
-            proposal = patches.submission(response, tool=calls[0]['function']['name'])
+            tool = calls[0]['function']['name']
+            identity = {}
+            if tool == 'submit_tested_patch':
+                selected = proposals.reference(response)
+                proposal, origin = retained.resolve(selected['proposal_id'])
+                identity = {'proposal_id': selected['proposal_id'], 'source_turn': origin}
+            else:
+                proposal = patches.submission(response, tool=tool)
+                patches.staged_texts(proposal, fixture / 'base', case['edit_scope'])
+                if retained is not None:
+                    metadata = json.loads((stage / 'turn.json').read_text())
+                    proposal_id = retained.identify(proposal)
+                    if metadata.get('proposal_id') != proposal_id:
+                        raise patches.InvalidPatch('Proposal no longer matches its recorded original source and case.')
+                    if tool == 'test_patch':
+                        retained.remember(proposal, stage, metadata)
+                    identity = {'proposal_id': proposal_id}
             signature = hashlib.sha256(json.dumps({k: v for k, v in proposal.items() if k != 'explanation'},
                                                   sort_keys=True).encode()).hexdigest()
             if signature in seen:
-                assessments.append({'turn': stage.name, 'same_patch_as_prior': True, 'patch_identity': signature})
+                assessments.append({'turn': stage.name, 'same_patch_as_prior': True, 'patch_identity': signature, **identity})
                 continue
             dest = output / ('assessment-' + stage.name)
             dest.mkdir()
@@ -110,7 +129,7 @@ def grade(output, task, case, fixture, python, seconds=180):
             (dest / 'proposal.patch').write_text(applied['diff'])
             result = evaluation.evaluate(dest / 'candidate', dest / 'tests', case, fixture, str(python), deadline=deadline)
             assessment = {'turn': stage.name, 'patch_identity': signature, 'changed_files': applied['changed_files'],
-                          'evaluation': result}
+                          'evaluation': result, **identity}
             if reviews:
                 assessment['review'] = evaluation._run_group(dest / 'candidate', dest, 'review', [str(p) for p in reviews],
                                                              str(python), review_folder, fixture / 'base', deadline=deadline)
@@ -143,12 +162,13 @@ def run(args):
     client = Client(base, model, context, sampling, native_root=native,
                     model_adapter=os.environ['FIELD_KIT_MODEL_ADAPTER'], output_tokens=args.output_tokens)
     case = load_case(args.task)
-    seconds = args.seconds or spec['seconds']
+    seconds = spec['seconds'] if args.seconds is None else args.seconds
     row = {'state': 'running', 'started_epoch': time.time(), 'task': args.task, 'case': case['id'],
            'endpoint': base, 'native_endpoint': native, 'model': model, 'model_adapter': client.adapter.identifier,
            'context_tokens': context, 'fixed_output_tokens': args.output_tokens,
            'sampling_overrides': sampling, 'sampling_default': 'the preset\'s own',
-           'contract': args.contract, 'system_sha256': hashlib.sha256(quality.system_text(args.contract).encode()).hexdigest(),
+           'contract': args.contract, 'proposal_protocol': args.proposal_protocol,
+           'system_sha256': hashlib.sha256(quality.system_text(args.contract, args.proposal_protocol).encode()).hexdigest(),
            'field_kit': runtime_identity(), 'grading': grading_identity(python), 'source_sha256': source_identity(),
            'budget_seconds': seconds, 'max_turns': args.turns, 'quality_measured': False,
            'source_review': 'pending', 'failure': None}
@@ -160,13 +180,15 @@ def run(args):
         signal.signal(sig, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt('operator stop')))
     interrupted = False
     try:
-        deadline = time.time() + seconds
+        deadline = None if seconds == 0 else time.time() + seconds
         def request(stage, body, turn):
-            print(json.dumps({'task': args.task, 'turn': turn['number'], 'seconds_left': round(deadline - time.time())}), flush=True)
-            return client.request(stage, body, time.monotonic() + max(0, deadline - time.time()))
+            print(json.dumps({'task': args.task, 'turn': turn['number'],
+                              'seconds_left': None if deadline is None else round(deadline - time.time())}), flush=True)
+            return client.request(stage, body, None if deadline is None else time.monotonic() + max(0, deadline - time.time()))
         quality.run(case, output, fixture, str(python), args.turns, deadline, request,
                     lambda response: {'usage': response.get('usage'), 'timings': response.get('timings')}, row,
-                    model_adapter=client.adapter, evaluation=spec['evaluation'], contract=args.contract)
+                    model_adapter=client.adapter, evaluation=spec['evaluation'], contract=args.contract,
+                    proposal_protocol=args.proposal_protocol)
         row['state'] = row['quality']['status']
     except KeyboardInterrupt as error:
         interrupted = True
@@ -177,7 +199,8 @@ def run(args):
     finally:
         if not interrupted:
             try:
-                row['assessments'] = grade(output, args.task, case, fixture, python)
+                row['assessments'] = grade(output, args.task, case, fixture, python,
+                                           proposal_protocol=args.proposal_protocol)
                 row['quality_measured'] = any('evaluation' in a for a in row['assessments'])
             except Exception as error:
                 row['grading_error'] = type(error).__name__ + ': ' + str(error)
@@ -192,11 +215,13 @@ def main(argv=None):
     commands = parser.add_subparsers(dest='command', required=True)
     task = commands.add_parser('run', help='one task against the preset Field Kit serves')
     task.add_argument('task', choices=sorted(TASKS))
-    task.add_argument('--seconds', type=int, help='task wall-clock budget; default 900 for pagination, 1800 for Flask')
-    task.add_argument('--turns', type=int, default=6, help='responses, including the final submission')
+    task.add_argument('--seconds', type=int, help='task wall-clock budget; 0 disables it; default 900 for pagination, 1800 for Flask')
+    task.add_argument('--turns', type=int, default=6, help='responses, including final submission; 0 disables the response-count limit')
     task.add_argument('--context', type=int, help="override Field Kit's FIELD_KIT_CONTEXT_WINDOW_TOKENS")
     task.add_argument('--contract', choices=sorted(quality.CONTRACTS), default='original',
                       help='labelled prompt treatment added to the system text')
+    task.add_argument('--proposal-protocol', choices=proposals.PROTOCOLS, default=proposals.RETAINED,
+                      help='retained-v2 submits tested artifacts by ID; complete-v1 replays the original full-patch protocol')
     task.add_argument('--sampling', type=json.loads, default={},
                       help='JSON sampling overrides, e.g. \'{"temperature": 1, "top_k": 20}\'; default the preset\'s own')
     task.add_argument('--seed', type=int, default=421)
@@ -208,8 +233,9 @@ def main(argv=None):
     if args.command == 'verify':
         print(json.dumps(verify(args.write_manifest), indent=2))
         return 0
-    if min(args.turns, args.seconds or 1, args.output_tokens or 1) <= 0 or not isinstance(args.sampling, dict):
-        parser.error('turns, seconds and output tokens must be positive; sampling is a JSON object')
+    if (args.turns < 0 or (args.seconds is not None and args.seconds < 0)
+            or (args.output_tokens is not None and args.output_tokens <= 0) or not isinstance(args.sampling, dict)):
+        parser.error('turns and seconds must be nonnegative, output tokens positive; sampling is a JSON object')
     return run(args)
 
 

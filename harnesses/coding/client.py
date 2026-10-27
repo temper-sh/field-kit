@@ -24,6 +24,9 @@ def save(path, value):
 
 @contextmanager
 def deadline_alarm(deadline):
+    if deadline is None:
+        yield
+        return
     seconds = deadline - time.monotonic()
     if seconds <= 0:
         raise TimeoutError('Request wall-clock budget exhausted')
@@ -85,7 +88,7 @@ class Client:
                           data=None if payload is None else json.dumps(payload, ensure_ascii=False).encode(),
                           headers={'Content-Type': 'application/json'})
         with deadline_alarm(deadline):
-            with self.opener.open(request, timeout=max(.1, deadline - time.monotonic())) as response:
+            with self.opener.open(request, timeout=None if deadline is None else max(.1, deadline - time.monotonic())) as response:
                 return json.load(response)
 
     def request(self, directory, body, deadline):
@@ -125,7 +128,7 @@ class Client:
             request = Request(self.base + '/chat/completions', data=json.dumps(payload, ensure_ascii=False).encode(),
                               headers={'Content-Type': 'application/json'})
             with deadline_alarm(deadline):
-                with self.opener.open(request, timeout=max(.1, deadline - time.monotonic())) as response:
+                with self.opener.open(request, timeout=None if deadline is None else max(.1, deadline - time.monotonic())) as response:
                     result = self.adapter.normalize(stream(response, started), payload)
             if self.observer:
                 self.observer()
