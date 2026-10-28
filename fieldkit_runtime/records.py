@@ -28,11 +28,12 @@ def outcome(run: dict[str, Any]) -> str:
 def new_run(*, run_id, study, candidate, reason, created_epoch, created_at, temper, field_kit, machine,
             resource_policy, family, execution, engine_adapter, model_adapter, model_adapter_scope,
             workload_sha256, subject="temper", installation=None, weights_cache=None, lock_sha256=None,
-            local_engine=None, spec_sha256=None) -> dict[str, Any]:
+            local_engine=None, spec_sha256=None, queue=None) -> dict[str, Any]:
     """A reserved attempt. Every later phase updates this one record.
 
     A temper attempt names its lock, installation and weights cache; a local
-    attempt names its declaration and the identities approved for it.
+    attempt names its declaration and the identities approved for it. A queued
+    attempt names its queue and entry, so a resume knows which entries ran.
     """
     run = {"id": run_id, "study": study, "candidate": candidate, "subject": subject, "state": "queued",
            "reason": reason, "created_epoch": created_epoch, "created_at": created_at, "worker": None,
@@ -40,6 +41,8 @@ def new_run(*, run_id, study, candidate, reason, created_epoch, created_at, temp
            "family": family, "execution": execution, "engine_adapter": engine_adapter,
            "model_adapter": model_adapter, "model_adapter_scope": model_adapter_scope,
            "workload_sha256": workload_sha256, "safe_to_cleanup": True, "sessions": [], "error": None}
+    if queue:
+        run["queue"] = queue
     if subject == "local":
         run.update(local_engine=local_engine, spec_sha256=spec_sha256,
                    evidence="research: a local engine is never catalog evidence")

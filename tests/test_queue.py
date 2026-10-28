@@ -2,7 +2,10 @@
 
 Failure meanings: running past a failed, unsafe or resource-stopped attempt
 would spend the machine on results nobody reviewed; starting an invalid plan
-would leave half a queue behind.
+would leave half a queue behind. A resume that repeated a complete attempt
+would spend a night twice; one that read the edited plan instead of the frozen
+copies would break a matched comparison; one that ran beside a live queue or an
+unrecovered attempt would duplicate inference.
 """
 from pathlib import Path
 import tempfile
@@ -47,6 +50,21 @@ class QueueTest(unittest.TestCase):
     def run_queue(self, plan, context=None):
         self.study.context = context or fake_context(answer)
         return attempt_queue.run(self.study, plan, attempt.execute)
+
+    def resume(self, name, retry=(), context=None):
+        self.study.context = context or fake_context(answer)
+        return attempt_queue.resume(self.study, name, attempt.execute, retry)
+
+    def crash(self, plan, execute):
+        """The queue process dies inside `execute`; returns the queue's name."""
+        self.study.context = fake_context(answer)
+        with self.assertRaises(KeyboardInterrupt):
+            attempt_queue.run(self.study, plan, execute)
+        return next((self.study.directory / "queues").iterdir()).name
+
+    @staticmethod
+    def entries(result):
+        return [(row["number"], row["state"]) for row in result["attempts"]]
 
     def test_attempts_run_in_order_and_the_record_names_each(self):
         result = self.run_queue(self.plan({}, {}))
@@ -134,6 +152,101 @@ class QueueTest(unittest.TestCase):
         self.study.save(state)
         result = self.run_queue(self.plan({}))
         self.assertIn("approved time ended", result["stopped"])
+
+    def test_a_crash_after_an_attempt_committed_resumes_without_repeating_it(self):
+        def killed_before_recording(study, directory):
+            attempt.execute(study, directory)
+            raise KeyboardInterrupt("queue process killed before it recorded the attempt")
+        name = self.crash(self.plan({}, {}), killed_before_recording)
+        self.assertEqual(load_json(self.study.directory / "queues" / name / "queue.json")["attempts"], [])
+        result = self.resume(name)
+        self.assertEqual(self.entries(result), [(1, "complete"), (2, "complete")])
+        self.assertEqual(len(self.study.load()["runs"]), 2)
+        self.assertEqual((result["stopped"], result["not_started"], len(result["resumed_at"])), (None, 0, 1))
+        self.assertNotIn("resume", result)
+
+    def test_an_interrupted_entry_runs_again_as_a_new_attempt_and_the_first_stays(self):
+        def stopped(probe, path, payload, timeout, **kwargs):
+            if kwargs.get("method") == "GET":
+                return {}
+            raise KeyboardInterrupt("stop requested")
+        first = self.run_queue(self.plan({}, {}), fake_context(stopped))
+        self.assertEqual((self.entries(first), first["not_started"]), ([(1, "interrupted")], 1))
+        name = Path(first["record"]).parent.name
+        self.assertTrue(first["resume"].endswith(f"study queue queued --resume {name}"))
+        result = self.resume(name)
+        self.assertEqual(self.entries(result), [(1, "interrupted"), (1, "complete"), (2, "complete")])
+        runs = self.study.load()["runs"]
+        self.assertEqual(len(set(runs)), 3)
+        self.assertEqual(load_json(self.study.directory / "runs" / runs[0] / "result.json")["state"], "interrupted")
+
+    def test_an_attempt_lost_with_its_process_is_recovered_before_the_queue_resumes(self):
+        def power_lost(study, directory):
+            raise KeyboardInterrupt("machine lost power before the attempt began")
+        name = self.crash(self.plan({}, {}), power_lost)
+        with self.assertRaisesRegex(Refusal, "needs recovery"):
+            self.resume(name)
+        files = self.study.files(self.study.load()["runs"][0])
+        run = files.load_run()
+        files.save_run({**run, "created_epoch": run["created_epoch"] - 60})  # past the worker startup grace
+        self.study.recover()
+        self.assertEqual(self.entries(self.resume(name)), [(1, "interrupted"), (1, "complete"), (2, "complete")])
+
+    def test_a_failed_entry_stands_unless_the_resume_names_it_for_retry(self):
+        def broken(probe, path, payload, timeout, **kwargs):
+            if kwargs.get("method") == "GET":
+                return {}
+            raise OSError("connection reset by the engine")
+        name = Path(self.run_queue(self.plan({}, {}), fake_context(broken))["record"]).parent.name
+        self.assertEqual(self.entries(self.resume(name)), [(1, "failed"), (2, "complete")])
+        for retry, message in (([], "every entry has a finished attempt"), ([2], "entry 2 completed"),
+                               ([3], "entry 3 does not exist")):
+            with self.subTest(retry=retry), self.assertRaisesRegex(Refusal, message):
+                self.resume(name, retry)
+        result = self.resume(name, [1])
+        self.assertEqual(self.entries(result), [(1, "failed"), (2, "complete"), (1, "complete")])
+        self.assertEqual(len(result["resumed_at"]), 2)
+
+    def test_a_resume_sends_the_frozen_inputs_and_refuses_a_changed_copy(self):
+        (self.study.directory / "STOP").touch()
+        first = self.run_queue(self.plan({}, {}))
+        (self.study.directory / "STOP").unlink()
+        name = Path(first["record"]).parent.name
+        changed = workloads.generate("smoke")
+        changed["request"]["messages"][0]["content"] = "A different prompt"
+        (self.root / "smoke.json").write_bytes(canonical_json(changed))
+        (self.root / "plan.json").unlink()
+        copy = self.study.directory / "queues" / name / "inputs" / "002-workload.json"
+        original = copy.read_bytes()
+        copy.write_bytes(original + b" ")
+        with self.assertRaisesRegex(Refusal, "frozen queue input changed"):
+            self.resume(name)
+        copy.write_bytes(original)
+        result = self.resume(name)
+        self.assertEqual(self.entries(result), [(1, "complete"), (2, "complete")])
+        for row in result["attempts"]:
+            sent = (self.study.directory / "runs" / row["run"] / "workload.json").read_bytes()
+            self.assertNotIn(b"A different prompt", sent)
+
+    def test_a_running_queue_cannot_be_resumed_beside_itself(self):
+        def resume_beside(study, directory):
+            name = next((study.directory / "queues").iterdir()).name
+            with self.assertRaisesRegex(Refusal, "still running"):
+                attempt_queue.resume(study, name, attempt.execute)
+            attempt.execute(study, directory)
+        self.study.context = fake_context(answer)
+        result = attempt_queue.run(self.study, self.plan({}), resume_beside)
+        self.assertEqual(self.entries(result), [(1, "complete")])
+
+    def test_a_resume_names_a_queue_whose_attempts_record_their_entries(self):
+        result = self.run_queue(self.plan({}))
+        record = load_json(Path(result["record"]))
+        del record["entries"]
+        Path(result["record"]).write_bytes(canonical_json(record))
+        for name, message in (("../queued", "name a queue folder"), ("20990101T000000000000Z", "no queue record"),
+                              (Path(result["record"]).parent.name, "predates resume")):
+            with self.subTest(name=name), self.assertRaisesRegex(Refusal, message):
+                self.resume(name)
 
 class ReplayTest(unittest.TestCase):
     def test_a_recorded_request_becomes_a_forced_length_timing_replay(self):

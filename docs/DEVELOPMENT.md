@@ -49,7 +49,7 @@ cli ─► study ─► attempt: begin → prepare → measure each session → 
 | approval | The read-only approval document: candidates, limits, Temper's check/plan, storage and layout effect |
 | study | Custody: reserve, idle checks, recovery, close and repair attachment |
 | attempt | One attempt's phases, in order, and its committed outcome |
-| attempt_queue | Planned attempts one at a time; stops at a STOP file or after an attempt that did not complete |
+| attempt_queue | Planned attempts one at a time; stops at a STOP file or after an attempt that did not complete; resumes from its frozen inputs |
 | compare | Read-only side-by-side of finished attempts: settings, timing, decode quarters, outputs, memory |
 | subjects | The two subject kinds: preparation, probe, health path, model name; local declarations and variants |
 | local_probe | One engine Field Kit starts itself: bound, watched, stopped and proven gone without Temper |

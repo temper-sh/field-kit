@@ -87,7 +87,8 @@ class Study:
                 raise Refusal(f"owned runtime path was replaced with a symlink: {path}")
         return root
 
-    def reserve(self, name, workload_path, reason, lock_path=None, temper_path=None, *, model_adapter=None, engine_path=None):
+    def reserve(self, name, workload_path, reason, lock_path=None, temper_path=None, *, model_adapter=None, engine_path=None,
+                queue=None):
         if not reason.strip():
             raise Refusal("name the question or observation motivating this trial")
         with exclusive_lock(self.directory / ".lock"):
@@ -130,7 +131,7 @@ class Study:
                 field_kit=runtime_identity(), machine=facts, resource_policy=state["resource_policy"],
                 family=chosen["family"], execution=chosen["execution"], engine_adapter=chosen["engine_adapter"],
                 model_adapter=work["model_adapter"], model_adapter_scope=workloads.adapter_scope(work),
-                workload_sha256=digest(canonical_json(work)))
+                workload_sha256=digest(canonical_json(work)), queue=queue)
             if local:
                 atomic_write(files.engine, chosen["spec"].encode())
                 run = records.new_run(**shared, subject="local", spec_sha256=chosen["spec_sha256"],

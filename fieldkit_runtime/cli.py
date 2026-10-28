@@ -62,8 +62,13 @@ def parser():
     run.add_argument("--background", action="store_true")
     queue = actions.add_parser("queue", help="run planned attempts one at a time; stop at a STOP file or an attempt needing review")
     queue.add_argument("id")
-    queue.add_argument("--plan", type=Path, required=True,
-                       help='JSON {"attempts": [{"candidate", "workload", "reason", optional "lock", "engine", "model_adapter"}]}')
+    source = queue.add_mutually_exclusive_group(required=True)
+    source.add_argument("--plan", type=Path,
+                        help='JSON {"attempts": [{"candidate", "workload", "reason", optional "lock", "engine", "model_adapter"}]}')
+    source.add_argument("--resume", metavar="QUEUE",
+                        help="continue this queue from its frozen inputs: unstarted and interrupted entries; finished attempts stay")
+    queue.add_argument("--retry", type=int, action="append", default=[], metavar="ENTRY",
+                       help="with --resume: also run this failed or retained entry again, as a new attempt")
     compare = actions.add_parser("compare", help="read-only: settings, timing, decode rates, outputs and memory of attempts side by side")
     compare.add_argument("id")
     compare.add_argument("runs", nargs="+", help="attempt IDs, as listed in the study")
@@ -184,7 +189,12 @@ def main(argv=None):
             elif arguments.action == "queue":
                 from . import attempt_queue
                 from .attempt import execute
-                result = attempt_queue.run(study, arguments.plan, execute)
+                if arguments.resume:
+                    result = attempt_queue.resume(study, arguments.resume, execute, arguments.retry)
+                elif arguments.retry:
+                    raise Refusal("--retry names entries of a queue being resumed")
+                else:
+                    result = attempt_queue.run(study, arguments.plan, execute)
             elif arguments.action == "compare":
                 from .compare import compare
                 result = compare(study, arguments.runs)

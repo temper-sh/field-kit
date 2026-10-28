@@ -116,6 +116,16 @@ not prove its shutdown. A harness's own exit status is evidence, not a stop. Cre
 interrupts it. The study's `queues/` folder records each run's plan, attempts
 and why it stopped.
 
+Each queued attempt's record names its queue entry. A stopped or crashed queue
+continues with `./field-kit study queue my-study --resume QUEUE`, where QUEUE is
+its folder in `queues/`; a stopped queue prints this command. The resume runs
+from the copies frozen at the start, never from the plan file, and refuses a
+copy that changed. Entries never started and entries whose last attempt was
+interrupted run as new attempts. A complete attempt never repeats. A failed or
+retained attempt stands as evidence; after review, `--retry ENTRY` runs it
+again. Earlier attempts always stay. After a lost process, run `study recover`
+first: resume refuses while an attempt needs recovery or the queue still runs.
+
 Generators: smoke (plain chat), tools (a real tool call), engine (same answer
 at short/populated input, fresh process each), context (cold then append) and
 cache (adds an early edit). Record counts are not token counts. Actual usage is
