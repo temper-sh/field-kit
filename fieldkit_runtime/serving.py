@@ -11,6 +11,7 @@ from .probe import ProbeError
 
 
 RESPONSE_LIMIT = 4 * 1024**2
+BIND_GRACE_SECONDS = 10
 
 
 class HTTPResponseError(ProbeError):
@@ -60,8 +61,14 @@ def monitored_call(probe, path: str, payload: dict, timeout: float, *, streaming
             if observer is not None:
                 observer()
         probe.ensure_healthy()
-        if not probe.observe_engine():
-            raise ProbeError("response has no observed bound engine")
+        # Temper records the engine role shortly after the router starts it; a fast first
+        # response can arrive before that record does.
+        bind_deadline = time.monotonic() + BIND_GRACE_SECONDS
+        while not probe.observe_engine():
+            if time.monotonic() >= bind_deadline:
+                raise ProbeError("response has no observed bound engine")
+            time.sleep(0.1)
+            probe.ensure_healthy()
         probe.validate_owned_boundary()
         if failures:
             raise failures[0]
