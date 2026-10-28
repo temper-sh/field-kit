@@ -5,7 +5,9 @@ would spend the machine on results nobody reviewed; starting an invalid plan
 would leave half a queue behind. A resume that repeated a complete attempt
 would spend a night twice; one that read the edited plan instead of the frozen
 copies would break a matched comparison; one that ran beside a live queue or an
-unrecovered attempt would duplicate inference.
+unrecovered attempt would duplicate inference. A continuing queue that ran past
+a stop request, a resource stop or a machine-wide failure would fill the night
+with attempts that say nothing about the presets.
 """
 from pathlib import Path
 import tempfile
@@ -47,13 +49,13 @@ class QueueTest(unittest.TestCase):
             for number, extra in enumerate(attempts, 1)]}))
         return path
 
-    def run_queue(self, plan, context=None):
+    def run_queue(self, plan, context=None, **options):
         self.study.context = context or fake_context(answer)
-        return attempt_queue.run(self.study, plan, attempt.execute)
+        return attempt_queue.run(self.study, plan, attempt.execute, **options)
 
-    def resume(self, name, retry=(), context=None):
+    def resume(self, name, retry=(), context=None, **options):
         self.study.context = context or fake_context(answer)
-        return attempt_queue.resume(self.study, name, attempt.execute, retry)
+        return attempt_queue.resume(self.study, name, attempt.execute, retry, **options)
 
     def crash(self, plan, execute):
         """The queue process dies inside `execute`; returns the queue's name."""
@@ -247,6 +249,78 @@ class QueueTest(unittest.TestCase):
                               (Path(result["record"]).parent.name, "predates resume")):
             with self.subTest(name=name), self.assertRaisesRegex(Refusal, message):
                 self.resume(name)
+
+    def test_a_continuing_queue_runs_past_failures_of_single_attempts(self):
+        failures = [OSError("connection reset by the engine"), OSError("connection reset by the engine")]
+        def two_failures(probe, path, payload, timeout, **kwargs):
+            if kwargs.get("method") != "GET" and failures:
+                raise failures.pop()
+            return answer(probe, path, payload, timeout, **kwargs)
+        context = fake_context(two_failures)
+        first = self.run_queue(self.plan({}, {}, {}), context)
+        self.assertEqual((self.entries(first), first["continue_after_failure"]), ([(1, "failed")], False))
+        result = self.resume(Path(first["record"]).parent.name, context=context, continue_after_failure=True)
+        self.assertEqual(self.entries(result), [(1, "failed"), (2, "failed"), (3, "complete")])
+        self.assertEqual((result["stopped"], result["continue_after_failure"]), (None, True))
+        self.assertNotIn("resume", result)
+
+    def test_a_continuing_queue_still_stops_where_a_person_or_the_machine_needs_it(self):
+        def stopped(probe, path, payload, timeout, **kwargs):
+            if kwargs.get("method") == "GET":
+                return {}
+            raise KeyboardInterrupt("stop requested")
+        class Pressure(FakeProbe):
+            def finish(self):
+                return {**super().finish(), "stop_reasons": ["swap growth exceeded 512 MiB"]}
+        class Lingering(FakeProbe):
+            def finish(self):
+                return {**super().finish(), "safe_to_cleanup": False}
+        base = fake_context(answer)
+        for context, ending in ((fake_context(stopped), "interrupted"),
+                                (type(base)(**{**base.__dict__, "probe": Pressure}), "resource-stop"),
+                                (type(base)(**{**base.__dict__, "probe": Lingering}), "shutdown-unconfirmed")):
+            with self.subTest(ending=ending):
+                result = self.run_queue(self.plan({}, {}), context, continue_after_failure=True)
+                self.assertEqual(len(result["attempts"]), 1)
+                self.assertIn(ending, result["stopped"])
+
+    def test_failures_on_two_candidates_in_a_row_stop_a_continuing_queue(self):
+        def broken(probe, path, payload, timeout, **kwargs):
+            if kwargs.get("method") == "GET":
+                return {}
+            raise OSError("connection reset by the engine")
+        sources = []
+        for name in ("research-model", "other-model"):
+            sources.append(self.root / f"{name}.lock.json")
+            sources[-1].write_bytes(canonical_json(lock(name)))
+        study = Study(self.root, "paired", fake_context(broken))
+        study.initialize(preview(FakeTemper(), sources, self.root / "brief.md", hours=1, download_gib=1,
+                                 weights_cache=self.root / "hf-cache", context=study.context), FakeTemper())
+        plan = self.root / "paired.json"
+        plan.write_bytes(canonical_json({"attempts": [{"candidate": name, "workload": "smoke.json", "reason": "screen"}
+            for name in ("research-model", "research-model", "other-model", "other-model")]}))
+        result = attempt_queue.run(study, plan, attempt.execute, continue_after_failure=True)
+        self.assertEqual((self.entries(result), result["not_started"]), ([(1, "failed"), (2, "failed"), (3, "failed")], 1))
+        self.assertIn("attempt 3 needs review", result["stopped"])
+        self.assertIn("attempt 2 on research-model failed just before", result["stopped"])
+
+class StopRuleTest(unittest.TestCase):
+    """The continuing rule alone: a failure of one preset goes on; a pattern across presets stops."""
+    @staticmethod
+    def attempt(number, candidate, state="failed", kind="runtime-failure"):
+        return {"number": number, "candidate": candidate, "state": state,
+                "error": None if state == "complete" else {"kind": kind, "message": "model HTTP status 500"}}
+
+    def test_a_failure_right_after_one_on_another_candidate_stops_a_continuing_queue(self):
+        a1, a2, b3 = self.attempt(1, "a"), self.attempt(2, "a"), self.attempt(3, "b")
+        self.assertIsNone(attempt_queue.stop_reason(a2, a1, True))
+        self.assertIsNone(attempt_queue.stop_reason(b3, self.attempt(2, "a", "complete"), True))
+        self.assertIn("attempt 2 on a failed just before", attempt_queue.stop_reason(b3, a2, True))
+        for kind in ("storage", "stopped-by-watch", "resource-stop"):
+            with self.subTest(kind=kind):
+                self.assertIn(kind, attempt_queue.stop_reason(self.attempt(1, "a", kind=kind), None, True))
+        self.assertIn("retained", attempt_queue.stop_reason(self.attempt(1, "a", "retained"), None, True))
+        self.assertIn("runtime-failure", attempt_queue.stop_reason(a1, None, False))
 
 class ReplayTest(unittest.TestCase):
     def test_a_recorded_request_becomes_a_forced_length_timing_replay(self):

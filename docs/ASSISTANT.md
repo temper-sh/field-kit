@@ -49,7 +49,8 @@ Prefer the host's foreground job completion. For detached work use study wait
 and let the host wait on that process. Run a frozen series with study queue
 instead of a loop of agent turns. Internal sampling needs no agent turns.
 After a stop or a crash, resume that queue; do not write a new plan from the
-entries that remain.
+entries that remain. An unattended overnight series may use
+--continue-after-failure, so one failing preset does not end the night.
 Return to interpret completion, repair a defect or respond to a resource stop.
 
 Follow [repair instructions](REPAIR.md) instead of stopping on routine defects.

@@ -126,6 +126,14 @@ retained attempt stands as evidence; after review, `--retry ENTRY` runs it
 again. Earlier attempts always stay. After a lost process, run `study recover`
 first: resume refuses while an attempt needs recovery or the queue still runs.
 
+For an unattended series, `--continue-after-failure` (with `--plan` or
+`--resume`) goes on past an attempt that failed on its own: a runtime error,
+timeout, context or memory failure. That attempt stays as evidence and a resume
+does not rerun it. The queue still stops on a stop request, a resource stop, an
+unproven shutdown, a storage failure or a refusal. It also stops when a failure
+comes right after a failure on another candidate, because then the machine or
+the runtime may be the cause. Give the option again on each resume.
+
 Generators: smoke (plain chat), tools (a real tool call), engine (same answer
 at short/populated input, fresh process each), context (cold then append) and
 cache (adds an early edit). Record counts are not token counts. Actual usage is

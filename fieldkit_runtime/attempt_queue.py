@@ -8,6 +8,11 @@ failed, was interrupted, was stopped by the resource watch or could not prove
 its shutdown. A harness's own exit status is evidence, not a stop. Files a
 harness reads for itself are its own to identify.
 
+A queue may instead continue past a failure of one attempt: a runtime error,
+timeout, context or memory failure. It still stops on everything else, and on a
+failure right after a failure on another candidate, when the machine or the
+runtime may be the cause.
+
 Each attempt's run record names its queue entry at reservation, so a stopped or
 crashed queue resumes from the attempts' own records and its frozen inputs.
 Entries never started and entries whose last attempt was interrupted run as new
@@ -29,6 +34,7 @@ from .process import atomic_write, exclusive_lock
 FIELDS = {"candidate", "workload", "reason"}
 OPTIONAL = {"lock", "engine", "model_adapter"}
 FROZEN = ("workload", "lock", "engine")
+CONTINUABLE = {"runtime-failure", "timeout", "exceeds-context", "memory-failure"}
 
 def input_path(inputs, number, key):
     return inputs / f"{number:03d}-{key}.json"
@@ -95,6 +101,15 @@ def needs_review(result):
     return f"attempt ended {result['state']}" + (f" ({error['kind']}: {str(error.get('message'))[:160]})"
                                                  if error.get("kind") else "")
 
+def stop_reason(row, previous, continuing):
+    """Why the queue stops after this attempt, or None. `previous` is the attempt just before it."""
+    reason = needs_review(row)
+    if reason is None or not continuing or row["state"] != "failed" or (row["error"] or {}).get("kind") not in CONTINUABLE:
+        return reason
+    if previous and previous["state"] == "failed" and previous["candidate"] != row["candidate"]:
+        return f"{reason}; attempt {previous['number']} on {previous['candidate']} failed just before"
+    return None
+
 @contextlib.contextmanager
 def owned(folder):
     """Held by the process driving this queue; the kernel releases it when that process dies."""
@@ -110,7 +125,7 @@ def owned(folder):
                           "after the current attempt") from error
         yield
 
-def run(study, plan_path, execute):
+def run(study, plan_path, execute, continue_after_failure=False):
     name = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     folder = study.directory / "queues" / name
     folder.mkdir(parents=True)
@@ -124,11 +139,12 @@ def run(study, plan_path, execute):
                   "frozen_inputs": [entry["inputs_sha256"] for entry in attempts],
                   "entries": [{key: entry[key] for key in ("candidate", "reason", "model_adapter") if key in entry}
                               for entry in attempts],
-                  "attempts": [], "stopped": None, "not_started": len(attempts), "resumed_at": []}
+                  "attempts": [], "stopped": None, "not_started": len(attempts), "resumed_at": [],
+                  "continue_after_failure": continue_after_failure}
         records.write(folder / "queue.json", record)
         return drive(study, folder, record, attempts, range(1, len(attempts) + 1), execute)
 
-def resume(study, name, execute, retry=()):
+def resume(study, name, execute, retry=(), continue_after_failure=False):
     """Continue a stopped or crashed queue from its frozen inputs. Earlier attempts stay; a rerun is a new attempt."""
     if not isinstance(name, str) or Path(name).name != name or name in ("", ".", ".."):
         raise Refusal("name a queue folder from the study's queues/")
@@ -153,7 +169,7 @@ def resume(study, name, execute, retry=()):
         if not numbers:
             raise Refusal("every entry has a finished attempt; name a failed entry with --retry after review, "
                           "or start a new queue")
-        record.update(stopped=None, not_started=not_started(record))
+        record.update(stopped=None, not_started=not_started(record), continue_after_failure=continue_after_failure)
         record.pop("finished_at", None)
         record["resumed_at"].append(jobs.now())
         records.write(folder / "queue.json", record)
@@ -162,6 +178,7 @@ def resume(study, name, execute, retry=()):
 def drive(study, folder, record, attempts, numbers, execute):
     """Run the numbered entries in order until a STOP file, a refusal or an attempt that needs review."""
     path = folder / "queue.json"
+    previous = None
     for number in numbers:
         entry = attempts[number - 1]
         if (study.directory / "STOP").exists():
@@ -176,13 +193,15 @@ def drive(study, folder, record, attempts, numbers, execute):
             break
         execute(study, directory)
         result = load_json(directory / "result.json", records.RUN_LIMIT)
-        record["attempts"].append(row(number, directory.name, result))
+        current = row(number, directory.name, result)
+        record["attempts"].append(current)
         record["not_started"] = not_started(record)
-        record["stopped"] = needs_review(result)
+        record["stopped"] = stop_reason(current, previous, record["continue_after_failure"])
         records.write(path, record)
         if record["stopped"]:
             record["stopped"] = f"attempt {number} needs review: {record['stopped']}"
             break
+        previous = current
     record["finished_at"] = jobs.now()
     records.write(path, record)
     returned = {**record, "record": str(path)}

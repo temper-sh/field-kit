@@ -69,6 +69,9 @@ def parser():
                         help="continue this queue from its frozen inputs: unstarted and interrupted entries; finished attempts stay")
     queue.add_argument("--retry", type=int, action="append", default=[], metavar="ENTRY",
                        help="with --resume: also run this failed or retained entry again, as a new attempt")
+    queue.add_argument("--continue-after-failure", action="store_true",
+                       help="go on past an attempt's own runtime, timeout, context or memory failure; still stop on "
+                            "anything else, or on a failure right after one on another candidate")
     compare = actions.add_parser("compare", help="read-only: settings, timing, decode rates, outputs and memory of attempts side by side")
     compare.add_argument("id")
     compare.add_argument("runs", nargs="+", help="attempt IDs, as listed in the study")
@@ -190,11 +193,12 @@ def main(argv=None):
                 from . import attempt_queue
                 from .attempt import execute
                 if arguments.resume:
-                    result = attempt_queue.resume(study, arguments.resume, execute, arguments.retry)
+                    result = attempt_queue.resume(study, arguments.resume, execute, arguments.retry,
+                                                  arguments.continue_after_failure)
                 elif arguments.retry:
                     raise Refusal("--retry names entries of a queue being resumed")
                 else:
-                    result = attempt_queue.run(study, arguments.plan, execute)
+                    result = attempt_queue.run(study, arguments.plan, execute, arguments.continue_after_failure)
             elif arguments.action == "compare":
                 from .compare import compare
                 result = compare(study, arguments.runs)
