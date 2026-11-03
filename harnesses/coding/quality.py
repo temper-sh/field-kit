@@ -88,7 +88,11 @@ def visible_control(evaluation, base, destination, case, python, deadline, *, ob
              for name in case["original_tests"]]
     control = evaluation._run_group(base, destination, "original", tests, str(python), base / "tests", base,
                                      deadline=deadline, observer=observer)
-    if not evaluation.group_passes(control):
+    # A case whose visible tests describe the requested change may declare that they fail on the
+    # unchanged source; its control then proves only that they load and run here.
+    summary = control.get("summary") or {}
+    ran = not control.get("stopped") and summary.get("tests", 0) > summary.get("skipped", 0)
+    if not (ran if case.get("unchanged_source_fails_original_tests") else evaluation.group_passes(control)):
         raise evaluation.EvaluationFailure("unchanged-source control failed; no quality inference was requested",
                                            safe_to_cleanup=control["safe_to_cleanup"])
 

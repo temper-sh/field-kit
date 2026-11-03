@@ -29,6 +29,10 @@ workload: register an absolute task-pack path and an evaluator, then invoke
 `harness.main`. `UnittestEvaluation(module_name)` binds a Python suite's entry
 module to the existing sandbox evaluator. The external suite owns input freezing
 and includes its case and adapter hashes in the recorded source identity.
+Before any request, the harness runs the visible tests on the unchanged source
+and requires them to pass. A case whose visible tests describe the requested
+change can set `"unchanged_source_fails_original_tests": true`; the control
+then requires only that those tests load and run.
 
 ## Run
 

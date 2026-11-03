@@ -315,6 +315,26 @@ class UnittestEntryModuleTest(unittest.TestCase):
             self.assertEqual(wrong["groups"]["hidden"]["summary"]["failures"], 1)
             self.assertEqual(wrong["groups"]["hidden"]["summary"]["errors"], 0)
 
+    def test_a_declared_failing_start_needs_its_visible_tests_to_run(self):
+        evaluator = harness.evaluate_unittest.UnittestEvaluation("ledger")
+        test = "import unittest\nfrom ledger import total\nclass Check(unittest.TestCase):\n def test_total(self): self.assertEqual(total([7]), 7)\n"
+        case = {"original_tests": ["tests/test_original.py"]}
+        declared = {**case, "unchanged_source_fails_original_tests": True}
+        with tempfile.TemporaryDirectory() as temporary:
+            def control(name, source, tests, case):
+                base = Path(temporary) / name / "base"
+                (base / "tests").mkdir(parents=True)
+                (base / "ledger.py").write_text(source)
+                (base / "tests/test_original.py").write_text(tests)
+                quality.visible_control(evaluator, base, base.parent / "control", case, sys.executable, None)
+            stub = "def total(values):\n    raise NotImplementedError\n"
+            with self.assertRaisesRegex(evaluator.EvaluationFailure, "unchanged-source control failed"):
+                control("undeclared", stub, test, case)
+            control("declared", stub, test, declared)
+            # A test module that cannot load means the environment, not the task, is broken.
+            with self.assertRaisesRegex(evaluator.EvaluationFailure, "unchanged-source control failed"):
+                control("broken", stub, test.replace("import total", "import missing"), declared)
+
 
 class FrozenInputTest(unittest.TestCase):
 
