@@ -74,7 +74,7 @@ cli ─► study ─► attempt: begin → prepare → measure each session → 
 | export | Complete idle-study return, including defects and local patches |
 | temper | Installed public execution commands; no catalog/installer duplication |
 | grading | The coding harness's test environment: Field Kit's Python plus hash-pinned wheels in .local/grading |
-| harnesses/coding | A bundled command-workload harness and its frozen tasks; it uses this checkout's stream and model formats |
+| harnesses/coding | Reusable coding conversation and sandboxed grading, with bundled regression tasks; it uses this checkout's stream and model formats |
 
 A new study should normally add knowledge and workload inputs. Completed work
 uses existing harnesses and project tests. Add an adapter only for a real
@@ -82,6 +82,12 @@ interface gap; do not create a new executor per study. The
 [adapter guide](ADAPTERS.md) covers the extension contracts, registration and
 Flint's format/history behavior. Existing formats need only a lock and input;
 each genuinely new engine or format gets one folder and one registry entry.
+
+New stable assessment cases, fixtures, acceptance tests, reference solutions and
+calibration belong to the owning Workshop suite. A suite can invoke the coding
+harness with an absolute task-pack path through an external command workload;
+Field Kit retains conversation, grading isolation, resource measurement and
+attempt records. Keep suite-specific business assertions out of runtime tests.
 
 Versioned briefs and inputs live in studies/. Generated execution state lives
 in .work/studies/ and stays outside version control.

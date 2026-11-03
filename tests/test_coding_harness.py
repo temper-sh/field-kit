@@ -285,6 +285,35 @@ class CodingHarnessTest(unittest.TestCase):
                 self.assertTrue(harness.evaluate_flask.group_passes(result["groups"]["original"]))
                 self.assertFalse(result["behavior_pass"])
 
+@unittest.skipUnless(SANDBOX, "the coding harness grades inside the macOS sandbox")
+class UnittestEntryModuleTest(unittest.TestCase):
+    def test_an_external_entry_module_is_used_by_each_test_group(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture, candidate = root / "fixture", root / "candidate"
+            baseline = fixture / "base"
+            (baseline / "tests").mkdir(parents=True)
+            (fixture / "oracle").mkdir()
+            (baseline / "ledger.py").write_text("def total(values): return sum(values)\n")
+            original = "import unittest\nfrom ledger import total\nclass Check(unittest.TestCase):\n def test_total(self): self.assertEqual(total([7]), 7)\n"
+            independent = original.replace("[7]), 7", "[2, 3]), 5")
+            (baseline / "tests/test_original.py").write_text(original)
+            (fixture / "oracle/test_acceptance.py").write_text(independent)
+            shutil.copytree(baseline, candidate)
+            (candidate / "tests/test_candidate_empty.py").write_text(original.replace("[7]), 7", "[]), 0"))
+            case = {"id": "external-ledger", "original_tests": ["tests/test_original.py"],
+                    "oracle": "oracle/test_acceptance.py"}
+            evaluator = harness.evaluate_unittest.UnittestEvaluation("ledger")
+            correct = evaluator.evaluate(candidate, root / "correct", case, fixture, sys.executable)
+            self.assertTrue(correct["all_pass"], correct)
+            self.assertTrue(all(group["summary"]["tests"] == 1 for group in correct["groups"].values()))
+            (candidate / "ledger.py").write_text("def total(values): return max(values, default=0)\n")
+            wrong = evaluator.evaluate(candidate, root / "wrong", case, fixture, sys.executable)
+            self.assertTrue(evaluator.group_passes(wrong["groups"]["original"]))
+            self.assertTrue(evaluator.group_passes(wrong["groups"]["candidate"]))
+            self.assertFalse(wrong["behavior_pass"])
+            self.assertEqual(wrong["groups"]["hidden"]["summary"]["failures"], 1)
+            self.assertEqual(wrong["groups"]["hidden"]["summary"]["errors"], 0)
 
 
 class FrozenInputTest(unittest.TestCase):

@@ -10,10 +10,10 @@ BOOTSTRAP = r'''
 import importlib.util, json, pathlib, sys, unittest
 expected = pathlib.Path(sys.argv[1]).resolve()
 report = pathlib.Path(sys.argv[2])
-import pagination
-assert pathlib.Path(pagination.__file__).resolve() == expected
+target = importlib.import_module(sys.argv[3])
+assert pathlib.Path(target.__file__).resolve() == expected
 suite = unittest.TestSuite()
-for index, filename in enumerate(sys.argv[3:]):
+for index, filename in enumerate(sys.argv[4:]):
     spec = importlib.util.spec_from_file_location("frozen_test_" + str(index), filename)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -38,7 +38,8 @@ def group_passes(group):
             and summary.get("tests", 0) > summary.get("skipped", 0))
 
 
-def _run_group(candidate, out, label, tests, python, oracle, baseline, *, deadline=None, observer=None):
+def _run_group(candidate, out, label, tests, python, oracle, baseline, *, deadline=None, observer=None,
+               module_name="pagination"):
     candidate, baseline, oracle = (Path(p).resolve() for p in (candidate, baseline, oracle))
     destination = (Path(out) / label).resolve()
     destination.mkdir(parents=True)
@@ -56,7 +57,8 @@ def _run_group(candidate, out, label, tests, python, oracle, baseline, *, deadli
     (destination / 'sandbox.sb').write_text(profile)
     report, log = destination / 'counts.json', destination / 'output.txt'
     argv = ['/usr/bin/sandbox-exec', '-f', str(destination / 'sandbox.sb'), str(python),
-            '-B', '-c', BOOTSTRAP, str(candidate / 'pagination.py'), str(report), *map(str, tests)]
+            '-B', '-c', BOOTSTRAP, str(candidate / (module_name + '.py')), str(report), module_name,
+            *map(str, tests)]
     env = {'PATH': '/usr/bin:/bin', 'PYTHONPATH': str(candidate), 'PYTHONNOUSERSITE': '1',
            'PYTHONDONTWRITEBYTECODE': '1', 'TMPDIR': str(destination), 'LC_ALL': 'en_US.UTF-8'}
     (destination / 'invocation.json').write_text(json.dumps({'argv': argv, 'env': env,
@@ -103,7 +105,7 @@ def _run_group(candidate, out, label, tests, python, oracle, baseline, *, deadli
 
 
 def evaluate(candidate_path, output_dir, case, fixture, python, *, visible_only=False,
-             deadline=None, observer=None, require_candidate_tests=True):
+             deadline=None, observer=None, require_candidate_tests=True, module_name="pagination"):
     candidate, fixture = Path(candidate_path).resolve(), Path(fixture).resolve()
     baseline = fixture / 'base'
     out = Path(output_dir).resolve()
@@ -114,16 +116,18 @@ def evaluate(candidate_path, output_dir, case, fixture, python, *, visible_only=
     authored = sorted((candidate / 'tests').glob('test_candidate_*.py'))
     oracle = fixture / case['oracle']
     groups = {'original': _run_group(candidate, out, 'original', original, python,
-                                     baseline / 'tests', baseline, deadline=deadline, observer=observer)}
+                                     baseline / 'tests', baseline, deadline=deadline, observer=observer,
+                                     module_name=module_name)}
     if authored:
         groups['candidate'] = _run_group(candidate, out, 'candidate', authored, python,
-                                         baseline / 'tests', baseline, deadline=deadline, observer=observer)
+                                         baseline / 'tests', baseline, deadline=deadline, observer=observer,
+                                         module_name=module_name)
     else:
         groups['candidate'] = {'exit_code': None, 'seconds': 0, 'output': None,
                                'summary': None, 'status': 'missing', 'required': require_candidate_tests}
     if not visible_only:
         groups['hidden'] = _run_group(candidate, out, 'hidden', [oracle], python, oracle.parent,
-                                      baseline, deadline=deadline, observer=observer)
+                                      baseline, deadline=deadline, observer=observer, module_name=module_name)
     behavioral = ['original'] if visible_only else ['original', 'hidden']
     count = groups['candidate'].get('summary') or {}
     result = {'case_id': case['id'], 'candidate': str(candidate), 'groups': groups,
@@ -135,3 +139,21 @@ def evaluate(candidate_path, output_dir, case, fixture, python, *, visible_only=
     result['all_pass'] = result['behavior_pass'] and (group_passes(groups['candidate']) or not require_candidate_tests)
     (out / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
     return result
+
+
+class UnittestEvaluation:
+    """Bind a real unittest task's entry module to the existing sandbox evaluator."""
+
+    EvaluationFailure = EvaluationFailure
+    group_passes = staticmethod(group_passes)
+
+    def __init__(self, module_name):
+        if not module_name.isidentifier():
+            raise ValueError("unittest entry module must be a Python identifier")
+        self.module_name = module_name
+
+    def _run_group(self, *args, **kwargs):
+        return _run_group(*args, module_name=self.module_name, **kwargs)
+
+    def evaluate(self, *args, **kwargs):
+        return evaluate(*args, module_name=self.module_name, **kwargs)

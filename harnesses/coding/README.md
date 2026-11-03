@@ -22,9 +22,13 @@ observations, and comparative source review stays with the owner.
 | `flask-async-stream` | Flask at `49b7e7bc8fb69d605719991d1c0a99fcee689053` | 1800 s, 6 responses | pytest; independent tests and two context-guard review checks |
 | `flask-template-decorators` | the same Flask revision | 1800 s, 6 responses | pytest; independent tests and 21 delegation/argument review checks |
 
-These tasks have been used in earlier studies, so they serve as labelled
-regressions and harness checks. A new quality conclusion needs unused work as
-well.
+Pagination and Flask have been used in earlier studies, so they serve as labelled
+regressions and harness checks. New assessment cases and their calibration belong
+to the suite owner. External suites can reuse this harness through a command
+workload: register an absolute task-pack path and an evaluator, then invoke
+`harness.main`. `UnittestEvaluation(module_name)` binds a Python suite's entry
+module to the existing sandbox evaluator. The external suite owns input freezing
+and includes its case and adapter hashes in the recorded source identity.
 
 ## Run
 
