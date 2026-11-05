@@ -108,9 +108,9 @@ native timing source is added to their adapters.
 0.2.9 serves `/health` and standard chat usage/cache counts. Its streamed usage
 also retains Dory's `usage.kapitsa.loops` in the raw response. Native rates and
 allocation counters remain unmeasured; common process/system memory monitoring
-still applies. The single native process has no helper roles. The
-[prepared study](../studies/kapitsa-qwen-dory.md) owns native validation and
-the template, output-budget and model-switching checks.
+still applies. The single native process has no helper roles. Native validation
+and the template, output-budget and model-switching checks are retained in Git
+history at `d49f004:studies/kapitsa-qwen-dory.md`. Kapitsa remains parked.
 
 Temper installs and runs engines. Adapters do not introduce their own
 installers, launchers, HTTP clients, lifecycle state or retry loops.

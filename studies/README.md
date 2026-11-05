@@ -15,22 +15,19 @@ investigate uncertainty that changes this study.
 Record source/revision or access date for consequential claims. Do not mirror
 the moving catalog here.
 
-## Study briefs
+## Current study
 
-The [Kapitsa overnight study](kapitsa-qwen-dory.md) compares Qwen3.8-27B with
-the existing Splash composition on the owner's M5 / 32 GiB, tunes promising
-settings, and includes a separate Dory revisit. Its completed assessment covers
-occupied context, generated-history reuse, completed coding work and the unused
-source audit. The brief links the results and local evidence exports, and
-preserves the original material, questions and comparison confounds.
+[Gemma 26B: best useful configuration on 64 GiB](gemma26-q4-tuning.md)
+is the sole current study: QAT Q4 on llama.cpp, thinking enabled, current
+grounded sampling and context strategy, with drafter and cache tuning on the
+M5 Pro / 64 GiB. Its brief owns the investigation order, fixed policy,
+comparisons and return requirements.
 
-The [64 GiB studies](64gib-studies.md) finish Splash context/cache tuning,
-compare Splash Q5/Q6 with owner-side completed-work review, and investigate
-MLX choices for Muse and Gemma 31B. Gemma 26B's engine comparison selected
-llama.cpp; its [Q4 continuation](gemma26-q4-tuning.md) prioritizes sampling,
-thinking budgets and completed-work quality before larger quants. The briefs
-also define what can be projected to 48 GiB and what still needs measurement
-there.
+Other model tracks wait; Kapitsa stays parked. Superseded briefs and unused
+preparation inputs are retired from this directory and remain in Git history.
+Returned archives and local execution evidence retain their original identities.
+The [study inputs](gemma26-q4-tuning/) preserve the historical control lock and
+thinking workload; the brief explains how to use them for the new study.
 
 Use [the brief example](study-brief.md). Most studies need a brief, candidate
 locks and reusable workload inputs. Add deterministic tools for actual missing

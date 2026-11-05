@@ -45,7 +45,7 @@ names; the agent shows their sizes before anything downloads.
    a prepared study, name its brief:
 
    > Read AGENTS.md and docs/ASSISTANT.md, then run the study in
-   > studies/splash-context-cache.md on this Mac. Reuse my existing weights
+   > studies/gemma26-q4-tuning.md on this Mac. Reuse my existing weights
    > cache. Report every problem and repair, and tell me which archive to
    > return.
 
