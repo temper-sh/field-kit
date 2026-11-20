@@ -89,7 +89,8 @@ harness with an absolute task-pack path through an external command workload;
 Field Kit retains conversation, grading isolation, resource measurement and
 attempt records. Keep suite-specific business assertions out of runtime tests.
 
-Versioned briefs and inputs live in studies/. Generated execution state lives
+The tester assignment and its inputs live in studies/. Use the
+[brief template](study-brief.md) when authoring a new study. Generated execution state lives
 in .work/studies/ and stays outside version control.
 
 Record exact Field Kit/Temper/Python identity per attempt. Repairs between

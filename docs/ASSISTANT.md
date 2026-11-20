@@ -10,7 +10,8 @@ Read existing study state, brief, results and repairs before starting new work.
 Run ./field-kit doctor and use installed Temper. Read [Temper operations](TEMPER.md)
 before relying on newer commands.
 
-Consult [relevant studies](../studies/README.md), the current model assessments
+For the tester assignment, follow the [current study](../studies/README.md)
+and its supplied queue. Consult the current model assessments
 and catalog, and primary upstream sources. Record important expectations and
 their source/revision or access date. Distinguish facts and hypotheses.
 Reuse applicable evidence. Software refreshes focus on changed material.

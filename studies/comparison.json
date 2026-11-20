@@ -1,0 +1,14 @@
+{
+  "attempts": [
+    {
+      "candidate": "gemma-26b-qat-q4-llama-plain-131072",
+      "workload": "google-vs-unsloth-62k.json",
+      "reason": "Recheck Unsloth on the original 62k middle-record lookup."
+    },
+    {
+      "candidate": "gemma26-google-qat-q4-plain",
+      "workload": "google-vs-unsloth-62k.json",
+      "reason": "Check Google's official QAT export on the same lookup and cache sequence."
+    }
+  ]
+}

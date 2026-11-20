@@ -28,8 +28,16 @@ exact and that nothing is left running.
 You need git, Temper 0.3.0 or newer, and room for the model files the study
 names; the agent shows their sizes before anything downloads.
 
-1. **Get Field Kit.** Clone it onto the Mac's internal disk (any APFS disk
-   works), because studies install their software inside this folder:
+1. **Get the current study from Git.** In your existing Field Kit checkout,
+   update between studies:
+
+   ```sh
+   git switch master
+   git pull --ff-only origin master
+   ./field-kit doctor
+   ```
+
+   For a first checkout, clone onto an APFS disk:
 
    ```sh
    git clone https://github.com/temper-sh/field-kit.git
@@ -37,23 +45,14 @@ names; the agent shows their sizes before anything downloads.
    ./field-kit doctor
    ```
 
-   The first command asks Temper to install Field Kit's own Python, about
-   27 MB, once. `doctor` changes nothing; it reports Temper, your Mac and any
-   running Temper layout.
+   On first use, Field Kit asks Temper to install its Python (about 27 MB).
+   `doctor` reports your Mac, Temper and any running layout.
 
-2. **Start your agent in this folder and give it the study.** If you were sent
-   a prepared study, name its brief:
+2. **Start your agent in this folder.** Give it this instruction:
 
-   > Read AGENTS.md and docs/ASSISTANT.md, then run the study in
-   > studies/gemma26-q4-tuning.md on this Mac. Reuse my existing weights
-   > cache. Report every problem and repair, and tell me which archive to
-   > return.
-
-   To look for good settings on your own instead:
-
-   > Help me find the best supported presets for this Mac using Field Kit.
-   > Read AGENTS.md and docs/ASSISTANT.md, agree the scope with me, and
-   > report every problem and repair.
+   > Run the single study in studies/README.md on this M5 Pro / 64 GiB.
+   > Use the two supplied locks and the prepared queue. Reuse my weights
+   > cache, show me the preview, and give me the path to the results ZIP.
 
 3. **Approve once.** The agent shows the exact presets, downloads, disk space,
    time limit and the Temper layout Field Kit will stop. Nothing is downloaded
@@ -66,9 +65,7 @@ names; the agent shows their sizes before anything downloads.
 5. **Send back the archive.** At the end the agent closes the study and
    exports one `.zip` file. Send that file to whoever asked for the study.
 
-If you ran an earlier Field Kit study from an archive, use a new clone for this
-one, and keep the old folder until its study has been returned. Update with
-`git pull` between studies, not during one.
+Keep an earlier study's folder until its results have been returned.
 
 ## What to expect
 
@@ -97,7 +94,7 @@ one, and keep the old folder until its study has been returned. Update with
 - [Working with Temper presets and locks](docs/TEMPER.md)
 - [Recover from problems and report them](docs/REPAIR.md)
 - [The bundled coding harness](harnesses/coding/README.md)
-- [Prepared studies](studies/README.md)
+- [Current tester study](studies/README.md)
 
 ## Development
 

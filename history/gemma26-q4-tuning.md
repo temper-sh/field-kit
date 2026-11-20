@@ -1,4 +1,7 @@
-# Gemma 26B: best useful configuration on 64 GiB
+# Parked Gemma 26B tuning brief
+
+This file preserves earlier measurements and the broader tuning plan. The
+[tester assignment](../studies/README.md) owns the current run.
 
 Owner decision, 5 November 2026: focus on **Gemma 4 26B-A4B only**, with
 thinking enabled, current grounded sampling/context practice, and **drafter
@@ -16,7 +19,7 @@ new inference results or machine-side approval.
 
 Copy installed Temper's `gemma-4-26b-a4b-qat-ud-q4-k-xl-llama` into an isolated
 study authoring root, inspect its records and compile exact locks. The old
-[control lock](gemma26-q4-tuning/historical-plain.lock.json)
+[control lock](../studies/unsloth-q4.lock.json)
 is historical thinking-off evidence, not the new baseline.
 
 Current policy, checked 5 November against the installed preset and upstream:
